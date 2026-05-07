@@ -402,3 +402,23 @@ def order_lab_test(recipient_id: int, model: LabOrderModel, db: Session = Depend
         "message": "Lab order recorded. Redirecting to booking service...",
         "redirect_url": "https://www.lalpathlabs.com/"
     }
+
+
+@router.get("/doctors")
+def get_all_doctors(db: Session = Depends(get_db)):
+    """
+    Returns all registered doctors for display on the caretaker main dashboard.
+    Includes name, specialization, email, and patient count.
+    """
+    from tables.users import Doctor
+    doctors = db.query(Doctor).all()
+    result = []
+    for d in doctors:
+        result.append({
+            "id": d.id,
+            "name": d.full_name or d.username,
+            "email": d.email,
+            "specialization": d.specialization or "General Practitioner",
+            "phone": d.phone_number,
+        })
+    return {"doctors": result, "total": len(result)}

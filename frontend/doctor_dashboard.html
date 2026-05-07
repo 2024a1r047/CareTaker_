@@ -778,18 +778,175 @@
             font-style: italic;
         }
 
+        /* ── Mobile Top Nav ── */
+        .mobile-top-nav {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 62px;
+            background: rgba(240, 253, 250, 0.92);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 18px;
+            z-index: 1100;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        }
+
+        .mobile-top-nav .brand-mobile {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 800;
+            font-size: 1.05rem;
+            color: var(--text);
+            letter-spacing: 0.04em;
+        }
+
+        .mobile-top-nav .brand-mobile .brand-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-light));
+            display: grid;
+            place-items: center;
+            color: white;
+            font-size: 1rem;
+        }
+
+        .mobile-top-nav .brand-mobile span { color: var(--accent); }
+
+        .mobile-hamburger {
+            background: none;
+            border: none;
+            font-size: 1.4rem;
+            color: var(--accent);
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: grid;
+            place-items: center;
+            transition: background 0.2s;
+        }
+
+        .mobile-hamburger:hover { background: var(--accent-glow); }
+
+        /* ── Mobile Bottom Nav ── */
+        .mobile-bottom-nav {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            background: rgba(240, 253, 250, 0.95);
+            backdrop-filter: blur(16px);
+            border-top: 1px solid var(--border);
+            align-items: center;
+            justify-content: space-around;
+            z-index: 1100;
+            padding: 0 10px;
+        }
+
+        .mob-nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            background: none;
+            border: none;
+            color: var(--muted);
+            font-size: 1.3rem;
+            cursor: pointer;
+            padding: 8px 14px;
+            border-radius: 12px;
+            transition: all 0.2s;
+            min-width: 60px;
+        }
+
+        .mob-nav-item.active, .mob-nav-item:hover {
+            color: var(--accent);
+            background: var(--accent-glow);
+        }
+
+        .mob-nav-item span {
+            font-size: 0.6rem;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+        }
+
+        /* ── Sidebar Mobile Drawer ── */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.35);
+            z-index: 1200;
+            backdrop-filter: blur(4px);
+        }
+
+        .sidebar-overlay.open { display: block; }
+
         /* ── Responsive ── */
         @media (max-width: 900px) {
+            .mobile-top-nav { display: flex; }
+            .mobile-bottom-nav { display: flex; }
+
             .app-shell {
                 flex-direction: column;
+                padding-top: 78px;
+                padding-bottom: 86px;
+                gap: 16px;
             }
 
             .sidebar {
-                width: 100%;
-                min-width: 100%;
-                max-height: 350px;
-                position: static;
+                position: fixed;
+                top: 0;
+                left: -110%;
+                width: 88%;
+                max-width: 360px;
+                min-width: unset;
+                height: 100vh;
+                max-height: 100vh;
+                border-radius: 0 28px 28px 0;
+                z-index: 1300;
+                transition: left 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+                overflow-y: auto;
             }
+
+            .sidebar.mobile-open { left: 0; }
+
+            main.content { padding-bottom: 24px; }
+
+            .grid-2, .grid-3 {
+                grid-template-columns: 1fr !important;
+            }
+
+            .patient-header {
+                flex-direction: column;
+                text-align: center;
+                gap: 12px;
+            }
+
+            .risk-gauge { margin: 0 auto; }
+
+            .expanded-chat-card {
+                flex-direction: column;
+                height: 95vh;
+            }
+
+            .expanded-chat-sidebar { display: none; }
+        }
+
+        @media (max-width: 480px) {
+            .app-shell { padding: 72px 12px 86px; }
+            .stat-grid { grid-template-columns: 1fr 1fr; }
+            .welcome-state { padding: 40px 20px; }
+            .welcome-state h2 { font-size: 1.2rem; }
         }
 
         /* ── Animations ── */
@@ -1081,6 +1238,22 @@
 </head>
 
 <body>
+    <!-- ══ Mobile Sidebar Overlay ══ -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobileSidebar()"></div>
+
+    <!-- ══ Mobile Top Nav ══ -->
+    <header class="mobile-top-nav">
+        <button class="mobile-hamburger" id="mobileMenuBtn" onclick="toggleMobileSidebar()" aria-label="Open patient list">
+            <i class="fas fa-bars"></i>
+        </button>
+        <div class="brand-mobile">
+            <div class="brand-icon"><i class="fas fa-user-md"></i></div>
+            <div>Care<span>Taker</span></div>
+        </div>
+        <button onclick="logout()" style="background:none;border:none;color:var(--danger);font-size:1.2rem;cursor:pointer;width:40px;height:40px;border-radius:10px;display:grid;place-items:center;" title="Logout">
+            <i class="fas fa-sign-out-alt"></i>
+        </button>
+    </header>
     <div class="app-shell">
 
         <!-- ══ Sidebar ══ -->
@@ -1342,6 +1515,30 @@
         </main>
 
     </div>
+
+    <!-- ══ Mobile Bottom Nav ══ -->
+    <nav class="mobile-bottom-nav">
+        <button class="mob-nav-item active" onclick="toggleMobileSidebar()">
+            <i class="fas fa-users"></i>
+            <span>Patients</span>
+        </button>
+        <button class="mob-nav-item" onclick="scrollToPanel('vitalsPanel')">
+            <i class="fas fa-heartbeat"></i>
+            <span>Vitals</span>
+        </button>
+        <button class="mob-nav-item" onclick="scrollToPanel('headerPanel')">
+            <i class="fas fa-user-circle"></i>
+            <span>Overview</span>
+        </button>
+        <button class="mob-nav-item" onclick="scrollToPanel('timelineList')">
+            <i class="fas fa-stream"></i>
+            <span>Timeline</span>
+        </button>
+        <button class="mob-nav-item" onclick="logout()">
+            <i class="fas fa-sign-out-alt"></i>
+            <span>Logout</span>
+        </button>
+    </nav>
 
     <!-- ══ AI Expanded Chat Overlay ══ -->
     <div class="expanded-chat-overlay" id="expandedChatOverlay">
@@ -2361,6 +2558,44 @@
                 otherHistoryEl.scrollTop = otherHistoryEl.scrollHeight;
             }
         }
+
+        // ═══════════════════════════════════════════
+        //  MOBILE SIDEBAR HELPERS
+        // ═══════════════════════════════════════════
+
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            sidebar.classList.toggle('mobile-open');
+            overlay.classList.toggle('open');
+        }
+
+        function closeMobileSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            sidebar.classList.remove('mobile-open');
+            overlay.classList.remove('open');
+        }
+
+        function scrollToPanel(id) {
+            const el = document.getElementById(id);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // Close sidebar on patient select (mobile)
+        const _origSelectPatient = selectPatient;
+        // Patch selectPatient to also close sidebar on mobile
+        const _patchedSelectPatient = async function(id) {
+            await selectPatient(id);
+            if (window.innerWidth <= 900) closeMobileSidebar();
+        };
+        // Rebind patient cards to use patched version
+        document.addEventListener('click', function(e) {
+            const card = e.target.closest('.patient-card');
+            if (card && window.innerWidth <= 900) {
+                setTimeout(closeMobileSidebar, 200);
+            }
+        });
 
         // ═══════════════════════════════════════════
         //  INIT

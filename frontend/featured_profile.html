@@ -369,6 +369,23 @@
             border: 3px solid var(--accent);
             flex-shrink: 0;
         }
+        /* Icon-based avatar fallback */
+        .profile-avatar-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 3px solid var(--accent);
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            color: white;
+            background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+        }
+        .profile-avatar-icon.female {
+            background: linear-gradient(135deg, #9d174d, #ec4899);
+        }
         .profile-name-wrap {
             flex: 1;
             min-width: 150px;
@@ -2352,11 +2369,14 @@
             
             // 1. Profile Card
             const profileEl = document.getElementById('profileCard');
-            const avatarUrl = info.gender?.toLowerCase() === 'male' ? 'https://avatar.iran.liara.run/public/boy?username=patient' : 'https://avatar.iran.liara.run/public/girl?username=patient';
+            const isFemal = (info.gender || '').toLowerCase() === 'female';
+            const avatarIcon = isFemal ? 'fa-venus' : 'fa-mars';
+            const avatarClass = isFemal ? 'female' : '';
+            const avatarHtml = `<div class="profile-avatar-icon ${avatarClass}"><i class="fas ${avatarIcon}"></i></div>`;
             
             profileEl.innerHTML = `
                 <div class="profile-header">
-                    <img src="${avatarUrl}" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzI1NjNFQiI+PHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPjwvc3ZnPg==';" class="profile-avatar" alt="Profile">
+                    ${avatarHtml}
                     <div class="profile-name-wrap">
                         <div class="profile-name">${info.name}</div>
                         <div class="profile-meta-badge">${info.age} / ${info.gender || '—'} • ${info.blood_group || '—'}</div>

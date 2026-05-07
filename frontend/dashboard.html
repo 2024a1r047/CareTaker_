@@ -151,15 +151,42 @@
             width: 80px;
             height: 80px;
             border-radius: 50%;
-            overflow: hidden;
             border: 3px solid white;
             box-shadow: var(--shadow-sm);
+            background: var(--primary-light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
         }
 
         .profile-avatar-wrap img {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            display: block;
+        }
+
+        .profile-avatar-wrap .avatar-icon-fallback {
+            font-size: 2.4rem;
+            color: var(--primary);
+            display: none;
+            width: 100%;
+            height: 100%;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .profile-avatar-wrap.no-photo {
+            overflow: visible;
+        }
+
+        .profile-avatar-wrap.no-photo img {
+            display: none;
+        }
+
+        .profile-avatar-wrap.no-photo .avatar-icon-fallback {
+            display: flex;
         }
 
         .profile-info h2 {
@@ -280,12 +307,16 @@
             border-radius: 16px;
             overflow: hidden;
             background: var(--primary-light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .elder-avatar-wrap img {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            display: block;
         }
 
         .elder-main h4 {
@@ -1502,10 +1533,124 @@
             color: #64748b;
         }
 
-        .elder-arrow {
-            color: #1e3a8a;
-            font-size: 1.2rem;
-            opacity: 0.8;
+        /* Care Team Section */
+        .care-team-section {
+            margin-top: 32px;
+            margin-bottom: 24px;
+        }
+
+        .doctor-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .doctor-card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 16px 20px;
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            border: 1px solid var(--border-light);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .doctor-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .doctor-avatar {
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            color: white;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(30, 58, 138, 0.2);
+        }
+
+        .doctor-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+
+        .doctor-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .doctor-info h4 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 2px;
+        }
+
+        .doctor-info p {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .doctor-stat-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            padding: 6px 12px;
+            border-radius: 99px;
+            flex-shrink: 0;
+        }
+
+        .doc-badge-patients {
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+
+        .doc-badge-alerts {
+            background: #fff7ed;
+            color: #c2410c;
+        }
+
+        .empty-care-team {
+            text-align: center;
+            padding: 32px 20px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .empty-care-team i {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: var(--primary);
+            display: block;
+        }
+
+        .elder-avatar-wrap.no-photo {
+            overflow: visible;
+        }
+        .elder-avatar-wrap.no-photo img { display: none; }
+        .elder-avatar-wrap.no-photo .elder-avatar-icon { display: flex; }
+        .elder-avatar-icon {
+            width: 100%;
+            height: 100%;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            color: var(--primary);
+            display: none;
         }
         /* Global Button System */
         .btn {
@@ -1610,8 +1755,12 @@
             <!-- Section 1: Caregiver Profile Card -->
             <section id="caregiverProfile" class="profile-section">
                 <div class="profile-card">
-                    <div class="profile-avatar-wrap">
-                        <img id="profileAvatar" src="" alt="Caretaker">
+                    <!-- Avatar: starts with icon, replaced by photo if available -->
+                    <div class="profile-avatar-wrap no-photo" id="profileAvatarWrap">
+                        <img id="profileAvatar" src="" alt="Caretaker" style="display:none;"
+                            onload="this.style.display='block'; this.closest('.profile-avatar-wrap').classList.remove('no-photo')"
+                            onerror="this.style.display='none'; this.closest('.profile-avatar-wrap').classList.add('no-photo')">
+                        <i class="fas fa-user avatar-icon-fallback"></i>
                     </div>
                     <div class="profile-info">
                         <h2 id="caretakerDisplayName">---</h2>
@@ -1650,6 +1799,19 @@
                     <!-- Cards injected here -->
                     <div class="muted" style="text-align: center; padding: 40px;">
                         <i class="fas fa-spinner fa-spin"></i> Loading health records...
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 4: Your Care Team (Doctors) -->
+            <section class="care-team-section">
+                <div class="section-header">
+                    <h3><i class="fas fa-user-md" style="color:var(--primary);margin-right:8px;"></i>Your Care Team</h3>
+                    <span class="see-all" id="doctorCountBadge"></span>
+                </div>
+                <div id="doctorsList" class="doctor-list">
+                    <div class="muted" style="text-align:center;padding:24px;">
+                        <i class="fas fa-spinner fa-spin"></i> Loading doctors...
                     </div>
                 </div>
             </section>
@@ -1857,9 +2019,20 @@
                 const hubName = document.getElementById('caretakerDisplayName');
                 const hubEmail = document.getElementById('caretakerDisplayEmail');
                 const hubAvatar = document.getElementById('profileAvatar');
+                const hubAvatarWrap = document.getElementById('profileAvatarWrap');
                 if (hubName) hubName.textContent = name;
                 if (hubEmail) hubEmail.textContent = caretaker.email || '---';
-                if (hubAvatar) hubAvatar.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=1e3a8a&color=fff&size=140`;
+                if (hubAvatar) {
+                    // Use actual photo if available, else fall back to ui-avatars (never broken)
+                    const photoUrl = caretaker.photo_url || caretaker.profile_photo || caretaker.avatar_url || null;
+                    if (photoUrl) {
+                        hubAvatar.src = photoUrl;
+                    } else {
+                        // No real photo: show the icon fallback
+                        if (hubAvatarWrap) hubAvatarWrap.classList.add('no-photo');
+                        hubAvatar.src = ''; // leave blank; onerror will also catch bad URLs
+                    }
+                }
 
                 recipientsCache = data.care_recipients || [];
                 renderRecipients(recipientsCache);
@@ -2040,16 +2213,23 @@
                 hubListEl.innerHTML = '<div class="muted" style="text-align: center; padding: 40px;">No family elders registered yet.</div>';
             } else {
                 hubListEl.innerHTML = list.map(r => {
-                    const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(r.full_name)}&background=random&size=100`;
                     const risk = r.risk_score || 0;
-                    let riskColor = '#10b981'; // Success
-                    if (risk > 70) riskColor = '#ef4444'; // Danger
-                    else if (risk > 40) riskColor = '#f59e0b'; // Warning
+                    let riskColor = '#10b981';
+                    if (risk > 70) riskColor = '#ef4444';
+                    else if (risk > 40) riskColor = '#f59e0b';
+
+                    // Only use photo if explicitly provided; else show icon
+                    const hasPhoto = r.photo_url || r.profile_photo;
+                    const avatarHtml = hasPhoto
+                        ? `<img src="${hasPhoto}" alt="${r.full_name}" onerror="this.closest('.elder-avatar-wrap').classList.add('no-photo')">
+                           <span class="elder-avatar-icon"><i class="fas fa-user"></i></span>`
+                        : `<img src="" alt="" style="display:none">
+                           <span class="elder-avatar-icon" style="display:flex;"><i class="fas fa-user"></i></span>`;
 
                     return `
                         <div class="elder-card">
-                            <div class="elder-avatar-wrap">
-                                <img src="${avatar}" alt="${r.full_name}">
+                            <div class="elder-avatar-wrap ${!hasPhoto ? 'no-photo' : ''}">
+                                ${avatarHtml}
                             </div>
                             <div class="elder-main">
                                 <h4>${r.full_name}</h4>
@@ -2111,6 +2291,97 @@
             } catch (err) {
                 console.error('Error downloading weekly report:', err);
                 alert('Could not download the weekly report. Please try again later.');
+            }
+        }
+
+        // ═══════════════════════════════════════════
+        //  DOCTORS / CARE TEAM SECTION
+        // ═══════════════════════════════════════════
+
+        async function fetchDoctors() {
+            const listEl = document.getElementById('doctorsList');
+            const countEl = document.getElementById('doctorCountBadge');
+            if (!listEl) return;
+            try {
+                const res = await fetch(`${API_BASE}/doctors`, {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!res.ok) throw new Error('failed');
+                const data = await res.json();
+                // data.doctors = actual doctor records from DB
+                renderDoctors(data.doctors && data.doctors.length > 0 ? data.doctors : null);
+            } catch {
+                // Show placeholder if endpoint fails
+                renderDoctors(null);
+            }
+        }
+
+        function renderDoctors(doctors) {
+            const listEl = document.getElementById('doctorsList');
+            const countEl = document.getElementById('doctorCountBadge');
+            if (!listEl) return;
+
+            if (doctors && doctors.length > 0) {
+                if (countEl) countEl.textContent = doctors.length + ' doctor' + (doctors.length > 1 ? 's' : '');
+                listEl.innerHTML = doctors.map(d => {
+                    const initials = (d.name || 'Dr').split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+                    const avatarColors = ['#1e3a8a,#3b82f6','#0d9488,#14b8a6','#7c3aed,#a78bfa','#be185d,#ec4899','#b45309,#f59e0b'];
+                    const colorIdx = (d.id || 0) % avatarColors.length;
+                    const grad = avatarColors[colorIdx];
+                    return `
+                        <div class="doctor-card">
+                            <div class="doctor-avatar" style="background: linear-gradient(135deg, ${grad.split(',')[0]}, ${grad.split(',')[1]});">
+                                ${d.photo_url
+                                    ? `<img src="${d.photo_url}" alt="${d.name}" onerror="this.style.display='none'">`
+                                    : `<span style="font-weight:800;font-size:1.1rem;">${initials}</span>`
+                                }
+                            </div>
+                            <div class="doctor-info">
+                                <h4>${d.name || 'Unknown Doctor'}</h4>
+                                <p><i class="fas fa-stethoscope" style="margin-right:5px;"></i>${d.specialization || 'General Practitioner'} &middot; <i class="fas fa-envelope" style="margin-left:4px;margin-right:4px;"></i>${d.email || 'CareTaker.ai'}</p>
+                            </div>
+                            <span class="doctor-stat-badge doc-badge-patients">
+                                <i class="fas fa-user-md"></i>
+                                Doctor
+                            </span>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                // Show a styled placeholder "care team" card for the CareTaker.ai platform doctor
+                if (countEl) countEl.textContent = 'Active';
+                listEl.innerHTML = `
+                    <div class="doctor-card">
+                        <div class="doctor-avatar" style="background: linear-gradient(135deg, #0d9488, #14b8a6);">
+                            <i class="fas fa-user-md"></i>
+                        </div>
+                        <div class="doctor-info">
+                            <h4>CareTaker.ai Medical Team</h4>
+                            <p><i class="fas fa-stethoscope" style="margin-right:5px;"></i>AI-Assisted Care &middot; Monitoring all recipients</p>
+                        </div>
+                        <span class="doctor-stat-badge doc-badge-patients">
+                            <i class="fas fa-heartbeat"></i>
+                            Active
+                        </span>
+                    </div>
+                    <div class="doctor-card">
+                        <div class="doctor-avatar" style="background: linear-gradient(135deg, #7c3aed, #a78bfa);">
+                            <i class="fas fa-brain"></i>
+                        </div>
+                        <div class="doctor-info">
+                            <h4>AI Health Advisor</h4>
+                            <p><i class="fas fa-robot" style="margin-right:5px;"></i>Gemini-Powered &middot; 24/7 Available</p>
+                        </div>
+                        <span class="doctor-stat-badge" style="background:#f3e8ff;color:#7c3aed;">
+                            <i class="fas fa-bolt"></i>
+                            AI Active
+                        </span>
+                    </div>
+                    <div style="text-align:center;padding:8px 0;font-size:0.8rem;color:var(--text-muted);">
+                        <i class="fas fa-info-circle" style="margin-right:4px;"></i>
+                        Assigned doctors will appear here once connected by your administrator.
+                    </div>
+                `;
             }
         }
 
@@ -3844,6 +4115,7 @@
         }
 
         fetchProfile();
+        fetchDoctors(); // Load doctors / care team section
         fetchAndRenderRecordings();
         fetchAudioAnalytics(); // Load audio analytics on page load
 
