@@ -2064,12 +2064,53 @@
                                     <div class="risk-bar-fill" style="width: ${risk}%; background: ${riskColor}"></div>
                                 </div>
                             </div>
-                            <button class="btn btn-primary" onclick="location.href='featured_profile.html?recipient_id=${r.id}'">
-                                View Health Record
-                            </button>
+                            <div style="grid-column: 1 / 4; display: flex; gap: 10px; margin-top: 16px;">
+                                <button class="btn btn-primary" style="flex: 1;" onclick="location.href='featured_profile.html?recipient_id=${r.id}'">
+                                    View Health Record
+                                </button>
+                                <button class="btn btn-secondary" style="flex: 1;" onclick="downloadLatestWeeklyReport(${r.id}, '${r.full_name}')" title="Download this week's AI health report">
+                                    <i class="fas fa-file-download"></i> Weekly Report
+                                </button>
+                            </div>
                         </div>
                     `;
                 }).join('');
+            }
+        }
+
+        async function downloadLatestWeeklyReport(recipientId, name) {
+            try {
+                // First get the latest report ID
+                const latestRes = await fetch(`${API_BASE}/recipients/${recipientId}/weekly-reports/latest`, {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!latestRes.ok) {
+                    if (latestRes.status === 404) {
+                        alert(`No weekly reports found for ${name} yet. They are generated every Friday.`);
+                        return;
+                    }
+                    throw new Error('Failed to fetch latest report');
+                }
+                const latest = await latestRes.json();
+                
+                // Then download it
+                const dlRes = await fetch(`${API_BASE}/recipients/${recipientId}/weekly-reports/${latest.report_id}/download`, {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!dlRes.ok) throw new Error('Download failed');
+                
+                const blob = await dlRes.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `weekly_report_${name.replace(/\s+/g, '_')}_${latest.week_start}.json`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                console.error('Error downloading weekly report:', err);
+                alert('Could not download the weekly report. Please try again later.');
             }
         }
 

@@ -23,9 +23,9 @@ from tables.conversation_history import ConversationMessage
 from tables.allergies import Allergy
 
 # ─── Model Constants ────────────────────────────────────────────────────────# 3-Tier AI constants
-LITE_MODEL  = "gemini-1.5-flash"  # Primary fast model
-FLASH_MODEL = "gemini-2.0-flash"  # Primary reasoning model
-PRO_MODEL   = "gemini-1.5-pro"    # Deep clinical reasoning (fallback/critical)
+LITE_MODEL  = "gemini-2.5-flash-lite"  # Light triage (20 RPD)
+FLASH_MODEL = "gemini-3.1-flash-lite"  # Primary reasoning model (500 RPD)
+PRO_MODEL   = "gemini-2.5-flash"       # Deep clinical reasoning (fallback/critical)
 
 # ─── v3 Pipeline Gates ──────────────────────────────────────────────────────
 LEGACY_RULE_ENGINE_WRITES_ENABLED = False  # STOP direct DB writes from old rules
@@ -59,9 +59,9 @@ CONDITION_GROUPS = {
 
 # Daily budget guard — never exceed these
 DAILY_BUDGET = {
-    LITE_MODEL:  490,   # leave 10 buffer from 500 RPD
-    FLASH_MODEL: 18,    # leave 2 buffer from 20 RPD
-    PRO_MODEL:   3,     # treat as extremely precious
+    LITE_MODEL:  18,    # leave 2 buffer from 20 RPD
+    FLASH_MODEL: 490,   # leave 10 buffer from 500 RPD
+    PRO_MODEL:   15,    # leave 5 buffer from 20 RPD
 }
 
 EMBEDDING_MODEL = "text-embedding-004"

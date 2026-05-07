@@ -6,6 +6,10 @@ Endpoints for patient medical state, conditions, trends, alerts, and AI analysis
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from config import get_db
+from typing import List, Optional
+from pydantic import BaseModel
+from services.lab_analytics_ai import analyze_lab_trends
+from services.weekly_report_generator import generate_weekly_report
 
 from repository import medical_history as repo
 from services.disease_progression import detect_trend, calculate_volatility, volatility_label
@@ -201,6 +205,133 @@ def get_metric_trend(
         "volatility_label": volatility_label(calculate_volatility(values)),
         "latest_value": values[-1] if values else None,
     }
+
+
+class LabAnalysisRequest(BaseModel):
+    metric_names: Optional[List[str]] = None
+
+@router.post("/{recipient_id}/lab-analysis")
+def analyze_lab_data(
+    recipient_id: int,
+    request: LabAnalysisRequest,
+    db: Session = Depends(get_db)
+):
+    """Analyze lab trends using Gemini AI."""
+    trends_result = get_trends(recipient_id, db)
+    metrics_to_analyze = trends_result.get("metrics", [])
+    
+    if request.metric_names:
+        metrics_to_analyze = [m for m in metrics_to_analyze if m["metric_name"] in request.metric_names]
+        
+    analysis_results = analyze_lab_trends(metrics_to_analyze)
+    return {
+        "analysis": analysis_results
+    }
+
+
+# ---------- Weekly Reports ----------
+
+@router.get("/{recipient_id}/weekly-reports")
+def list_weekly_reports(
+    recipient_id: int,
+    limit: int = 10,
+    offset: int = 0,
+    db: Session = Depends(get_db)
+):
+    """List past weekly reports for a recipient."""
+    from tables.weekly_reports import WeeklyReport
+    from sqlalchemy import desc
+    reports = db.query(WeeklyReport).filter(
+        WeeklyReport.care_recipient_id == recipient_id
+    ).order_by(desc(WeeklyReport.week_start)).offset(offset).limit(limit).all()
+    return {
+        "reports": [
+            {
+                "report_id": r.id,
+                "week_start": str(r.week_start),
+                "week_end": str(r.week_end),
+                "overall_score": r.overall_score,
+                "risk_trend": r.risk_trend,
+                "model_used": r.model_used,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in reports
+        ]
+    }
+
+
+@router.get("/{recipient_id}/weekly-reports/latest")
+def get_latest_weekly_report(
+    recipient_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get the most recent weekly report."""
+    from tables.weekly_reports import WeeklyReport
+    from sqlalchemy import desc
+    report = db.query(WeeklyReport).filter(
+        WeeklyReport.care_recipient_id == recipient_id
+    ).order_by(desc(WeeklyReport.week_start)).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="No weekly reports found")
+    return {
+        "report_id": report.id,
+        "week_start": str(report.week_start),
+        "week_end": str(report.week_end),
+        "sections": report.report_data,
+        "ai_narrative": report.ai_narrative,
+        "comparison": report.comparison,
+        "overall_score": report.overall_score,
+        "risk_trend": report.risk_trend,
+        "model_used": report.model_used,
+    }
+
+
+@router.post("/{recipient_id}/weekly-reports/generate")
+def generate_report_on_demand(
+    recipient_id: int,
+    db: Session = Depends(get_db)
+):
+    """Manually generate a weekly report (for testing or on-demand refresh)."""
+    result = generate_weekly_report(recipient_id, db)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+@router.get("/{recipient_id}/weekly-reports/{report_id}/download")
+def download_weekly_report(
+    recipient_id: int,
+    report_id: int,
+    db: Session = Depends(get_db)
+):
+    """Download a weekly report as a JSON file for the dashboard."""
+    from tables.weekly_reports import WeeklyReport
+    from fastapi.responses import JSONResponse
+    report = db.query(WeeklyReport).filter(
+        WeeklyReport.id == report_id,
+        WeeklyReport.care_recipient_id == recipient_id
+    ).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    download_payload = {
+        "report_id": report.id,
+        "recipient_id": recipient_id,
+        "week_start": str(report.week_start),
+        "week_end": str(report.week_end),
+        "overall_score": report.overall_score,
+        "risk_trend": report.risk_trend,
+        "sections": report.report_data,
+        "ai_narrative": report.ai_narrative,
+        "comparison": report.comparison,
+        "model_used": report.model_used,
+        "generated_at": report.created_at.isoformat() if report.created_at else None,
+    }
+    filename = f"weekly_report_{recipient_id}_{report.week_start}.json"
+    return JSONResponse(
+        content=download_payload,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
 
 
 # ---------- Alerts ----------

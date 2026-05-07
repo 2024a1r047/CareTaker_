@@ -2356,7 +2356,7 @@
             
             profileEl.innerHTML = `
                 <div class="profile-header">
-                    <img src="${avatarUrl}" class="profile-avatar" alt="Profile">
+                    <img src="${avatarUrl}" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzI1NjNFQiI+PHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPjwvc3ZnPg==';" class="profile-avatar" alt="Profile">
                     <div class="profile-name-wrap">
                         <div class="profile-name">${info.name}</div>
                         <div class="profile-meta-badge">${info.age} / ${info.gender || '—'} • ${info.blood_group || '—'}</div>
@@ -3358,57 +3358,73 @@
             // Selected Metrics Summary removed as per user request
         }
 
-        function renderLabInsights(selected, grouped) {
+        async function renderLabInsights(selected, grouped) {
             const container = document.getElementById('labInsightsContainer');
             if (!container) return;
 
-            let html = '';
-            
-            selected.forEach(m => {
-                const data = grouped[m];
-                if (data.length < 2) return;
+            // Show loading
+            container.innerHTML = `
+                <div style="text-align:center; padding:20px; color:var(--text-muted);">
+                    <i class="fas fa-spinner fa-spin" style="margin-right:8px; color:var(--accent);"></i>
+                    Generating AI insights via Gemini...
+                </div>
+            `;
 
-                const latest = data[data.length - 1];
-                const previous = data[data.length - 2];
-                const diff = latest.test_value - previous.test_value;
-                const percent = Math.abs((diff / previous.test_value) * 100).toFixed(0);
+            try {
+                const res = await fetch(`${API_BASE}/recipients/${recipientId}/lab-analysis`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ metric_names: selected })
+                });
 
-                if (latest.is_abnormal || Math.abs(percent) > 10) {
-                    const isIncrease = diff > 0;
-                    const isBetter = (m.toLowerCase().includes('hdl')) ? isIncrease : !isIncrease;
+                if (!res.ok) throw new Error('Failed to fetch AI lab insights');
+                const responseData = await res.json();
+                const aiInsights = responseData.analysis || [];
+
+                let html = '';
+
+                aiInsights.forEach(insight => {
+                    const sevColor = insight.risk_level === 'critical' ? '#EF4444' : (insight.risk_level === 'high' ? '#F97316' : (insight.risk_level === 'moderate' ? '#F59E0B' : '#10B981'));
+                    const sevBg = insight.risk_level === 'critical' ? '#FEF2F2' : (insight.risk_level === 'high' ? '#FFF7ED' : (insight.risk_level === 'moderate' ? '#FFFBEB' : '#ECFDF5'));
                     
-                    if (!isBetter || latest.is_abnormal) {
-                        html += `
-                            <div class="insight-card" style="background:#FFF7ED;">
-                                <div class="insight-icon-wrap" style="color:#F97316;">
-                                    <i class="fas fa-chart-line"></i>
-                                </div>
-                                <div class="insight-text-wrap">
-                                    <div class="insight-label" style="color:#9A3412;">Critical Insight</div>
-                                    <div class="insight-message">${m} ${isIncrease ? 'increased' : 'decreased'} by ${percent}% since last test</div>
-                                </div>
+                    html += `
+                        <div class="insight-card" style="background:${sevBg}; border: 1px solid ${sevColor}40; margin-bottom: 12px; border-radius: 12px; align-items:flex-start;">
+                            <div class="insight-icon-wrap" style="color:${sevColor}; margin-top:2px;">
+                                <i class="fas fa-magic"></i>
                             </div>
-                        `;
-                    }
+                            <div class="insight-text-wrap" style="width: 100%;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 4px;">
+                                    <div class="insight-label" style="color:${sevColor}; font-weight: 700;">AI Insight: ${insight.metric_name}</div>
+                                    <div style="font-size:0.6rem; color:${sevColor}; opacity:0.7; border: 1px solid ${sevColor}40; padding:2px 6px; border-radius:10px;">${insight.model_used || 'Gemini'}</div>
+                                </div>
+                                <div class="insight-message" style="margin-bottom: 6px; font-weight:600; color:var(--text-main); font-size:0.95rem;">${insight.summary}</div>
+                                <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:3px;"><i class="fas fa-arrow-trend-up" style="width:16px; color:#94A3B8;"></i> <strong>Pattern:</strong> ${insight.pattern}</div>
+                                <div style="font-size:0.8rem; color:var(--text-muted);"><i class="fas fa-user-nurse" style="width:16px; color:#94A3B8;"></i> <strong>Action:</strong> <span style="color:var(--text-main);">${insight.caregiver_action}</span></div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                // Fallback Health Insight if AI returns nothing (which means stable)
+                if (!html) {
+                    html = `
+                        <div class="insight-card" style="background:#F1F5F9;">
+                            <div class="insight-icon-wrap" style="color:#10B981;">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div class="insight-text-wrap">
+                                <div class="insight-label" style="color:#475569;">Metabolic Health</div>
+                                <div class="insight-message">Tracked markers remain within acceptable variance ranges. No critical AI alerts.</div>
+                            </div>
+                        </div>
+                    `;
                 }
-            });
 
-            // Fallback Health Insight
-            if (!html) {
-                html = `
-                    <div class="insight-card" style="background:#F1F5F9;">
-                        <div class="insight-icon-wrap" style="color:#10B981;">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <div class="insight-text-wrap">
-                            <div class="insight-label" style="color:#475569;">Metabolic Health</div>
-                            <div class="insight-message">Tracked markers remain within acceptable variance ranges.</div>
-                        </div>
-                    </div>
-                `;
+                container.innerHTML = html;
+            } catch(e) {
+                console.error("AI Insight Error:", e);
+                container.innerHTML = `<div style="color:var(--critical); font-size:0.85rem; padding: 10px;"><i class="fas fa-exclamation-triangle"></i> Failed to connect to Gemini AI Engine.</div>`;
             }
-
-            container.innerHTML = html;
         }
 
 

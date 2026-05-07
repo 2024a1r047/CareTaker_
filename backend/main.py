@@ -42,6 +42,7 @@ import tables.medication_dose_logs as medication_dose_logs_tables
 import tables.allergies as allergies_tables
 import tables.admin as admin_tables
 import tables.thresholds as thresholds_tables
+import tables.weekly_reports as weekly_reports_tables
 
 # Import routes
 import routes.users as user_routes

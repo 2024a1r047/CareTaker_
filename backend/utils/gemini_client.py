@@ -20,10 +20,9 @@ BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
 # Optimized model order: Stable models first, slower preview models last.
 FALLBACK_MODELS = [
-    "gemini-1.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-pro",
-    "gemini-flash-latest"
+    "gemini-3.1-flash-lite",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash"
 ]
 
 def safe_json_parse(text: str) -> dict | None:
@@ -69,7 +68,7 @@ def call_gemini(payload: dict, timeout: int = 30, caller: str = "", model_overri
         return None
 
     # Get primary model from override or env
-    primary_model = model_override or os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
+    primary_model = model_override or os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
     
     # Create the sequence of models to try
     models_to_try = [primary_model]

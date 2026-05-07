@@ -473,6 +473,73 @@ def run_daily_recommendations():
 
 
 # ─────────────────────────────────────────────────────────────
+# 7. WEEKLY HEALTH REPORT (Every Friday 9:00 AM)
+# ─────────────────────────────────────────────────────────────
+
+def generate_weekly_reports():
+    """
+    Every Friday at 9:00 AM: generate a weekly health report for every
+    care recipient, then email it to the caretaker.
+    """
+    db = _get_db()
+    try:
+        from services.weekly_report_generator import generate_all_weekly_reports
+        from services.email_notifications import send_weekly_report_email
+        from tables.users import CareRecipient, CareTaker
+        from tables.weekly_reports import WeeklyReport
+
+        results = generate_all_weekly_reports(db)
+        print(f"[scheduler] [WEEKLY] Generated {len(results)} weekly reports")
+
+        # Send emails for newly generated reports
+        for result in results:
+            if result.get("status") != "ok":
+                continue
+            try:
+                recipient = db.query(CareRecipient).filter(
+                    CareRecipient.id == result["id"]
+                ).first()
+                if not recipient:
+                    continue
+                caretaker = db.query(CareTaker).filter(
+                    CareTaker.id == recipient.caretaker_id
+                ).first()
+                if not caretaker or not caretaker.email:
+                    continue
+
+                # Get the latest report for this recipient
+                report = db.query(WeeklyReport).filter(
+                    WeeklyReport.care_recipient_id == recipient.id
+                ).order_by(WeeklyReport.created_at.desc()).first()
+
+                if report and not report.email_sent:
+                    report_payload = {
+                        "overall_score": report.overall_score,
+                        "risk_trend": report.risk_trend,
+                        "ai_narrative": report.ai_narrative,
+                        "sections": report.report_data,
+                        "week_start": str(report.week_start),
+                        "week_end": str(report.week_end),
+                    }
+                    sent = send_weekly_report_email(
+                        to_email=caretaker.email,
+                        recipient_name=recipient.full_name,
+                        report_data=report_payload,
+                    )
+                    if sent:
+                        report.email_sent = True
+                        db.commit()
+                        print(f"[scheduler] [WEEKLY] Email sent for {recipient.full_name}")
+            except Exception as e:
+                print(f"[scheduler] [WEEKLY] Email failed for recipient {result['id']}: {e}")
+
+    except Exception as e:
+        print(f"[scheduler] Weekly report generation failed: {e}")
+    finally:
+        db.close()
+
+
+# ─────────────────────────────────────────────────────────────
 # DISABLED — passive auto-decrement (replaced by confirmation flow)
 # ─────────────────────────────────────────────────────────────
 
@@ -500,6 +567,7 @@ def _scheduler_loop():
     last_report_check         = None
     last_auto_reorder_check   = None
     last_recommendation_run   = None
+    last_weekly_report_run    = None     # tracks weekly report generation
 
     while not _stop_event.is_set():
         now   = datetime.datetime.now()
@@ -544,6 +612,14 @@ def _scheduler_loop():
                 last_recommendation_run = today
             except Exception as e:
                 print(f"[scheduler] Daily recommendations loop error: {e}")
+
+        # ── Weekly report — Friday 9:00 AM ──
+        if now.weekday() == 4 and now.hour >= 9 and last_weekly_report_run != today:
+            try:
+                generate_weekly_reports()
+                last_weekly_report_run = today
+            except Exception as e:
+                print(f"[scheduler] Weekly report loop error: {e}")
 
         # Sleep 60 s, checking stop every second for clean shutdown
         for _ in range(60):
