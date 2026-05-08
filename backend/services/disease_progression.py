@@ -73,22 +73,36 @@ def detect_trend(values: list) -> str:
     if not diffs:
         return "stable"
 
-    pos = sum(1 for d in diffs if d > 0)
-    neg = sum(1 for d in diffs if d < 0)
-    total = len(diffs)
+    # Introduction of a noise threshold (e.g., 2% of the average value)
+    avg_val = sum(recent) / len(recent)
+    noise_threshold = abs(avg_val) * 0.02 if avg_val != 0 else 0.1
+
+    # Filter significant diffs
+    sig_diffs = [d for d in diffs if abs(d) > noise_threshold]
+    
+    if not sig_diffs:
+        # Check if there is a slow but steady trend even if each step is small
+        total_diff = recent[-1] - recent[0]
+        if abs(total_diff) > noise_threshold * 2:
+            return "increasing" if total_diff > 0 else "decreasing"
+        return "stable"
+
+    pos = sum(1 for d in sig_diffs if d > 0)
+    neg = sum(1 for d in sig_diffs if d < 0)
+    total = len(sig_diffs)
 
     if pos == total:
         return "increasing"
     elif neg == total:
         return "decreasing"
-    elif pos >= total * 0.6:
+    elif pos >= total * 0.7:
         return "increasing"
-    elif neg >= total * 0.6:
+    elif neg >= total * 0.7:
         return "decreasing"
 
-    # Check for fluctuation (alternating directions)
-    alternations = sum(1 for i in range(len(diffs)-1) if (diffs[i] > 0) != (diffs[i+1] > 0))
-    if alternations >= len(diffs) * 0.5:
+    # Check for fluctuation (alternating significant directions)
+    alternations = sum(1 for i in range(len(sig_diffs)-1) if (sig_diffs[i] > 0) != (sig_diffs[i+1] > 0))
+    if alternations >= 1: # Any significant reversal in a small window is a fluctuation
         return "fluctuating"
 
     return "stable"

@@ -7,6 +7,7 @@
     <title>Care-Recipient Profile</title>
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root {
@@ -3325,6 +3326,7 @@
 
             charts.labs = new Chart(ctx, {
                 type: 'line',
+                plugins: [ChartDataLabels],
                 data: { 
                     labels: allDates.map(d => new Date(d).toLocaleDateString([], {month:'short', day:'numeric', year:'numeric'})),
                     datasets: selected.map((m, index) => {
@@ -3337,12 +3339,22 @@
                             label: m,
                             data: datasetData,
                             borderColor: chartColors[index % chartColors.length],
+                            backgroundColor: chartColors[index % chartColors.length],
                             fill: false,
                             tension: 0.4,
                             borderWidth: 2,
-                            pointRadius: 0,
-                            pointHoverRadius: 6,
-                            spanGaps: true
+                            pointRadius: 5,
+                            pointHoverRadius: 8,
+                            pointBackgroundColor: '#fff',
+                            spanGaps: true,
+                            datalabels: {
+                                align: 'top',
+                                anchor: 'end',
+                                color: chartColors[index % chartColors.length],
+                                font: { weight: 'bold', size: 10 },
+                                offset: 4,
+                                formatter: (val) => val !== null ? val : ''
+                            }
                         };
                     })
                 },
@@ -3350,6 +3362,9 @@
                     ...CHART_THEME.baseOptions,
                     plugins: {
                         ...CHART_THEME.baseOptions.plugins,
+                        datalabels: {
+                            display: true
+                        },
                         subtitle: {
                             display: true,
                             text: `${selected[0] || 'Lab'} Trend: ${trendLabel}`,

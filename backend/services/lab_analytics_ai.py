@@ -57,20 +57,26 @@ def analyze_lab_trends(trends_data: List[Dict[str, Any]]) -> List[Dict[str, Any]
 Analyze this lab trend and provide a short, actionable insight for the caregiver.
 
 METRIC: {metric_name}
-TREND DIRECTION: {trend_direction}
+TREND DIRECTION: {trend_direction} (Note: 'stable' or 'increasing/decreasing' means consistent, ignore minor noise)
 LATEST VALUE: {latest_value}
 HISTORICAL DATA: {json.dumps(history_list)}
+
+ANALYSIS GUIDELINES:
+1. If the trend is "stable", focus on maintenance and reassurance.
+2. If "increasing" or "decreasing", explain if this is "Good" or "Bad" for this specific metric (e.g., decreasing HbA1c is good, decreasing Hemoglobin might be bad).
+3. Only use the word "fluctuation" if there are significant, sharp reversals in direction.
+4. Keep the summary clinical yet easy for a non-medical caregiver to understand.
 
 OUTPUT FORMAT (Valid JSON only):
 {{
   "summary": "One clear sentence explaining what this trend means in plain English.",
   "risk_level": "low | moderate | high | critical",
-  "pattern": "A short phrase describing the pattern (e.g., 'Progressive upward trend')",
-  "caregiver_action": "One specific action the caregiver should take (e.g., 'Schedule a doctor appointment', 'Monitor next week')",
+  "pattern": "A short phrase describing the pattern (e.g., 'Stable readings', 'Gradual downward trend')",
+  "caregiver_action": "One specific action the caregiver should take (e.g., 'Continue current regimen', 'Consult doctor')",
   "lifestyle_tips": ["Tip 1", "Tip 2"]
 }}
 
-Do not include any markdown fences or extra text, just the raw JSON.
+Do not include markdown fences. Output raw JSON.
 """
         try:
             response = call_gemini({
