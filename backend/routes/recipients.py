@@ -1256,8 +1256,376 @@ async def resolve_recommendation(recipient_id: int, rec_id: int, db: Session = D
     
     if not rec:
         raise HTTPException(status_code=404, detail="Recommendation not found")
-    
+
     rec.resolved_at = datetime.datetime.utcnow()
     db.commit()
-    
     return {"code": 200, "status": "success", "message": "Recommendation marked as done"}
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  WEEKLY HEALTH REPORT — On-Demand Generate & Download
+# ═══════════════════════════════════════════════════════════════════════
+
+@router.post("/recipients/{recipient_id}/weekly-reports/generate")
+async def generate_weekly_report_on_demand(
+    recipient_id: int,
+    force: bool = False,
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
+):
+    """
+    Generate (or retrieve existing) weekly health report for a care recipient
+    and return it as a downloadable PDF file.
+    Pass ?force=true to regenerate even if a report for this week already exists.
+    """
+    username = _get_username_from_auth(authorization)
+    if not username:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid token")
+
+    caretaker = UsersRepo.find_by_username(db, CareTaker, username)
+    if not caretaker:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    recipient = db.query(CareRecipient).filter(
+        CareRecipient.id == recipient_id,
+        CareRecipient.caretaker_id == caretaker.id
+    ).first()
+    if not recipient:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipient not found")
+
+    try:
+        from services.weekly_report_generator import generate_weekly_report, _week_bounds
+        from tables.weekly_reports import WeeklyReport
+
+        if force:
+            week_start, _ = _week_bounds()
+            existing = db.query(WeeklyReport).filter(
+                WeeklyReport.care_recipient_id == recipient_id,
+                WeeklyReport.week_start == week_start
+            ).first()
+            if existing:
+                db.delete(existing)
+                db.commit()
+
+        result = generate_weekly_report(recipient_id, db)
+
+        if "error" in result:
+            raise HTTPException(status_code=400, detail=result["error"])
+
+        pdf_bytes = _build_weekly_report_pdf(result, recipient, caretaker)
+        safe_name = recipient.full_name.replace(" ", "_")
+        filename = f"weekly_report_{safe_name}_{result.get('week_start', 'latest')}.pdf"
+
+        return StreamingResponse(
+            BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Weekly report generation failed: {str(e)}")
+
+
+def _build_weekly_report_pdf(result: dict, recipient, caretaker) -> bytes:
+    """Build a clean, readable PDF weekly health report using fpdf2 (pure Python)."""
+    from fpdf import FPDF
+
+    # ── Colours (R, G, B) ──────────────────────────────────────────────────────
+    C_BRAND   = (30,  58, 138)   # dark navy
+    C_ACCENT  = (59, 130, 246)   # blue
+    C_LIGHT   = (239, 246, 255)  # very light blue
+    C_SUCCESS = (16, 185, 129)   # green
+    C_WARN    = (245, 159, 11)   # amber
+    C_DANGER  = (239, 68,  68)   # red
+    C_MUTED   = (100, 116, 139)  # slate
+    C_ROW     = (248, 250, 252)  # near-white
+    C_WHITE   = (255, 255, 255)
+    C_BLACK   = (15,  23,  42)
+
+    class WeeklyReportPDF(FPDF):
+        def header(self):
+            pass  # custom header drawn in body
+        def footer(self):
+            self.set_y(-15)
+            self.set_font("Helvetica", "I", 7)
+            self.set_text_color(*C_MUTED)
+            self.cell(0, 5, "CareTaker.ai  |  AI-generated - consult a licensed medical professional for clinical decisions", align="C")
+
+    pdf = WeeklyReportPDF(orientation="P", unit="mm", format="A4")
+    pdf.set_auto_page_break(auto=True, margin=18)
+    pdf.add_page()
+    pdf.set_margins(20, 15, 20)
+
+    w = pdf.w - 40   # usable width
+
+    week_start = result.get("week_start", "")
+    week_end   = result.get("week_end", "")
+    now_str    = datetime.datetime.utcnow().strftime("%B %d, %Y  %H:%M UTC")
+
+    # ── HEADER BANNER ──────────────────────────────────────────────────────────
+    pdf.set_fill_color(*C_BRAND)
+    pdf.rect(20, 15, w, 20, "F")
+    pdf.set_xy(20, 15)
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.set_text_color(*C_WHITE)
+    pdf.cell(w * 0.4, 10, "CareTaker.ai", align="L", border=0)
+    pdf.cell(w * 0.6, 10, "Weekly Health Report", align="R", border=0)
+    pdf.ln(10)
+    pdf.set_x(20)
+    pdf.set_font("Helvetica", "", 9)
+    pdf.cell(w * 0.4, 8, f"Patient: {recipient.full_name}", align="L", border=0)
+    pdf.cell(w * 0.35, 8, f"Week: {week_start}  to  {week_end}", align="L", border=0)
+    pdf.cell(w * 0.25, 8, now_str, align="R", border=0)
+    pdf.ln(14)
+
+    # ── WELLNESS SCORE ─────────────────────────────────────────────────────────
+    score      = result.get("overall_score") or 0
+    risk_trend = (result.get("risk_trend") or "stable").lower()
+    trend_txt  = "Improving" if risk_trend == "improving" else ("Declining" if risk_trend == "declining" else "Stable")
+    trend_col  = C_SUCCESS if risk_trend == "improving" else (C_DANGER if risk_trend == "declining" else C_WARN)
+
+    pdf.set_text_color(*C_BRAND)
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 7, "Wellness Score", ln=True)
+
+    pdf.set_fill_color(*C_LIGHT)
+    pdf.set_draw_color(*C_ACCENT)
+    box_y = pdf.get_y()
+    pdf.rect(20, box_y, w, 16, "FD")
+    pdf.set_xy(20, box_y + 2)
+    pdf.set_font("Helvetica", "B", 22)
+    pdf.set_text_color(*C_BRAND)
+    pdf.cell(w * 0.25, 12, f"{score:.0f}", align="C", border=0)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(*C_MUTED)
+    pdf.cell(w * 0.15, 12, "/ 100", align="L", border=0)
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.set_text_color(*trend_col)
+    arrow = "▲" if risk_trend == "improving" else ("▼" if risk_trend == "declining" else "●")
+    # fpdf2 safe: avoid non-latin chars, use text only
+    trend_label = f"Trend: {trend_txt}"
+    pdf.cell(w * 0.6, 12, trend_label, align="C", border=0)
+    pdf.ln(20)
+
+    def section_title(title):
+        pdf.set_text_color(*C_BRAND)
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.set_fill_color(*C_WHITE)
+        pdf.cell(0, 8, title, ln=True)
+        pdf.set_draw_color(*C_ACCENT)
+        pdf.set_line_width(0.4)
+        x = pdf.get_x()
+        y = pdf.get_y()
+        pdf.line(20, y, 20 + w, y)
+        pdf.set_line_width(0.2)
+        pdf.ln(2)
+
+    def sub_title(title):
+        pdf.set_text_color(*C_BRAND)
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.cell(0, 6, title, ln=True)
+
+    def body_text(txt):
+        pdf.set_text_color(*C_BLACK)
+        pdf.set_font("Helvetica", "", 9)
+        pdf.multi_cell(w, 5, str(txt) if txt else "")
+        pdf.ln(1)
+
+    def bullet(txt, num=None):
+        pdf.set_text_color(*C_BLACK)
+        pdf.set_font("Helvetica", "", 9)
+        prefix = f"{num}." if num else "-"
+        pdf.set_x(24)
+        pdf.multi_cell(w - 4, 5, f"{prefix}  {txt}")
+
+    def data_table(section_label, rows):
+        """Render a two-column data table for a health section."""
+        # Table header
+        pdf.set_fill_color(*C_LIGHT)
+        pdf.set_text_color(*C_BRAND)
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(w, 6, f"  {section_label}", fill=True, ln=True)
+        # Rows
+        for i, (label, value, unit) in enumerate(rows):
+            val_str = f"{value} {unit}".strip() if value is not None else "N/A"
+            fill_col = C_ROW if i % 2 == 0 else C_WHITE
+            pdf.set_fill_color(*fill_col)
+            pdf.set_text_color(*C_MUTED)
+            pdf.set_font("Helvetica", "", 8)
+            pdf.cell(w * 0.55, 5.5, f"  {label}", fill=True, border=0)
+            pdf.set_text_color(*C_BLACK)
+            pdf.set_font("Helvetica", "B", 8)
+            pdf.cell(w * 0.45, 5.5, str(val_str), fill=True, border=0, ln=True)
+        pdf.ln(3)
+
+    # ── AI NARRATIVE ───────────────────────────────────────────────────────────
+    narrative = result.get("ai_narrative") or {}
+    if narrative:
+        section_title("AI Health Summary")
+
+        exec_sum = narrative.get("executive_summary", "")
+        if exec_sum:
+            body_text(exec_sum)
+
+        highlights = narrative.get("highlights") or []
+        if highlights:
+            sub_title("Highlights This Week")
+            for i, h in enumerate(highlights, 1):
+                bullet(h, i)
+            pdf.ln(2)
+
+        concerns = narrative.get("concerns") or []
+        if concerns:
+            sub_title("Areas of Concern")
+            for i, c in enumerate(concerns, 1):
+                bullet(c, i)
+            pdf.ln(2)
+
+        actions = narrative.get("caregiver_actions") or []
+        if actions:
+            sub_title("Recommended Actions for Caregiver")
+            for i, a in enumerate(actions, 1):
+                bullet(a, i)
+            pdf.ln(2)
+
+        mood_note = narrative.get("emotional_wellbeing", "")
+        if mood_note:
+            sub_title("Emotional Wellbeing")
+            body_text(mood_note)
+
+        doc_note = narrative.get("doctor_note", "")
+        if doc_note:
+            sub_title("Note for Doctor")
+            pdf.set_fill_color(254, 252, 232)   # warm yellow bg
+            pdf.set_draw_color(*C_WARN)
+            pdf.set_line_width(0.5)
+            y0 = pdf.get_y()
+            pdf.set_x(20)
+            pdf.multi_cell(w, 5, doc_note, border=1, fill=True)
+            pdf.set_line_width(0.2)
+            pdf.ln(2)
+
+    # ── HEALTH DATA BREAKDOWN ─────────────────────────────────────────────────
+    section_title("Weekly Health Data Breakdown")
+    sections = result.get("sections") or {}
+
+    data_table("Vitals", [
+        ("Heart Rate (avg)",     sections.get("vitals_summary",{}).get("avg_heart_rate"),    "bpm"),
+        ("Blood Pressure (avg)", sections.get("vitals_summary",{}).get("avg_systolic_bp"),   "mmHg"),
+        ("SpO2 (avg)",           sections.get("vitals_summary",{}).get("avg_spo2"),          "%"),
+        ("Sleep Score (avg)",    sections.get("vitals_summary",{}).get("avg_sleep_score"),   "/ 10"),
+        ("Temperature (avg)",    sections.get("vitals_summary",{}).get("avg_temperature"),   "C"),
+        ("Readings logged",      sections.get("vitals_summary",{}).get("readings"),          ""),
+    ])
+    data_table("Medication Adherence", [
+        ("Total doses scheduled", sections.get("medication_adherence",{}).get("total_doses"),  ""),
+        ("Doses taken",           sections.get("medication_adherence",{}).get("taken"),         ""),
+        ("Doses missed",          sections.get("medication_adherence",{}).get("missed"),        ""),
+        ("Adherence rate",        sections.get("medication_adherence",{}).get("adherence_pct"), "%"),
+    ])
+    data_table("Lab Results", [
+        ("New lab results this week", sections.get("lab_summary",{}).get("new_labs_this_week"), ""),
+        ("Abnormal values",           sections.get("lab_summary",{}).get("abnormal_count"),     ""),
+    ])
+    data_table("Respiratory Activity", [
+        ("Cough count (7 days)",  sections.get("respiratory_activity",{}).get("cough_count_7d"),  ""),
+        ("Sneeze count (7 days)", sections.get("respiratory_activity",{}).get("sneeze_count_7d"), ""),
+        ("Daily cough average",   sections.get("respiratory_activity",{}).get("cough_daily_avg"), "/ day"),
+    ])
+    data_table("Physical Activity", [
+        ("Fall incidents",  sections.get("physical_activity",{}).get("fall_count"),          ""),
+        ("Activity score",  sections.get("physical_activity",{}).get("avg_activity_score"),  "/ 10"),
+        ("Mobility score",  sections.get("physical_activity",{}).get("avg_mobility_score"),  "/ 10"),
+    ])
+    data_table("Environment", [
+        ("Avg room temperature", sections.get("environment",{}).get("avg_room_temp_c"), "C"),
+        ("Avg humidity",         sections.get("environment",{}).get("avg_humidity"),    "%"),
+        ("Extreme readings",     sections.get("environment",{}).get("extreme_readings"), ""),
+    ])
+    data_table("Mood & Wellbeing", [
+        ("Voice sessions", sections.get("mood_wellbeing",{}).get("conversations"), ""),
+        ("Dominant mood",  sections.get("mood_wellbeing",{}).get("dominant_mood"),  ""),
+    ])
+    data_table("Alerts Summary", [
+        ("Critical alerts", sections.get("alerts_recap",{}).get("critical_count"), ""),
+        ("High alerts",     sections.get("alerts_recap",{}).get("high_count"),     ""),
+        ("Total alerts",    sections.get("alerts_recap",{}).get("total_alerts"),   ""),
+    ])
+
+    # ── EXTRA DETAIL BULLETS ───────────────────────────────────────────────────
+    vitals_alerts = sections.get("vitals_summary",{}).get("alerts") or []
+    if vitals_alerts:
+        sub_title("Vitals Alerts")
+        for va in vitals_alerts:
+            bullet(va)
+        pdf.ln(2)
+
+    key_changes = sections.get("lab_summary",{}).get("key_changes") or []
+    if key_changes:
+        sub_title("Notable Lab Changes")
+        for kc in key_changes:
+            bullet(kc)
+        pdf.ln(2)
+
+    problem_meds = sections.get("medication_adherence",{}).get("problem_meds") or []
+    if problem_meds:
+        sub_title("Missed Medication Details")
+        for pm in problem_meds:
+            bullet(pm)
+        pdf.ln(2)
+
+    # ── FOOTER META ────────────────────────────────────────────────────────────
+    caretaker_name = getattr(caretaker, "username", getattr(caretaker, "full_name", ""))
+    pdf.set_text_color(*C_MUTED)
+    pdf.set_font("Helvetica", "I", 7)
+    pdf.cell(0, 5,
+        f"Report ID: {result.get('report_id', '')}  |  Caretaker: {caretaker_name}  "
+        f"|  Generated: {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
+        ln=True, align="C"
+    )
+
+    return bytes(pdf.output())
+
+
+@router.get("/recipients/{recipient_id}/weekly-reports/latest")
+async def get_latest_weekly_report(
+    recipient_id: int,
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
+):
+    """Return metadata of the most recently generated weekly report for a recipient."""
+    username = _get_username_from_auth(authorization)
+    if not username:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid token")
+
+    caretaker = UsersRepo.find_by_username(db, CareTaker, username)
+    if not caretaker:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    recipient = db.query(CareRecipient).filter(
+        CareRecipient.id == recipient_id,
+        CareRecipient.caretaker_id == caretaker.id
+    ).first()
+    if not recipient:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipient not found")
+
+    from tables.weekly_reports import WeeklyReport
+    report = db.query(WeeklyReport).filter(
+        WeeklyReport.care_recipient_id == recipient_id
+    ).order_by(WeeklyReport.created_at.desc()).first()
+
+    if not report:
+        raise HTTPException(status_code=404, detail="No weekly reports found yet")
+
+    return {
+        "report_id": report.id,
+        "week_start": str(report.week_start),
+        "week_end": str(report.week_end),
+        "overall_score": report.overall_score,
+        "risk_trend": report.risk_trend,
+        "created_at": report.created_at.isoformat() if report.created_at else None,
+    }

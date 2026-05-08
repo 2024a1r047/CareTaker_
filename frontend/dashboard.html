@@ -2248,8 +2248,8 @@
                                 <button class="btn btn-primary" style="flex: 1;" onclick="location.href='featured_profile.html?recipient_id=${r.id}'">
                                     View Health Record
                                 </button>
-                                <button class="btn btn-secondary" style="flex: 1;" onclick="downloadLatestWeeklyReport(${r.id}, '${r.full_name}')" title="Download this week's AI health report">
-                                    <i class="fas fa-file-download"></i> Weekly Report
+                                <button class="btn btn-secondary" style="flex: 1;" id="gen-report-btn-${r.id}" onclick="generateAndDownloadWeeklyReport(${r.id}, '${r.full_name}', this)" title="Generate & download this week's AI health report">
+                                    <i class="fas fa-file-arrow-down"></i> Generate Report
                                 </button>
                             </div>
                         </div>
@@ -2258,40 +2258,55 @@
             }
         }
 
-        async function downloadLatestWeeklyReport(recipientId, name) {
+        async function generateAndDownloadWeeklyReport(recipientId, name, btnEl) {
+            const origHtml = btnEl ? btnEl.innerHTML : '';
             try {
-                // First get the latest report ID
-                const latestRes = await fetch(`${API_BASE}/recipients/${recipientId}/weekly-reports/latest`, {
-                    headers: { 'Authorization': 'Bearer ' + token }
-                });
-                if (!latestRes.ok) {
-                    if (latestRes.status === 404) {
-                        alert(`No weekly reports found for ${name} yet. They are generated every Friday.`);
-                        return;
-                    }
-                    throw new Error('Failed to fetch latest report');
+                if (btnEl) {
+                    btnEl.disabled = true;
+                    btnEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating…';
                 }
-                const latest = await latestRes.json();
-                
-                // Then download it
-                const dlRes = await fetch(`${API_BASE}/recipients/${recipientId}/weekly-reports/${latest.report_id}/download`, {
+
+                // Single call: POST /generate — creates or returns cached report & streams JSON
+                const res = await fetch(`${API_BASE}/recipients/${recipientId}/weekly-reports/generate`, {
+                    method: 'POST',
                     headers: { 'Authorization': 'Bearer ' + token }
                 });
-                if (!dlRes.ok) throw new Error('Download failed');
-                
-                const blob = await dlRes.blob();
+
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || 'Generation failed');
+                }
+
+                const blob = await res.blob();
+                // Derive filename from Content-Disposition if present, else build one
+                let filename = `weekly_report_${name.replace(/\s+/g, '_')}.pdf`;
+                const cd = res.headers.get('Content-Disposition') || '';
+                const match = cd.match(/filename="([^"]+)"/);
+                if (match) filename = match[1];
+
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `weekly_report_${name.replace(/\s+/g, '_')}_${latest.week_start}.json`;
+                a.download = filename;
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
                 URL.revokeObjectURL(url);
+
+                if (btnEl) {
+                    btnEl.innerHTML = '<i class="fas fa-check"></i> Downloaded!';
+                    setTimeout(() => { btnEl.innerHTML = origHtml; btnEl.disabled = false; }, 2500);
+                }
             } catch (err) {
-                console.error('Error downloading weekly report:', err);
-                alert('Could not download the weekly report. Please try again later.');
+                console.error('Error generating weekly report:', err);
+                alert(`Could not generate the weekly report: ${err.message}`);
+                if (btnEl) { btnEl.innerHTML = origHtml; btnEl.disabled = false; }
             }
+        }
+
+        // Legacy alias kept for compatibility
+        async function downloadLatestWeeklyReport(recipientId, name) {
+            await generateAndDownloadWeeklyReport(recipientId, name, null);
         }
 
         // ═══════════════════════════════════════════
