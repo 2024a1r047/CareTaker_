@@ -2267,7 +2267,7 @@
                 }
 
                 // Single call: POST /generate — creates or returns cached report & streams JSON
-                const res = await fetch(`${API_BASE}/recipients/${recipientId}/weekly-reports/generate`, {
+                const res = await fetch(`${API_BASE}/recipients/${recipientId}/weekly-reports/generate?force=true`, {
                     method: 'POST',
                     headers: { 'Authorization': 'Bearer ' + token }
                 });

@@ -122,26 +122,39 @@ def _agg_meds(rid, db, start, end):
     for med_id, count in sorted(missed_by_med.items(), key=lambda x: -x[1])[:3]:
         med = db.query(Medication).filter(Medication.medication_id == med_id).first()
         if med:
-            problem_meds.append(f"{med.medicine_name} — missed {count} doses")
+            problem_meds.append(f"{med.medicine_name} - missed {count} doses")
+    # If no logs exist, adherence is UNKNOWN (not perfect) — use None to signal missing data
+    adherence_pct = round(taken / total * 100, 1) if total > 0 else None
     return {
         "total_doses": total, "taken": taken, "missed": missed,
-        "adherence_pct": round(taken / total * 100, 1) if total > 0 else 100.0,
+        "adherence_pct": adherence_pct,
+        "no_data": total == 0,
         "problem_meds": problem_meds,
     }
 
 
 def _agg_conditions(rid, db, start, end):
-    from tables.medical_conditions import ConditionHistory, PatientCondition
+    from tables.medical_conditions import ConditionHistory, PatientCondition, ConditionStatus
     changes = db.query(ConditionHistory).join(PatientCondition).filter(
         PatientCondition.care_recipient_id == rid,
         ConditionHistory.recorded_at >= start, ConditionHistory.recorded_at <= end
     ).all()
-    status_changes = [f"{c.condition.disease_name}: {c.previous_status or '?'} → {c.new_status}" for c in changes if c.condition]
+    status_changes = [f"{c.condition.disease_name}: {c.previous_status or '?'} to {c.new_status}" for c in changes if c.condition]
     new_diag = db.query(PatientCondition).filter(
         PatientCondition.care_recipient_id == rid,
         PatientCondition.created_at >= start, PatientCondition.created_at <= end
     ).all()
-    return {"status_changes": status_changes[:5], "new_diagnoses": [d.disease_name for d in new_diag]}
+    # Count ALL active conditions (not just this week) for burden scoring
+    active_conditions = db.query(PatientCondition).filter(
+        PatientCondition.care_recipient_id == rid,
+        PatientCondition.status == ConditionStatus.active
+    ).all()
+    return {
+        "status_changes": status_changes[:5],
+        "new_diagnoses": [d.disease_name for d in new_diag],
+        "active_condition_count": len(active_conditions),
+        "active_condition_names": [c.disease_name for c in active_conditions[:5]],
+    }
 
 
 def _agg_audio(rid, db, start, end):
@@ -251,36 +264,65 @@ def build_comparison(current: Dict, previous: Optional[Dict]) -> Dict:
 
 def compute_wellness_score(sections: Dict) -> float:
     score = 100.0
-    # Medication adherence (25%)
-    adh = sections.get("medication_adherence", {}).get("adherence_pct", 100)
-    score -= max(0, (100 - adh)) * 0.25
-    # Vitals stability (20%)
+
+    # ── Disease burden (up to -30): active chronic conditions ─────────────────
+    conditions = sections.get("condition_updates", {})
+    active_count = conditions.get("active_condition_count", 0)
+    # Each active condition subtracts points; caps at 30
+    # 1 condition = -8, 2 = -14, 3 = -20, 4+ = -28+
+    if active_count >= 1:
+        score -= min(30, active_count * 7)
+
+    # ── Data coverage penalty (-15 if no vitals recorded this week) ───────────
     vitals = sections.get("vitals_summary", {})
+    if vitals.get("readings", 0) == 0:
+        score -= 15   # No monitoring data = cannot confirm health
+
+    # ── Medication adherence (up to -25) ──────────────────────────────────────
+    med = sections.get("medication_adherence", {})
+    if med.get("no_data"):
+        # No medication logs — if patient has conditions, assume unmonitored gap
+        if active_count > 0:
+            score -= 10
+    else:
+        adh = med.get("adherence_pct", 100)
+        score -= max(0, (100 - adh)) * 0.25
+
+    # ── Vitals instability ────────────────────────────────────────────────────
     if vitals.get("alerts"):
         score -= len(vitals["alerts"]) * 5
     if vitals.get("avg_spo2") and vitals["avg_spo2"] < 94:
         score -= 10
-    # Lab trends (20%)
+    if vitals.get("avg_systolic_bp") and vitals["avg_systolic_bp"] > 140:
+        score -= 8
+
+    # ── Lab trends (up to -20) ────────────────────────────────────────────────
     labs = sections.get("lab_summary", {})
-    score -= labs.get("abnormal_count", 0) * 4
-    # Activity/mobility (15%)
+    score -= min(20, labs.get("abnormal_count", 0) * 4)
+
+    # ── Activity / falls (-8 per fall) ───────────────────────────────────────
     act = sections.get("physical_activity", {})
     if act.get("fall_count", 0) > 0:
         score -= act["fall_count"] * 8
     if act.get("avg_activity_score") and act["avg_activity_score"] < 3:
         score -= 5
-    # Mood (10%)
+
+    # ── Mood (up to -10) ─────────────────────────────────────────────────────
     mood = sections.get("mood_wellbeing", {})
-    neg_moods = sum(mood.get("mood_distribution", {}).get(m, 0) for m in ["sad", "anxious", "distressed", "angry", "lonely"])
+    neg_moods = sum(mood.get("mood_distribution", {}).get(m, 0)
+                    for m in ["sad", "anxious", "distressed", "angry", "lonely"])
     if neg_moods > 3:
         score -= min(10, neg_moods * 2)
-    # Environment (10%)
+
+    # ── Environment (up to -10) ───────────────────────────────────────────────
     env = sections.get("environment", {})
     score -= min(10, env.get("extreme_readings", 0) * 3)
-    # Alerts
+
+    # ── Alerts ────────────────────────────────────────────────────────────────
     alerts = sections.get("alerts_recap", {})
     score -= alerts.get("critical_count", 0) * 5
     score -= alerts.get("high_count", 0) * 2
+
     return max(0, min(100, round(score, 1)))
 
 
@@ -439,8 +481,11 @@ def generate_weekly_report(recipient_id: int, db: Session,
             "doctor_note": "", "emotional_wellbeing": ""
         }
         adh = sections.get("medication_adherence", {})
-        if adh.get("adherence_pct", 100) >= 90:
-            narrative["highlights"].append(f"Good medication adherence at {adh['adherence_pct']}%")
+        adh_pct = adh.get("adherence_pct")   # may be None if no logs
+        if adh_pct is not None and adh_pct >= 90:
+            narrative["highlights"].append(f"Good medication adherence at {adh_pct}%")
+        elif adh_pct is None and adh.get("no_data"):
+            narrative["concerns"].append("Medication adherence could not be tracked this week")
         if adh.get("missed", 0) > 0:
             narrative["concerns"].append(f"{adh['missed']} medication doses were missed")
         labs = sections.get("lab_summary", {})
@@ -449,6 +494,11 @@ def generate_weekly_report(recipient_id: int, db: Session,
         mood = sections.get("mood_wellbeing", {})
         if mood.get("dominant_mood"):
             narrative["emotional_wellbeing"] = f"Dominant mood this week: {mood['dominant_mood']}."
+        # Mention active conditions in summary if present
+        cond = sections.get("condition_updates", {})
+        if cond.get("active_condition_count", 0) > 0:
+            names = ", ".join(cond.get("active_condition_names", []))
+            narrative["doctor_note"] = f"Patient has {cond['active_condition_count']} active condition(s): {names}."
 
     # Persist
     report = WeeklyReport(

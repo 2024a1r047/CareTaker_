@@ -48,13 +48,18 @@ def analyze_lab_trends(trends_data: List[Dict[str, Any]]) -> List[Dict[str, Any]
         if is_bad_trend and is_latest_abnormal:
             model_to_use = "gemini-2.5-flash" # Use deep reasoning for critical cases
 
+        history_list = [
+            {"date": p.get("date"), "value": p.get("value"),
+             "unit": p.get("unit"), "is_abnormal": p.get("is_abnormal")}
+            for p in data_points[-5:]
+        ]
         prompt = f"""You are the Caretaker.ai Clinical Lab Analyst.
 Analyze this lab trend and provide a short, actionable insight for the caregiver.
 
 METRIC: {metric_name}
 TREND DIRECTION: {trend_direction}
 LATEST VALUE: {latest_value}
-HISTORICAL DATA: {json.dumps([{{'date': p.get('date'), 'value': p.get('value'), 'unit': p.get('unit'), 'is_abnormal': p.get('is_abnormal')}} for p in data_points[-5:]])}
+HISTORICAL DATA: {json.dumps(history_list)}
 
 OUTPUT FORMAT (Valid JSON only):
 {{

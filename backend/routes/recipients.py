@@ -1296,6 +1296,7 @@ async def generate_weekly_report_on_demand(
     try:
         from services.weekly_report_generator import generate_weekly_report, _week_bounds
         from tables.weekly_reports import WeeklyReport
+        import json as _json, re as _re
 
         if force:
             week_start, _ = _week_bounds()
@@ -1311,6 +1312,23 @@ async def generate_weekly_report_on_demand(
 
         if "error" in result:
             raise HTTPException(status_code=400, detail=result["error"])
+
+        # ── Normalise keys: 'already_exists' uses different names ─────────────
+        if result.get("status") == "already_exists":
+            result["sections"]     = result.get("sections") or result.get("report_data") or {}
+            result["ai_narrative"] = result.get("ai_narrative") or result.get("narrative") or {}
+            result["overall_score"]= result.get("overall_score") or result.get("score") or 0
+
+        # ── Strip non-ASCII (↑↓→—) so Helvetica doesn't crash ─────────────────
+        def _sanitize(obj):
+            if isinstance(obj, str):
+                return obj.encode("ascii", "ignore").decode("ascii")
+            if isinstance(obj, dict):
+                return {k: _sanitize(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [_sanitize(i) for i in obj]
+            return obj
+        result = _sanitize(result)
 
         pdf_bytes = _build_weekly_report_pdf(result, recipient, caretaker)
         safe_name = recipient.full_name.replace(" ", "_")
@@ -1513,19 +1531,31 @@ def _build_weekly_report_pdf(result: dict, recipient, caretaker) -> bytes:
     section_title("Weekly Health Data Breakdown")
     sections = result.get("sections") or {}
 
+    # ── Active Conditions (shown first as most important) ────────────────────
+    cond_data = sections.get("condition_updates", {})
+    active_names = cond_data.get("active_condition_names") or []
+    active_count_val = cond_data.get("active_condition_count", 0)
+    data_table("Active Conditions (Disease Burden)", [
+        ("Total active conditions", active_count_val, ""),
+        ("Conditions", ", ".join(active_names) if active_names else "None on record", ""),
+        ("New this week", len(cond_data.get("new_diagnoses") or []), ""),
+    ])
+
     data_table("Vitals", [
         ("Heart Rate (avg)",     sections.get("vitals_summary",{}).get("avg_heart_rate"),    "bpm"),
         ("Blood Pressure (avg)", sections.get("vitals_summary",{}).get("avg_systolic_bp"),   "mmHg"),
         ("SpO2 (avg)",           sections.get("vitals_summary",{}).get("avg_spo2"),          "%"),
         ("Sleep Score (avg)",    sections.get("vitals_summary",{}).get("avg_sleep_score"),   "/ 10"),
         ("Temperature (avg)",    sections.get("vitals_summary",{}).get("avg_temperature"),   "C"),
-        ("Readings logged",      sections.get("vitals_summary",{}).get("readings"),          ""),
+        ("Readings logged this week", sections.get("vitals_summary",{}).get("readings"),     ""),
     ])
+    adh_pct = sections.get("medication_adherence",{}).get("adherence_pct")
+    adh_display = f"{adh_pct}" if adh_pct is not None else "Not tracked"
     data_table("Medication Adherence", [
         ("Total doses scheduled", sections.get("medication_adherence",{}).get("total_doses"),  ""),
         ("Doses taken",           sections.get("medication_adherence",{}).get("taken"),         ""),
         ("Doses missed",          sections.get("medication_adherence",{}).get("missed"),        ""),
-        ("Adherence rate",        sections.get("medication_adherence",{}).get("adherence_pct"), "%"),
+        ("Adherence rate",        adh_display,                                                   "%" if adh_pct is not None else ""),
     ])
     data_table("Lab Results", [
         ("New lab results this week", sections.get("lab_summary",{}).get("new_labs_this_week"), ""),
