@@ -29,7 +29,7 @@ except ImportError:
 from fall_lstm_model import FallLSTM, FallSequenceBuffer, load_model, DEFAULT_SEQ_LEN
 from inactivity_monitor import InactivityMonitor
 
-_YOLO_MODEL_PATH = os.path.join(_here, "..", "yolo11n-pose.pt")
+_YOLO_MODEL_PATH = os.path.join(_here, "..", "yolov8n-pose.pt")
 _LSTM_MODEL_PATH = os.path.join(_here, "fall_lstm.pth")
 
 _SENSITIVITY_PRESETS = {
@@ -101,6 +101,8 @@ class UnitedMonitor:
         Checks if the skeleton's geometry and joints are human-like.
 
         FIX: Stricter thresholds to eliminate chair/furniture false detections.
+        Special case: lying/fallen person (horizontal bbox) relaxes head checks
+        since face is not visible from top-down cameras after a fall.
         """
         if kps_xy is None or kps_conf is None or box is None: return False
 
@@ -110,6 +112,16 @@ class UnitedMonitor:
         box_area = bbox_w * bbox_h
         if box_area < 2000:  # Less than ~45x45 px box → skip
             return False
+
+        # Check if bbox is horizontal (person lying down)
+        is_horizontal_bbox = (bbox_w > bbox_h * 1.2) if bbox_h > 0 else False
+
+        if is_horizontal_bbox:
+            # Person is lying down — face is not visible from top-down camera.
+            # Skip strict head check. Just require shoulders + hips to be detected.
+            core_joints = [5, 6, 11, 12]  # Left/right shoulder + left/right hip
+            core_conf = sum(1 for idx in core_joints if idx < len(kps_conf) and kps_conf[idx] > 0.3)
+            return core_conf >= 3  # At least 3 of 4 core joints visible
 
         # 1. Geometry Check: Spine Proportionality
         # A human's neck-to-hip distance should be reasonable relative to the box height.
@@ -142,7 +154,7 @@ class UnitedMonitor:
             if self._last_result: return self._last_result
 
         # YOLO Tracking (Stable IDs)
-        yolo_res = self._yolo.track(frame, persist=True, verbose=False, classes=[0], conf=0.3)[0]
+        yolo_res = self._yolo.track(frame, persist=True, verbose=False, classes=[0], conf=0.25)[0]
         boxes_raw = yolo_res.boxes
         kps_data = yolo_res.keypoints
         
@@ -204,19 +216,6 @@ class UnitedMonitor:
                     # First time with multiple people — pick best pose score and lock
                     target = max(possible_humans, key=lambda p: p["h_score"])
                     self._monitored_id_locked = True
-
-                # FIX: Once locked, NEVER hand the MONITORED label to a stranger.
-                # If we still can't find the original person, keep monitored_idx = -1
-                # (they are temporarily out of frame) rather than hijacking a visitor.
-                if target is not None and self._monitored_id_locked:
-                    if self._monitored_id is not None and target["id"] != self._monitored_id:
-                        # Only allow centroid-based re-lock (proximity < 250px already checked above)
-                        # If this target was found by h_score fallback and lock is already set → reject
-                        if target not in [p for p in possible_humans
-                                          if math.sqrt((p["cx"]-self._monitored_centroid[0])**2 +
-                                                       (p["cy"]-self._monitored_centroid[1])**2) < 250
-                                          ] if self._monitored_centroid else []:
-                            target = None
 
                 if target is not None:
                     monitored_idx = target["id"]
@@ -291,7 +290,9 @@ class UnitedMonitor:
             
             # Confirmation logic — LSTM score + bbox orientation
             # bbox_is_horizontal: wide bbox means person is lying down
-            if lstm_prob > self._lstm_thresh and (self._has_been_standing and bbox_is_horizontal or lstm_prob > 0.97):
+            # FIX: ALWAYS require bbox_is_horizontal — sitting people can score high LSTM
+            # but their bbox stays vertical (tall box). Lying on the floor = wide/horizontal box.
+            if lstm_prob > self._lstm_thresh and self._has_been_standing and bbox_is_horizontal:
                 self._confirm_count += 1
             else:
                 self._confirm_count = max(0, self._confirm_count - 1)
@@ -339,13 +340,13 @@ class UnitedMonitor:
                 any_horiz  = any(self._pre_disappear_bbox_horiz)
 
                 # Fall signal present before disappearing:
-                #   a) Torso was seriously tilted (>50°) just before vanishing
-                #   b) LSTM was elevated (>0.40) suggesting fall-like motion
-                #   c) BBox was already horizontal (lying down) before vanishing
+                #   a) Torso was seriously tilted (>50°) AND lstm elevated — hard fall signal
+                #   b) BBox was already horizontal (lying down) before vanishing
+                # NOTE: lstm alone (0.40 threshold) was too sensitive — fired on walking away.
+                # Now we require EITHER (torso > 50 AND lstm > 0.60) OR (bbox was horizontal).
                 was_falling_before = (
-                    max_torso > 50 or        # body tilting sharply
-                    avg_lstm  > 0.40 or      # LSTM raising fall probability
-                    any_horiz                # bbox already horizontal = lying
+                    (max_torso > 50 and avg_lstm > 0.60) or   # tilting hard + lstm elevated
+                    any_horiz                                   # bbox already horizontal = lying
                 )
 
                 if was_falling_before:
@@ -447,21 +448,23 @@ def draw_united_interface(frame, results, draw_skeleton=True):
     monitored_found = any(p["is_monitored"] for p in all_persons)
 
     # Build status string
-    if n_persons == 0:
-        status_txt = "Scanning... (step back so full body is visible)"
+    if gs["fall_detected"]:
+        # Always show fall detected when flag is set — even if person temporarily
+        # leaves the frame (e.g. lying flat with face down, rejected by pose check)
+        status_txt   = "FALL DETECTED"
+        status_color = (0, 0, 255)
+    elif n_persons == 0:
+        status_txt   = "Scanning... (step back so full body is visible)"
         status_color = (100, 100, 100)
     elif monitored_found:
-        if gs["fall_detected"]:
-            status_txt = "FALL DETECTED"
-            status_color = (0, 0, 255)
-        elif gs["inactivity_alert"]:
-            status_txt = "INACTIVITY ALERT"
+        if gs["inactivity_alert"]:
+            status_txt   = "INACTIVITY ALERT"
             status_color = (0, 128, 255)
         else:
-            status_txt = "Monitoring active"
+            status_txt   = "Monitoring active"
             status_color = (0, 200, 0)
     else:
-        status_txt = f"Visitors in frame: {n_persons}"
+        status_txt   = f"Visitors in frame: {n_persons}"
         status_color = (0, 200, 255)
 
     fps_txt = f"FPS:{fps_val:.1f}"

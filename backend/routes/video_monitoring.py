@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import uuid
+import copy
 import shutil
 import time
 import asyncio
@@ -260,7 +261,14 @@ def process_video_direct(process_id: str, input_path: str, output_path: str, use
     """
     Direct in-process video analysis using UnitedMonitor.
     Runs in a thread pool managed by FastAPI BackgroundTasks.
+
+    Speed optimizations:
+      - FRAME_SKIP: only run YOLO on every Nth frame (re-use last result for skipped frames)
+      - MAX_WIDTH: resize wide frames before inference (YOLO runs faster on smaller images)
     """
+    FRAME_SKIP = 3     # Process 1 in every 3 frames  →  ~3x faster
+    MAX_WIDTH  = 640   # Resize to this width before YOLO (keeps aspect ratio)
+
     try:
         logger.info(f"Starting direct analysis for {process_id}")
         
@@ -282,6 +290,15 @@ def process_video_direct(process_id: str, input_path: str, output_path: str, use
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = cap.get(cv2.CAP_PROP_FPS)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+        # Pre-compute resize scale so we scale frames before inference
+        if width > MAX_WIDTH:
+            scale = MAX_WIDTH / width
+            infer_w = MAX_WIDTH
+            infer_h = int(height * scale)
+        else:
+            scale = 1.0
+            infer_w, infer_h = width, height
         
         # Initialize Writer - use a standard avi container for the intermediate analysis file
         # to avoid Windows DLL issues with H.264 in OpenCV directly. 
@@ -299,33 +316,76 @@ def process_video_direct(process_id: str, input_path: str, output_path: str, use
                 raise Exception("Could not initialize VideoWriter with any available codec")
         
         logger.info(f"Using intermediate AVI file: {temp_avi_path}")
+        logger.info(f"Speed config: FRAME_SKIP={FRAME_SKIP}, infer_size={infer_w}x{infer_h} (original {width}x{height})")
         
         frame_count = 0
         falls_detected = []
         total_inactivity_frames = 0
         last_alert_time = 0
+        last_results = None
+        WARMUP_FRAMES = 30  # Skip fall detection for first ~1 sec (LSTM buffer filling up)
         
         while True:
             ret, frame = cap.read()
             if not ret:
                 break
-                
+
+            # ── Frame-skip: only run YOLO every FRAME_SKIP frames ──────────────
+            is_inference_frame = (frame_count % FRAME_SKIP == 0)
+            if is_inference_frame:
+                # Resize for faster inference
+                if scale != 1.0:
+                    small = cv2.resize(frame, (infer_w, infer_h))
+                else:
+                    small = frame
+                results = monitor.process_frame(small)
+
+                # ── Scale bounding boxes back to ORIGINAL frame size ──────────
+                # YOLO ran on the small frame, so all coordinates are in small-frame
+                # space. We must multiply by (1/scale) before drawing on the full frame.
+                if scale != 1.0:
+                    inv = 1.0 / scale
+                    for person in results["fall"].get("all_persons", []):
+                        if person.get("box") is not None:
+                            person["box"] = person["box"] * inv
+                        if person.get("xy") is not None:
+                            person["xy"] = person["xy"] * inv
+                    if results["fall"].get("boxes") is not None:
+                        results["fall"]["boxes"] = results["fall"]["boxes"] * inv
+                    if results["fall"].get("keypoints") is not None:
+                        results["fall"]["keypoints"] = results["fall"]["keypoints"] * inv
+
+                last_results = results
+            else:
+                # Re-use the last result — avoids re-running YOLO on every frame
+                # IMPORTANT: clear fall_event_fired on reused frames so the same
+                # event is not recorded multiple times (once per skipped frame)
+                if last_results is not None:
+                    results = copy.deepcopy(last_results)
+                    results["fall"]["fall_event_fired"] = False
+                else:
+                    results = monitor.process_frame(frame)
+                    last_results = results
+
             # Process Frame
-            results = monitor.process_frame(frame)
-            
+            if results is None:
+                results = monitor.process_frame(frame)
+
             # Draw Interface
             display_frame = draw_united_interface(frame, results)
-            
+
             # Write Frame
             writer.write(display_frame)
-            
+
             # Track Inactivity
             if results["inactivity"].get("alert"):
                 total_inactivity_frames += 1
-            if results["fall"]["fall_event_fired"]:
-                timestamp = results["global_state"].get("timestamp", datetime.now().isoformat())
+            # Only record fall events on inference frames AND after warmup
+            if is_inference_frame and frame_count >= WARMUP_FRAMES and results["fall"]["fall_event_fired"]:
+                # Use actual video time (seconds into the clip), NOT processing wall-clock time
+                video_time_sec = frame_count / fps if fps > 0 else 0.0
                 falls_detected.append({
-                    "timestamp": timestamp,
+                    "timestamp": round(video_time_sec, 2),
                     "message": "Fall Detected",
                     "frame": frame_count
                 })
