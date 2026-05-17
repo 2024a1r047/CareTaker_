@@ -29,16 +29,13 @@ except ImportError:
 from fall_lstm_model import FallLSTM, FallSequenceBuffer, load_model, DEFAULT_SEQ_LEN
 from inactivity_monitor import InactivityMonitor
 
-_YOLO_MODEL_PATH = os.path.join(_here, "..", "yolov8n-pose.pt")
+_YOLO_MODEL_PATH = os.path.join(_here, "..", "yolo11n-pose.pt")
 _LSTM_MODEL_PATH = os.path.join(_here, "fall_lstm.pth")
 
 _SENSITIVITY_PRESETS = {
-    # Live monitoring — tuned for speed, camera may be at odd angles
-    "low":    {"lstm_thresh": 0.88, "confirm_frames": 6, "confirm_decay": 1},
-    "medium": {"lstm_thresh": 0.82, "confirm_frames": 4, "confirm_decay": 1},
-    "high":   {"lstm_thresh": 0.75, "confirm_frames": 3, "confirm_decay": 1},
-    # Video analysis — stricter to avoid false positives on uploaded footage
-    "video":  {"lstm_thresh": 0.90, "confirm_frames": 7, "confirm_decay": 1},
+    "low":    {"lstm_thresh": 0.95, "confirm_frames": 10, "confirm_decay": 1},
+    "medium": {"lstm_thresh": 0.90, "confirm_frames": 7,  "confirm_decay": 1},
+    "high":   {"lstm_thresh": 0.85, "confirm_frames": 5,  "confirm_decay": 1},
 }
 
 class UnitedMonitor:
@@ -102,29 +99,37 @@ class UnitedMonitor:
         """
         Hardened Humanity Test (Furniture Ghost Rejection):
         Checks if the skeleton's geometry and joints are human-like.
+
+        FIX: Stricter thresholds to eliminate chair/furniture false detections.
         """
         if kps_xy is None or kps_conf is None or box is None: return False
-        
+
+        # 0. Minimum box area — ignore tiny/distant detections (furniture artifacts)
+        bbox_w = box[2] - box[0]
+        bbox_h = box[3] - box[1]
+        box_area = bbox_w * bbox_h
+        if box_area < 2000:  # Less than ~45x45 px box → skip
+            return False
+
         # 1. Geometry Check: Spine Proportionality
         # A human's neck-to-hip distance should be reasonable relative to the box height.
         neck = (kps_xy[5] + kps_xy[6]) / 2.0
         hip  = (kps_xy[11] + kps_xy[12]) / 2.0
         spine_len = math.sqrt((neck[0]-hip[0])**2 + (neck[1]-hip[1])**2)
-        bbox_h = box[3] - box[1]
-        
-        if spine_len < 0.12 * bbox_h: # Skeleton is too collapsed (common in furniture)
+
+        if spine_len < 0.15 * bbox_h:  # Raised from 0.12 — chairs collapse skeleton more
             return False
 
-        # 2. Strict Head Check (Eyes/Ears/Nose)
+        # 2. Strict Head Check (Eyes/Ears/Nose) — raised confidence threshold
         head_joints = [0, 1, 2, 3, 4]
-        head_conf_count = sum(1 for idx in head_joints if idx < len(kps_conf) and kps_conf[idx] > 0.4)
-        if head_conf_count < 2: # Need at least a few facial points
+        head_conf_count = sum(1 for idx in head_joints if idx < len(kps_conf) and kps_conf[idx] > 0.5)
+        if head_conf_count < 2:  # Need at least 2 facial keypoints with good confidence
             return False
 
-        # 3. Structural Integrity (Shoulders, Hips, Knees, Ankles)
-        major_joints = [5, 6, 11, 12, 13, 14, 15, 16] 
-        conf_count = sum(1 for idx in major_joints if idx < len(kps_conf) and kps_conf[idx] > 0.4)
-        
+        # 3. Structural Integrity (Shoulders, Hips, Knees, Ankles) — raised threshold
+        major_joints = [5, 6, 11, 12, 13, 14, 15, 16]
+        conf_count = sum(1 for idx in major_joints if idx < len(kps_conf) and kps_conf[idx] > 0.45)
+
         # Need at least 5 major joints with reasonable confidence
         return conf_count >= 5
 
@@ -199,6 +204,19 @@ class UnitedMonitor:
                     # First time with multiple people — pick best pose score and lock
                     target = max(possible_humans, key=lambda p: p["h_score"])
                     self._monitored_id_locked = True
+
+                # FIX: Once locked, NEVER hand the MONITORED label to a stranger.
+                # If we still can't find the original person, keep monitored_idx = -1
+                # (they are temporarily out of frame) rather than hijacking a visitor.
+                if target is not None and self._monitored_id_locked:
+                    if self._monitored_id is not None and target["id"] != self._monitored_id:
+                        # Only allow centroid-based re-lock (proximity < 250px already checked above)
+                        # If this target was found by h_score fallback and lock is already set → reject
+                        if target not in [p for p in possible_humans
+                                          if math.sqrt((p["cx"]-self._monitored_centroid[0])**2 +
+                                                       (p["cy"]-self._monitored_centroid[1])**2) < 250
+                                          ] if self._monitored_centroid else []:
+                            target = None
 
                 if target is not None:
                     monitored_idx = target["id"]
@@ -302,11 +320,6 @@ class UnitedMonitor:
         # Only fires if the body was ALREADY showing fall characteristics
         # (tilting torso, rising LSTM score, or horizontal bbox) before vanishing.
         # Walking out of frame = body stays upright throughout → will NOT trigger.
-        #
-        # BUG FIX: Preserve the flag that may have been set by the normal fall-trigger
-        # path above (line 287). The disappearance check may additionally set it,
-        # so we OR both sources together at the end.
-        _normal_fall_fired = self._fall_event_just_fired
         self._fall_event_just_fired = False
         if (
             self._monitored_was_present and
@@ -343,9 +356,6 @@ class UnitedMonitor:
                     self._last_event_frame = self._frame_counter
                     self._disappear_fall_fired = True
                     print(f"[UnitedMonitor] Pose-aware disappearance fall: torso={avg_torso:.1f}° lstm={avg_lstm:.2f} horiz={any_horiz}")
-
-        # Merge: normal fall-trigger OR disappearance-fall both count as an event
-        self._fall_event_just_fired = _normal_fall_fired or self._fall_event_just_fired
 
         # Inactivity
         inactivity_res = self._inactivity.update([monitored_box.tolist()] if monitored_box is not None else [], now)

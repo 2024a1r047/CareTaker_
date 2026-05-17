@@ -107,7 +107,7 @@ class FallDetector:
     def __init__(
         self,
         *,
-        model_name: str = "yolov8n-pose.pt",
+        model_name: str = "yolo11n-pose.pt",
         conf: float = 0.3,
         angle_fall_threshold: float = 35.0,
         aspect_ratio_threshold: float = 1.3,  # Width > 1.3x height suggests horizontal

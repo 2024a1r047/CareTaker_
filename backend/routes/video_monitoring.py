@@ -46,9 +46,7 @@ router = APIRouter(tags=['Video Monitoring'], prefix='/video-monitoring')
 # ============================================================================
 # PERSISTENCE HANDLER
 # ============================================================================
-# Define persistent status file path
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STATUS_FILE = Path(os.path.join(BASE_DIR, "processing_status.json"))
+STATUS_FILE = Path("processing_status.json")
 
 def load_process_status():
     """Load processing status from JSON file"""
@@ -268,7 +266,7 @@ def process_video_direct(process_id: str, input_path: str, output_path: str, use
         
         # Initialize Monitor
         monitor = UnitedMonitor(
-            sensitivity="video",      # strict preset — independent from live monitoring tuning
+            sensitivity="medium",
             inactivity_threshold=30,
             is_live=False,
             process_every_n_frames=1

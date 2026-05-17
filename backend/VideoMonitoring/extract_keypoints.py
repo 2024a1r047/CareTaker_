@@ -31,9 +31,9 @@ OUT_DIR      = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 # YOLO model: look in parent (backend/) then current dir
 _here        = os.path.dirname(os.path.abspath(__file__))
 YOLO_MODEL   = (
-    os.path.join(_here, "..", "yolov8n-pose.pt")
-    if os.path.isfile(os.path.join(_here, "..", "yolov8n-pose.pt"))
-    else os.path.join(_here, "yolov8n-pose.pt")
+    os.path.join(_here, "..", "yolo11n-pose.pt")
+    if os.path.isfile(os.path.join(_here, "..", "yolo11n-pose.pt"))
+    else os.path.join(_here, "yolo11n-pose.pt")
 )
 
 SEQ_LEN    = 30   # frames per sequence window

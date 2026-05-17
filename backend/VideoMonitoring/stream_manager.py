@@ -154,14 +154,7 @@ class CameraSession:
         return self._open_capture()
 
     def _capture_loop(self):
-        """Main capture and processing loop.
-        
-        Key design: raw frame is pushed to current_frame IMMEDIATELY after read()
-        so the MJPEG stream is visible right away, even before YOLO warms up.
-        YOLO results are overlaid once they're ready (may take a few seconds on startup).
-        """
-        last_results = None  # cache last YOLO results to overlay on frames between runs
-
+        """Main capture and processing loop"""
         while self.running:
             start_time = time.time()
             try:
@@ -173,49 +166,33 @@ class CameraSession:
                     self._consecutive_failures += 1
                     logger.warning(f"Session {self.session_id}: Frame read failed ({self._consecutive_failures}/{self._max_failures})")
                     time.sleep(0.1)
+                    # Attempt reconnect for IP cameras after sustained failures
                     if self._consecutive_failures >= self._max_failures:
                         is_network = isinstance(self.camera_source, str)
                         if is_network:
                             if not self._try_reconnect():
                                 break
                         else:
+                            # Local webcam with sustained failure — stop
                             logger.error(f"Session {self.session_id}: Local camera failed persistently. Stopping.")
                             self.running = False
                             break
                     continue
-
-                self._consecutive_failures = 0
+                
+                self._consecutive_failures = 0  # Reset on success
                 self._reconnect_attempts = 0
-
-                # ── Step 1: Show raw/last-result frame IMMEDIATELY ──────────
-                # This ensures the stream is visible instantly even during YOLO warmup.
-                if last_results is not None:
-                    preview_frame = draw_united_interface(frame, last_results, draw_skeleton=False)
-                else:
-                    preview_frame = frame  # plain raw frame until YOLO is ready
-
-                with self.lock:
-                    self.current_frame = preview_frame.copy()
-                    self.frame_count += 1
-                    self.last_activity = datetime.now()
-
-                # ── Step 2: Run YOLO + fall detection ───────────────────────
-                # This may be slow on first call (model warmup). Subsequent calls are fast.
+                
+                # Check monitor existence
                 if not self.monitor:
-                    time.sleep(0.04)
                     continue
 
-                try:
-                    results = self.monitor.process_frame(frame)
-                    last_results = results
-                except Exception as e:
-                    logger.error(f"Session {self.session_id}: monitor.process_frame error: {e}", exc_info=True)
-                    time.sleep(0.04)
-                    continue
-
-                # ── Step 3: Draw annotated frame and check alerts ────────────
+                # Process frame through unified monitor
+                results = self.monitor.process_frame(frame)
+                
+                # Draw interface (Hide skeletons for live feed as requested)
                 display_frame = draw_united_interface(frame, results, draw_skeleton=False)
-
+                
+                # Check for alerts
                 alert_triggered = False
                 if results["fall"]["fall_event_fired"]:
                     self._add_alert("fall", "Fall detected!")
@@ -223,25 +200,39 @@ class CameraSession:
                 elif results["global_state"]["inactivity_alert"]:
                     self._add_alert("inactivity", "Inactivity alert!")
                     alert_triggered = True
-
-                # ── Step 4: Update current_frame with annotated version ──────
+                
+                # Update current frame
                 with self.lock:
                     self.current_frame = display_frame.copy()
+                    self.frame_count += 1
+                    self.last_activity = datetime.now()
+                    
                     if alert_triggered:
-                        ok, buffer = cv2.imencode('.jpg', display_frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
-                        if ok:
+                        # Save alert frame as bytes
+                        ret, buffer = cv2.imencode('.jpg', display_frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                        if ret:
                             self.last_alert_frame = buffer.tobytes()
-
-                # FPS Control
+                
+                # Add to queue (non-blocking)
+                try:
+                    self.frame_queue.put_nowait(display_frame)
+                except queue.Full:
+                    # Skip frame if queue is full
+                    try:
+                        self.frame_queue.get_nowait()
+                        self.frame_queue.put_nowait(display_frame)
+                    except:
+                        pass
+                
+                # FPS Control: Target ~25 FPS (0.04s per frame)
                 elapsed = time.time() - start_time
                 sleep_time = max(0.04 - elapsed, 0.001)
                 time.sleep(sleep_time)
-
+                
             except Exception as e:
-                logger.error(f"Error in capture loop: {e}", exc_info=True)
+                logger.error(f"Error in capture loop: {e}")
                 time.sleep(0.1)
-
-
+    
     def _add_alert(self, alert_type: str, message: str):
         """Add an alert to the session"""
         # Simple debounce: check if last alert of same type was recent (< 5s)
