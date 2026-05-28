@@ -392,8 +392,8 @@ class UnitedMonitor:
                 # NOTE: lstm alone (0.40 threshold) was too sensitive — fired on walking away.
                 # Now we require EITHER (torso > 50 AND lstm > 0.60) OR (bbox was horizontal).
                 was_falling_before = (
-                    (max_torso > 50 and avg_lstm > 0.60) or   # tilting hard + lstm elevated
-                    any_horiz                                   # bbox already horizontal = lying
+                    (max_torso > 65 and avg_lstm > 0.75) or   # tilting hard + lstm elevated
+                    (any_horiz and avg_lstm > 0.70)            # horizontal bbox BUT still needs LSTM support — alone it fires on split-screen blobs
                 )
 
                 if was_falling_before:
@@ -528,9 +528,10 @@ def draw_united_interface(frame, results, draw_skeleton=True):
     monitored_found = any(p["is_monitored"] for p in all_persons)
 
     # Build status string
-    if gs["fall_detected"]:
-        # Always show fall detected when flag is set — even if person temporarily
-        # leaves the frame (e.g. lying flat with face down, rejected by pose check)
+    if gs["fall_detected"] and (fall_person_idx != -1 or (fall_anchor is not None and n_persons > 0)):
+        # Show FALL DETECTED only when a person is currently visible near the anchor.
+        # If nobody is in frame (person left, or disappearance false-positive),
+        # fall through to the normal scanning/monitoring status — no confusing mismatch.
         status_txt   = "FALL DETECTED"
         status_color = (0, 0, 255)
     elif n_persons == 0:
