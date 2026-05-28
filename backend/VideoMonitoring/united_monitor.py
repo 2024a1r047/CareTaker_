@@ -39,7 +39,7 @@ _SENSITIVITY_PRESETS = {
 }
 
 class UnitedMonitor:
-    def __init__(self, sensitivity="medium", inactivity_threshold=30, stable_percentage=0.10, is_live=False, process_every_n_frames=2):
+    def __init__(self, sensitivity="medium", inactivity_threshold=30, stable_percentage=0.10, is_live=False, process_every_n_frames=2, video_fps: float = 0.0):
         print(f"[UnitedMonitor] Initializing... live={is_live}")
         self.sensitivity = sensitivity
         self.is_live = is_live
@@ -62,6 +62,7 @@ class UnitedMonitor:
         self._reset_confirm_frames = 0
         self._has_been_standing = False
         self._standing_duration = 0.0
+        self._fall_anchor_box = None  # bounding box locked at fall-trigger time (visual anchor)
 
         # Alert Suppression
         self._last_event_frame = -999
@@ -88,11 +89,18 @@ class UnitedMonitor:
 
         self._fps_start = time.time()
         self._fps_frames = 0
-        self._current_fps = 0.0
+        # For offline mode, initialise _current_fps from the actual video fps so that
+        # dt = 1/_current_fps is correct from frame 1. For live mode, fps is measured
+        # in real-time from wall-clock, so start at 0 and let the loop measure it.
+        self._video_fps   = video_fps   # stored for offline dt override
+        self._current_fps = video_fps if (not is_live and video_fps > 0) else 0.0
 
         self._yolo = YOLO(_YOLO_MODEL_PATH)
         self._lstm, self._device = load_model(_LSTM_MODEL_PATH)
-        self._seq_buf = FallSequenceBuffer(seq_len=DEFAULT_SEQ_LEN)
+        # Use a shorter buffer for offline mode so short clips can still run inference.
+        # BiGRU model handles variable sequence lengths — 15 frames fills 2x faster than 30.
+        seq_len = DEFAULT_SEQ_LEN if is_live else 15
+        self._seq_buf = FallSequenceBuffer(seq_len=seq_len)
         self._inactivity = InactivityMonitor(safety_threshold_seconds=inactivity_threshold, stability_percentage=stable_percentage)
 
     def _is_human_pose(self, kps_xy, kps_conf, box):
@@ -147,14 +155,20 @@ class UnitedMonitor:
 
     def process_frame(self, frame: np.ndarray) -> dict:
         self._frame_counter += 1
+        self._fall_event_just_fired = False  # Reset at frame start; set to True below if event fires
         now = time.time()
         ts = now - self._fps_start
 
         if self.is_live and (self._frame_counter % self.process_every_n_frames != 0):
             if self._last_result: return self._last_result
 
-        # YOLO Tracking (Stable IDs)
-        yolo_res = self._yolo.track(frame, persist=True, verbose=False, classes=[0], conf=0.25)[0]
+        # YOLO Detection / Tracking
+        # For live mode: use track() for stable person IDs (DeepSORT).
+        # For offline video analysis: use predict() — 3-5x faster, no tracker overhead.
+        if self.is_live:
+            yolo_res = self._yolo.track(frame, persist=True, verbose=False, classes=[0], conf=0.25)[0]
+        else:
+            yolo_res = self._yolo.predict(frame, verbose=False, classes=[0], conf=0.25)[0]
         boxes_raw = yolo_res.boxes
         kps_data = yolo_res.keypoints
         
@@ -249,7 +263,19 @@ class UnitedMonitor:
         monitored_xy = None
         monitored_box = None
         bbox_is_horizontal = False
-        dt = 1.0 / self._current_fps if self._current_fps > 0 else 0.033
+        # dt — time between frames in seconds.
+        # For LIVE mode: use measured wall-clock processing fps (accurate for real-time).
+        # For OFFLINE mode: use the real video fps so that time-based gates (standing
+        # duration thresholds, etc.) fire at the correct VIDEO-time instants.
+        # Without this fix, processing at 2fps on a 30fps video makes the HUD think
+        # 10 seconds have elapsed after just 21 processed frames, clearing _is_currently_falling
+        # and re-triggering the same fall 5-6 times in a single clip.
+        if not self.is_live and self._video_fps > 0:
+            dt = 1.0 / self._video_fps
+        elif self._current_fps > 0:
+            dt = 1.0 / self._current_fps
+        else:
+            dt = 1.0 / 30.0  # safe default
 
         if monitored_idx != -1:
             p = [p for p in possible_humans if p["id"] == monitored_idx][0]
@@ -267,7 +293,7 @@ class UnitedMonitor:
 
             if is_upright:
                 self._standing_duration += dt
-                if self._standing_duration > 0.5: self._has_been_standing = True
+                if self._standing_duration > 0.3: self._has_been_standing = True
             else:
                 self._standing_duration = max(0.0, self._standing_duration - dt)
 
@@ -286,21 +312,38 @@ class UnitedMonitor:
             self._pre_disappear_lstm_probs   = self._pre_disappear_lstm_probs[-self._PRE_HISTORY_LEN:]
             self._pre_disappear_bbox_horiz   = self._pre_disappear_bbox_horiz[-self._PRE_HISTORY_LEN:]
 
-            features = {"lstm_prob": lstm_prob, "is_upright": is_upright, "standing_duration": self._standing_duration}
+            features = {"lstm_prob": lstm_prob, "is_upright": is_upright, "standing_duration": self._standing_duration,
+                        "torso_angle": torso_angle}
             
-            # Confirmation logic — LSTM score + bbox orientation
-            # bbox_is_horizontal: wide bbox means person is lying down
-            # FIX: ALWAYS require bbox_is_horizontal — sitting people can score high LSTM
-            # but their bbox stays vertical (tall box). Lying on the floor = wide/horizontal box.
-            if lstm_prob > self._lstm_thresh and self._has_been_standing and bbox_is_horizontal:
-                self._confirm_count += 1
+            # ── Confirmation logic ───────────────────────────────────────────
+            # Gate logic — two tiers, both require LSTM above threshold + prior standing:
+            #
+            #   Tier 1 (floor fall):  bbox_is_horizontal           → count += 2 (fast-track)
+            #   Tier 2 (chair fall):  torso_angle > 45° (tilting)  → count += 1
+            #   Blocked:              seated (torso upright, angle < 45°) → false positive
+            #
+            # This prevents high LSTM scores on SEATED postures from firing early false positives.
+            is_significantly_tilted = torso_angle > 45  # Standing=<35°, Seated≈35°, Tilting/Fallen=>45°
+
+            if lstm_prob > self._lstm_thresh and self._has_been_standing:
+                if bbox_is_horizontal:
+                    # Person is fully on the floor — fast-track confirmation
+                    self._confirm_count += 2
+                elif is_significantly_tilted:
+                    # Chair fall / slump — torso tilting but not yet horizontal
+                    self._confirm_count += 1
+                # else: high LSTM but seated/upright = likely false positive, don't count
             else:
                 self._confirm_count = max(0, self._confirm_count - 1)
+
+            # Cooldown in frames: for offline mode use a tighter window so a false positive
+            # doesn't block the real fall event for 10 seconds (300 frames at 30fps).
+            cooldown = self._EVENT_FRAME_COOLDOWN if self.is_live else 60
 
             fall_triggered = (
                 self._confirm_count >= self._confirm_frames and
                 not self._is_currently_falling and
-                (self._frame_counter - self._last_event_frame) > self._EVENT_FRAME_COOLDOWN
+                (self._frame_counter - self._last_event_frame) > cooldown
             )
             if fall_triggered:
                 self._fall_event_just_fired = True
@@ -308,6 +351,10 @@ class UnitedMonitor:
                 self._fall_detected = True
                 self._last_fall_event_time = now
                 self._last_event_frame = self._frame_counter
+                # Lock the visual indicator to the box where the fall was detected.
+                # This prevents the "! FALL DETECTED" label from jumping to other people
+                # in multi-person scenes (predict() mode uses sequential IDs that shift).
+                self._fall_anchor_box = monitored_box.copy() if monitored_box is not None else None
             
             # HUD Clearing Logic: once clearly upright and stable, clear the fall flag
             if self._is_currently_falling:
@@ -316,12 +363,12 @@ class UnitedMonitor:
                     if self._standing_duration > 10.0:
                         self._is_currently_falling = False
                         self._confirm_count = 0
+                        self._fall_anchor_box = None  # release anchor when fully resolved
 
         # ── Pose-Aware Disappearance Check ───────────────────────────────────
         # Only fires if the body was ALREADY showing fall characteristics
         # (tilting torso, rising LSTM score, or horizontal bbox) before vanishing.
         # Walking out of frame = body stays upright throughout → will NOT trigger.
-        self._fall_event_just_fired = False
         if (
             self._monitored_was_present and
             monitored_idx == -1 and
@@ -369,7 +416,8 @@ class UnitedMonitor:
                 "all_persons": all_persons,
                 "features": features,
                 "keypoints": monitored_xy,
-                "boxes": monitored_box
+                "boxes": monitored_box,
+                "fall_anchor_box": self._fall_anchor_box,  # fixed position for visual overlay
             },
             "inactivity": inactivity_res,
             "global_state": {
@@ -384,7 +432,6 @@ class UnitedMonitor:
         if now - self._fps_start > 1.0:
             self._current_fps = self._fps_frames / (now - self._fps_start)
             self._fps_start, self._fps_frames = now, 0
-
         self._last_result = result
         return result
 
@@ -403,28 +450,60 @@ def draw_united_interface(frame, results, draw_skeleton=True):
     fall_res = results["fall"]
     gs = results["global_state"]
     all_persons = fall_res.get("all_persons", [])
+    fall_detected  = gs["fall_detected"]
+    fall_anchor    = fall_res.get("fall_anchor_box")
     h, w = frame_copy.shape[:2]
 
+    # ── Determine which person is the "fallen/monitored" one ──────────────────
+    # When a fall is active, we locate the MONITORED person by finding whoever is
+    # closest (by centroid) to the fall_anchor position — NOT by trusting the
+    # is_monitored flag, which can jump to other people in predict() mode.
+    # Before any fall: just use is_monitored as normal.
+    if fall_detected and fall_anchor is not None:
+        acx = (fall_anchor[0] + fall_anchor[2]) / 2.0
+        acy = (fall_anchor[1] + fall_anchor[3]) / 2.0
+        best_dist, fall_person_idx = 1e9, -1
+        for idx, p in enumerate(all_persons):
+            bx1, by1, bx2, by2 = p["box"]
+            pcx, pcy = (bx1 + bx2) / 2.0, (by1 + by2) / 2.0
+            dist = math.sqrt((pcx - acx) ** 2 + (pcy - acy) ** 2)
+            if dist < best_dist:
+                best_dist, fall_person_idx = dist, idx
+        # Accept the closest match only if they're within 300px of the anchor.
+        # Beyond that the anchor is stale (unlikely in a short clip) — fall back
+        # to is_monitored in that edge case.
+        use_anchor_for_person = (best_dist < 300)
+    else:
+        use_anchor_for_person = False
+        fall_person_idx = -1
+
     # ── Draw bounding boxes and labels for each detected person ──
-    for p in all_persons:
-        box, is_mon = p["box"], p["is_monitored"]
-        # Use plain ASCII text — OpenCV cannot render Unicode/emoji
-        if is_mon:
-            if gs["fall_detected"]:
-                color = (0, 0, 255)       # Red — fall
+    for idx, p in enumerate(all_persons):
+        box = p["box"]
+
+        # Decide if this person is the monitored/fallen person:
+        if fall_detected and use_anchor_for_person:
+            is_fall_person = (idx == fall_person_idx)
+        else:
+            is_fall_person = p["is_monitored"]
+
+        if is_fall_person:
+            if fall_detected:
+                color = (0, 0, 255)           # Red — fall
                 label = "! FALL DETECTED"
             elif gs["inactivity_alert"]:
-                color = (0, 128, 255)     # Orange — inactivity
+                color = (0, 128, 255)         # Orange — inactivity
                 label = ">> INACTIVITY ALERT"
             else:
-                color = (0, 200, 0)       # Green — monitored OK
+                color = (0, 200, 0)           # Green — monitored OK
                 label = ">> MONITORED"
         else:
-            color = (0, 200, 255)         # Yellow — visitor
+            # Everyone else is always VISITOR — no exceptions
+            color = (0, 200, 255)             # Yellow
             label = "VISITOR"
 
         x1, y1, x2, y2 = map(int, box)
-        thickness = 3 if is_mon else 2
+        thickness = 3 if is_fall_person else 2
         cv2.rectangle(frame_copy, (x1, y1), (x2, y2), color, thickness)
 
         # Draw label with background
@@ -432,12 +511,13 @@ def draw_united_interface(frame, results, draw_skeleton=True):
         cv2.rectangle(frame_copy, (x1, y1 - th - 12), (x1 + tw + 6, y1), color, -1)
         cv2.putText(frame_copy, label, (x1 + 3, y1 - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2)
 
-        if draw_skeleton and is_mon and p["xy"] is not None:
+        if draw_skeleton and is_fall_person and p["xy"] is not None:
             kps = p["xy"]
             conn = [(0,1),(0,2),(1,3),(2,4),(5,6),(5,7),(7,9),(6,8),(8,10),(5,11),(6,12),(11,12),(11,13),(13,15),(12,14),(14,16)]
             for s, e in conn:
                 if s < len(kps) and e < len(kps):
                     cv2.line(frame_copy, (int(kps[s][0]), int(kps[s][1])), (int(kps[e][0]), int(kps[e][1])), color, 2)
+
 
     # ── Status bar at top of frame ── always visible even with no detections ──
     bar_h = 30

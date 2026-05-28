@@ -8,6 +8,11 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- TensorFlow.js + MoveNet pose detection -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.17.0/dist/tf-core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.17.0/dist/tf-backend-webgl.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.17.0/dist/tf-converter.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
     <style>
         :root {
             --primary: #4A90E2;
@@ -338,6 +343,102 @@
             color: #6c757d;
             width: 100%;
         }
+
+        /* ── TF.js Live Feed ──────────────────────────────────────── */
+        .tfjs-feed-wrapper {
+            position: relative;
+            width: 100%;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            aspect-ratio: 4/3;
+        }
+
+        #tfjs-video {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            /* hidden — canvas is the visible layer */
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #tfjs-canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            border-radius: 12px;
+        }
+
+        .tfjs-loading-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.75);
+            color: #fff;
+            font-size: 1rem;
+            border-radius: 12px;
+            z-index: 10;
+            gap: 12px;
+        }
+
+        .tfjs-loading-overlay .spinner-border {
+            width: 2.5rem; height: 2.5rem;
+        }
+
+        .tfjs-metrics-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.6rem;
+            margin-top: 0.8rem;
+        }
+
+        .tfjs-metric-card {
+            background: rgba(255,255,255,0.75);
+            border: 1px solid rgba(255,255,255,0.9);
+            backdrop-filter: blur(8px);
+            border-radius: 10px;
+            padding: 0.7rem 0.5rem;
+            text-align: center;
+        }
+
+        .tfjs-metric-card .metric-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--primary);
+            line-height: 1;
+        }
+
+        .tfjs-metric-card .metric-label {
+            font-size: 0.7rem;
+            color: #6c757d;
+            margin-top: 2px;
+        }
+
+        .fall-alert-banner {
+            display: none;
+            background: linear-gradient(135deg, #ff3b3b, #c0392b);
+            color: #fff;
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin-top: 0.75rem;
+            animation: pulse 1.5s infinite;
+        }
+
+        .fall-alert-banner.show {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .fall-alert-banner .fa-exclamation-triangle {
+            font-size: 1.6rem;
+        }
     </style>
 </head>
 
@@ -452,7 +553,7 @@
                 </div>
             </div>
 
-            <!-- Live Monitoring Tab -->
+            <!-- Live Monitoring Tab (TF.js powered) -->
             <div class="tab-pane fade" id="live" role="tabpanel">
                 <div class="row">
                     <div class="col-lg-8">
@@ -461,92 +562,91 @@
                                 <h5 class="mb-0">
                                     <span id="liveIndicator"></span>
                                     Live Camera Feed
+                                    <small class="text-muted ms-2" style="font-size:0.7rem; font-weight:400;">
+                                        <i class="fas fa-bolt text-warning"></i> TensorFlow.js · MoveNet
+                                    </small>
                                 </h5>
-                                <div>
+                                <div class="d-flex gap-2">
                                     <button class="btn btn-success-custom btn-custom" id="startLiveBtn"
                                         onclick="startLiveMonitoring()">
                                         <i class="fas fa-play me-2"></i>Start Monitoring
                                     </button>
                                     <button class="btn btn-danger-custom btn-custom d-none" id="stopLiveBtn"
                                         onclick="stopLiveMonitoring()">
-                                        <i class="fas fa-stop me-2"></i>Stop Monitoring
+                                        <i class="fas fa-stop me-2"></i>Stop
                                     </button>
                                 </div>
                             </div>
 
                             <!-- Camera Selector -->
                             <div class="camera-selector-bar" id="cameraSelectorBar">
-                                <!-- Source Type Toggle -->
                                 <div class="d-flex align-items-center gap-2 w-100 mb-2">
-                                    <label class="mb-0"><i class="fas fa-camera me-1"></i>Camera Type:</label>
-                                    <div class="btn-group btn-group-sm" role="group" id="cameraTypeGroup">
-                                        <input type="radio" class="btn-check" name="cameraType" id="typeUSB" value="usb" checked autocomplete="off">
-                                        <label class="btn btn-outline-primary" for="typeUSB">
-                                            <i class="fas fa-usb me-1"></i>USB / Webcam
-                                        </label>
-                                        <input type="radio" class="btn-check" name="cameraType" id="typeIP" value="ip" autocomplete="off">
-                                        <label class="btn btn-outline-primary" for="typeIP">
-                                            <i class="fas fa-network-wired me-1"></i>IP Camera
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <!-- USB Camera Row -->
-                                <div id="usbCameraRow" class="d-flex align-items-center gap-2 w-100">
-                                    <label for="cameraSelect" class="mb-0" style="white-space:nowrap;">
-                                        <i class="fas fa-list me-1"></i>Select Device:
-                                    </label>
-                                    <select id="cameraSelect" title="Select a camera device">
-                                        <option value="0">Default Camera (index 0)</option>
+                                    <label class="mb-0"><i class="fas fa-camera me-1"></i>Camera Device:</label>
+                                    <select id="cameraSelect" title="Select a camera device" style="flex:1; border-radius:8px; border:1px solid rgba(74,144,226,0.4); padding:0.4rem 0.75rem; font-size:0.9rem;">
+                                        <option value="">Default Camera</option>
                                     </select>
                                     <button class="btn-refresh-cam" onclick="refreshCameraList()" title="Refresh camera list">
                                         <i class="fas fa-sync-alt me-1"></i>Refresh
                                     </button>
                                 </div>
-
-                                <!-- IP Camera Row -->
-                                <div id="ipCameraRow" class="d-none w-100">
-                                    <label for="ipCameraUrl" class="mb-1" style="font-weight:600; color:var(--primary);">
-                                        <i class="fas fa-link me-1"></i>Stream URL:
-                                    </label>
-                                    <div class="d-flex gap-2 align-items-center">
-                                        <input type="text" id="ipCameraUrl" class="form-control form-control-sm"
-                                               placeholder="e.g. rtsp://admin:pass@192.168.1.100:554/stream"
-                                               style="border-radius:8px; border:1px solid rgba(74,144,226,0.4); font-size:0.88rem;">
-                                        <button class="btn-refresh-cam" onclick="testIpCamera()" title="Test connection">
-                                            <i class="fas fa-plug me-1"></i>Test
-                                        </button>
-                                    </div>
-                                    <div class="mt-1" style="font-size:0.78rem; color:#6c757d;">
-                                        <strong>Formats:</strong>
-                                        <code>rtsp://user:pass@IP:554/stream</code> &nbsp;|&nbsp;
-                                        <code>http://IP:8080/video</code> &nbsp;|&nbsp;
-                                        <code>http://IP/mjpgstream</code>
-                                    </div>
+                                <div class="d-flex align-items-center gap-2 w-100">
+                                    <label class="mb-0"><i class="fas fa-sliders-h me-1"></i>Sensitivity:</label>
+                                    <select id="sensitivitySelect" title="Detection sensitivity" style="border-radius:8px; border:1px solid rgba(74,144,226,0.4); padding:0.4rem 0.75rem; font-size:0.9rem;">
+                                        <option value="low">Low</option>
+                                        <option value="medium" selected>Medium</option>
+                                        <option value="high">High</option>
+                                    </select>
                                 </div>
-
-                                <span id="cameraStatus" class="w-100"><i class="fas fa-info-circle me-1"></i>Click Refresh to detect all connected cameras.</span>
+                                <span id="cameraStatus" class="w-100 mt-1"><i class="fas fa-info-circle me-1"></i>Click Refresh to detect all connected cameras.</span>
                             </div>
 
-                            <div class="alert alert-info">
-                                <i class="fas fa-video me-2"></i>
-                                <strong>Ready to Monitor:</strong> Select your camera above, then click "Start Monitoring".
-                                The selected feed will be streamed with real-time fall &amp; inactivity detection.
+                            <!-- Info banner (shown when stopped) -->
+                            <div class="alert alert-info" id="liveInfoBanner">
+                                <i class="fas fa-bolt me-2 text-warning"></i>
+                                <strong>In-Browser Detection:</strong> Fall analysis runs directly on your device via
+                                TensorFlow.js &amp; MoveNet — no video is sent to the server.
+                                Select a camera and click <strong>Start Monitoring</strong>.
                             </div>
 
-                            <div id="liveSessionInfo" class="d-none">
-
-
-                                <!-- Live Monitoring Window Info -->
-                                <div class="alert alert-success">
-                                    <i class="fas fa-check-circle me-2"></i>
-                                    <strong>Live Feed Active:</strong> The video stream is now displaying below with
-                                    real-time fall detection and inactivity monitoring.
+                            <!-- Fall alert banner (shown on detection) -->
+                            <div class="fall-alert-banner" id="fallAlertBanner">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <div>
+                                    <strong style="font-size:1.1rem;">FALL DETECTED!</strong><br>
+                                    <span id="fallAlertTime" style="font-size:0.85rem; opacity:0.9;"></span>
                                 </div>
                             </div>
 
-                            <!-- Live Video Stream Container -->
-                            <div id="liveVideoContainer" class="d-none mt-3"></div>
+                            <!-- TF.js Video + Canvas feed -->
+                            <div id="liveVideoContainer" class="d-none mt-3">
+                                <div class="tfjs-feed-wrapper" id="tfjsFeedWrapper">
+                                    <!-- Hidden video source -->
+                                    <video id="tfjs-video" autoplay muted playsinline></video>
+                                    <!-- Visible canvas with skeleton + overlays -->
+                                    <canvas id="tfjs-canvas"></canvas>
+                                    <!-- Loading overlay -->
+                                    <div class="tfjs-loading-overlay" id="tfjsLoadingOverlay">
+                                        <div class="spinner-border text-light" role="status"></div>
+                                        <span id="tfjsLoadingMsg">Loading MoveNet model…</span>
+                                    </div>
+                                </div>
+
+                                <!-- Real-time metrics row -->
+                                <div class="tfjs-metrics-row">
+                                    <div class="tfjs-metric-card">
+                                        <div class="metric-value" id="metricFps">--</div>
+                                        <div class="metric-label">FPS</div>
+                                    </div>
+                                    <div class="tfjs-metric-card">
+                                        <div class="metric-value" id="metricAngle">--</div>
+                                        <div class="metric-label">Torso Angle °</div>
+                                    </div>
+                                    <div class="tfjs-metric-card">
+                                        <div class="metric-value" id="metricAspect">--</div>
+                                        <div class="metric-label">Aspect Ratio</div>
+                                    </div>
+                                </div>
+                            </div>
 
                             <div id="liveAlerts" class="mt-3"></div>
                         </div>
@@ -555,21 +655,29 @@
                     <div class="col-lg-4">
                         <div class="monitoring-card">
                             <h5><i class="fas fa-bell me-2"></i>Live Alerts</h5>
-                            <div id="liveAlertsList" style="max-height: 300px; overflow-y: auto;">
+                            <div id="liveAlertsList" style="max-height: 400px; overflow-y: auto;">
                                 <p class="text-muted text-center">No active alerts</p>
                             </div>
                         </div>
 
                         <div class="monitoring-card mt-3">
+                            <h5><i class="fas fa-info-circle me-2"></i>Detection Info</h5>
+                            <ul class="list-unstyled mb-0" style="font-size:0.85rem; color:#555;">
+                                <li class="mb-2"><i class="fas fa-brain me-2 text-primary"></i><strong>Model:</strong> MoveNet Lightning (TF.js)</li>
+                                <li class="mb-2"><i class="fas fa-crosshairs me-2 text-success"></i><strong>Keypoints:</strong> 17 COCO joints</li>
+                                <li class="mb-2"><i class="fas fa-filter me-2 text-warning"></i><strong>Criteria:</strong> Angle + Aspect + Speed</li>
+                                <li class="mb-2"><i class="fas fa-clock me-2 text-info"></i><strong>Cooldown:</strong> 3 seconds</li>
+                                <li><i class="fas fa-shield-alt me-2 text-danger"></i><strong>Privacy:</strong> No video sent to server</li>
+                            </ul>
+                        </div>
+
+                        <div class="monitoring-card mt-3">
                             <h5><i class="fas fa-cog me-2"></i>Settings</h5>
                             <div class="mb-3">
-                                <label for="inactivityThreshold" class="form-label">Inactivity Threshold
-                                    (seconds)</label>
+                                <label for="inactivityThreshold" class="form-label">Inactivity Threshold (seconds)</label>
                                 <div class="input-group">
-                                    <input type="number" class="form-control" id="inactivityThreshold" value="30"
-                                        min="5" max="300">
-                                    <button class="btn btn-primary" type="button"
-                                        onclick="saveInactivitySettings()">Save</button>
+                                    <input type="number" class="form-control" id="inactivityThreshold" value="30" min="5" max="300">
+                                    <button class="btn btn-primary" type="button" onclick="saveInactivitySettings()">Save</button>
                                 </div>
                                 <div class="form-text">Alert triggers after person is still for this duration.</div>
                             </div>
@@ -613,7 +721,9 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="video_monitoring.js?v=8.1"></script>
+    <!-- TF.js fall detection engine (must load before video_monitoring.js) -->
+    <script src="fall_detection_tfjs.js?v=1.0"></script>
+    <script src="video_monitoring.js?v=9.0"></script>
 </body>
 
 </html>

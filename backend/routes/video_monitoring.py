@@ -266,20 +266,14 @@ def process_video_direct(process_id: str, input_path: str, output_path: str, use
       - FRAME_SKIP: only run YOLO on every Nth frame (re-use last result for skipped frames)
       - MAX_WIDTH: resize wide frames before inference (YOLO runs faster on smaller images)
     """
-    FRAME_SKIP = 3     # Process 1 in every 3 frames  →  ~3x faster
+    # FRAME_SKIP is now adaptive (set below, after we know video duration)
     MAX_WIDTH  = 640   # Resize to this width before YOLO (keeps aspect ratio)
 
     try:
         logger.info(f"Starting direct analysis for {process_id}")
         
-        # Initialize Monitor
-        monitor = UnitedMonitor(
-            sensitivity="medium",
-            inactivity_threshold=30,
-            is_live=False,
-            process_every_n_frames=1
-        )
-        
+        # NOTE: UnitedMonitor is initialised AFTER fps is validated below,
+        # so we can pass the correct video_fps for accurate dt calculation.
         # Open Video
         cap = cv2.VideoCapture(input_path)
         if not cap.isOpened():
@@ -291,6 +285,13 @@ def process_video_direct(process_id: str, input_path: str, output_path: str, use
         fps = cap.get(cv2.CAP_PROP_FPS)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
+        # ── FPS sanity check ───────────────────────────────────────────────────
+        # Some uploaded videos report fps=0 or absurdly high values from OpenCV.
+        # VideoWriter with fps=0 writes nothing / a corrupt file — hence the 4-sec clip.
+        if fps <= 0 or fps > 120:
+            logger.warning(f"Suspicious FPS value {fps} detected — defaulting to 30")
+            fps = 30.0
+
         # Pre-compute resize scale so we scale frames before inference
         if width > MAX_WIDTH:
             scale = MAX_WIDTH / width
@@ -300,31 +301,63 @@ def process_video_direct(process_id: str, input_path: str, output_path: str, use
             scale = 1.0
             infer_w, infer_h = width, height
         
-        # Initialize Writer - use a standard avi container for the intermediate analysis file
-        # to avoid Windows DLL issues with H.264 in OpenCV directly. 
-        # We will transcode to H.264 using FFmpeg afterwards.
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        # Initialize Writer — XVID is the most reliable AVI codec on Windows.
+        # We transcode to H.264 via FFmpeg afterwards for browser compatibility.
         temp_avi_path = str(output_path).replace(".mp4", "_raw.avi")
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')
         writer = cv2.VideoWriter(temp_avi_path, fourcc, fps, (width, height))
         
         if not writer.isOpened():
-            logger.error(f"Failed to initialize VideoWriter with mp4v for {temp_avi_path}")
-            # Try one more fallback
-            fourcc = cv2.VideoWriter_fourcc(*'XVID')
+            logger.error(f"Failed to initialize VideoWriter with XVID for {temp_avi_path}")
+            # Fallback: try mp4v
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
             writer = cv2.VideoWriter(temp_avi_path, fourcc, fps, (width, height))
             if not writer.isOpened():
                 raise Exception("Could not initialize VideoWriter with any available codec")
         
         logger.info(f"Using intermediate AVI file: {temp_avi_path}")
-        logger.info(f"Speed config: FRAME_SKIP={FRAME_SKIP}, infer_size={infer_w}x{infer_h} (original {width}x{height})")
-        
+        logger.info(f"Video props: {width}x{height} @ {fps:.1f}fps, {total_frames} frames")
+
+        # ── Initialize Monitor ────────────────────────────────────────────
+        # Pass video_fps so that the dt used in time-based gates (standing duration,
+        # HUD clearing) reflects VIDEO time, not slow processing wall-clock time.
+        monitor = UnitedMonitor(
+            sensitivity="medium",
+            inactivity_threshold=30,
+            is_live=False,
+            process_every_n_frames=1,
+            video_fps=fps
+        )
+
+        # ── Adaptive FRAME_SKIP + WARMUP based on video duration ──────────────
+        # Problem: with static FRAME_SKIP=4 and WARMUP=30:
+        #   - A 1-sec video (30 frames) skips the LSTM buffer fill entirely
+        #   - A 4-sec video (120 frames) uses all frames just filling the buffer
+        # Fix: for short clips, process EVERY frame and use minimal warmup.
+        duration_sec = total_frames / fps if fps > 0 else 999
+        if duration_sec < 10:
+            # Short clip: process every frame; WARMUP=18 gives 3 frames after the 15-frame
+            # LSTM buffer fills before we allow recording (prevents buffer-fill false positives)
+            FRAME_SKIP    = 1
+            WARMUP_FRAMES = 18
+        elif duration_sec < 30:
+            # Medium clip: process every other frame
+            FRAME_SKIP    = 2
+            WARMUP_FRAMES = 10
+        else:
+            # Long video: skip more aggressively
+            FRAME_SKIP    = 4
+            WARMUP_FRAMES = 20
+
+        logger.info(f"Duration: {duration_sec:.1f}s  →  FRAME_SKIP={FRAME_SKIP}, WARMUP={WARMUP_FRAMES}")
+
         frame_count = 0
         falls_detected = []
         total_inactivity_frames = 0
-        last_alert_time = 0
         last_results = None
-        WARMUP_FRAMES = 30  # Skip fall detection for first ~1 sec (LSTM buffer filling up)
-        
+        last_fall_video_time = -999.0        # for deduplication
+        MIN_FALL_GAP_SEC = 3.0               # don't record two falls within 3 video-seconds
+
         while True:
             ret, frame = cap.read()
             if not ret:
@@ -380,16 +413,24 @@ def process_video_direct(process_id: str, input_path: str, output_path: str, use
             # Track Inactivity
             if results["inactivity"].get("alert"):
                 total_inactivity_frames += 1
-            # Only record fall events on inference frames AND after warmup
+
+            # ── Record fall events ─────────────────────────────────────────
+            # Guard 1: only on inference frames after warmup
+            # Guard 2: MIN_FALL_GAP_SEC deduplication — prevents the same physical
+            #   fall from being logged multiple times if _is_currently_falling clears
+            #   unexpectedly (e.g. top-down camera where lying flat looks upright).
             if is_inference_frame and frame_count >= WARMUP_FRAMES and results["fall"]["fall_event_fired"]:
-                # Use actual video time (seconds into the clip), NOT processing wall-clock time
                 video_time_sec = frame_count / fps if fps > 0 else 0.0
-                falls_detected.append({
-                    "timestamp": round(video_time_sec, 2),
-                    "message": "Fall Detected",
-                    "frame": frame_count
-                })
-                logger.info(f"Fall Event Recorded: Frame {frame_count}")
+                if video_time_sec - last_fall_video_time >= MIN_FALL_GAP_SEC:
+                    falls_detected.append({
+                        "timestamp": round(video_time_sec, 2),
+                        "message": "Fall Detected",
+                        "frame": frame_count
+                    })
+                    last_fall_video_time = video_time_sec
+                    logger.info(f"Fall Event Recorded at {video_time_sec:.2f}s (frame {frame_count})")
+                else:
+                    logger.debug(f"Duplicate fall suppressed at {video_time_sec:.2f}s (last was {last_fall_video_time:.2f}s)")
             
             frame_count += 1
             

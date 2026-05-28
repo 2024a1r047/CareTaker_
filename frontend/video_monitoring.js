@@ -4,7 +4,14 @@ let currentProcessId = null;
 let currentSessionId = null;
 let checkStatusInterval = null;
 let checkAlertsInterval = null;
-let selectedCameraIndex = 0; // Tracks selected camera index for live monitoring
+let selectedCameraIndex = 0;    // Legacy — kept for upload-related code
+let selectedCameraDeviceId = null; // TF.js live: exact deviceId string
+
+/** TF.js live session singleton. */
+let _tfjsSession = null;
+
+/** Fall alert auto-dismiss timer. */
+let _fallAlertTimer = null;
 
 // Authentication check
 const token = localStorage.getItem('token');
@@ -308,7 +315,7 @@ function showResults(results) {
  * Prompts for camera permission if labels are empty (first run).
  */
 async function refreshCameraList() {
-    const select = document.getElementById('cameraSelect');
+    const select   = document.getElementById('cameraSelect');
     const statusEl = document.getElementById('cameraStatus');
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
@@ -319,40 +326,45 @@ async function refreshCameraList() {
     statusEl.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Detecting cameras...';
 
     try {
-        // Request permission first so device labels are populated
+        // Brief permission request so labels are populated
         let stream = null;
         try {
             stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         } catch (permErr) {
-            // If permission denied, we can still list devices (but labels may be empty)
-            console.warn('[Camera] Permission error:', permErr.message);
+            console.warn('[Camera] Permission prompt error:', permErr.message);
         }
 
-        const devices = await navigator.mediaDevices.enumerateDevices();
+        const devices     = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter(d => d.kind === 'videoinput');
 
-        // Stop the temporary permission stream
         if (stream) stream.getTracks().forEach(t => t.stop());
 
         if (videoDevices.length === 0) {
             statusEl.innerHTML = '<i class="fas fa-times-circle me-1 text-danger"></i>No cameras detected.';
-            select.innerHTML = '<option value="0">No cameras found</option>';
+            select.innerHTML   = '<option value="">No cameras found</option>';
             return;
         }
 
-        // Re-populate dropdown
-        const prevIndex = parseInt(select.value) || 0;
+        // Store previous selection
+        const prevId = select.value;
         select.innerHTML = '';
+
+        // Default option
+        const defOpt = document.createElement('option');
+        defOpt.value       = '';
+        defOpt.textContent = 'Default Camera';
+        select.appendChild(defOpt);
+
         videoDevices.forEach((device, idx) => {
-            const label = device.label || `Camera ${idx} (index ${idx})`;
-            const opt = document.createElement('option');
-            opt.value = idx;
+            const label = device.label || `Camera ${idx}`;
+            const opt   = document.createElement('option');
+            opt.value       = device.deviceId;
             opt.textContent = label;
-            if (idx === prevIndex) opt.selected = true;
+            if (device.deviceId === prevId) opt.selected = true;
             select.appendChild(opt);
         });
 
-        selectedCameraIndex = parseInt(select.value);
+        selectedCameraDeviceId = select.value || null;
         statusEl.innerHTML = `<i class="fas fa-check-circle me-1 text-success"></i>${videoDevices.length} camera(s) detected.`;
 
     } catch (err) {
@@ -363,40 +375,19 @@ async function refreshCameraList() {
 
 // Camera dropdown change handler — called from DOMContentLoaded below
 function setupCameraSelector() {
-    // USB camera dropdown change
     const select = document.getElementById('cameraSelect');
     if (select) {
         select.addEventListener('change', function () {
-            selectedCameraIndex = parseInt(this.value);
-            console.log('[Camera] Selected camera index:', selectedCameraIndex);
+            selectedCameraDeviceId = this.value || null;
+            console.log('[Camera] Selected deviceId:', selectedCameraDeviceId);
         });
     }
-
-    // USB / IP Camera toggle
-    document.querySelectorAll('input[name="cameraType"]').forEach(radio => {
-        radio.addEventListener('change', function () {
-            const isIP = this.value === 'ip';
-            document.getElementById('usbCameraRow').classList.toggle('d-none', isIP);
-            document.getElementById('ipCameraRow').classList.toggle('d-none', !isIP);
-
-            const statusEl = document.getElementById('cameraStatus');
-            if (isIP) {
-                statusEl.innerHTML = '<i class="fas fa-network-wired me-1 text-primary"></i>Enter the RTSP or HTTP stream URL of your IP camera, then click Start Monitoring.';
-            } else {
-                statusEl.innerHTML = '<i class="fas fa-info-circle me-1"></i>Click Refresh to detect all connected cameras.';
-                // Auto-refresh USB camera list when switching back
-                refreshCameraList();
-            }
-        });
-    });
 
     // Auto-refresh camera list when user switches to Live tab
     const liveTabBtn = document.getElementById('live-tab');
     if (liveTabBtn) {
         liveTabBtn.addEventListener('shown.bs.tab', function () {
-            // Only auto-refresh if USB mode is active
-            const selectedType = document.querySelector('input[name="cameraType"]:checked')?.value;
-            if (selectedType !== 'ip') refreshCameraList();
+            refreshCameraList();
         });
     }
 
@@ -408,19 +399,13 @@ function setupCameraSelector() {
         });
     }
 
-    // ── Hot-plug detection ──────────────────────────────────────────────────
-    // Fires instantly whenever a camera/USB device is connected or removed
+    // Hot-plug detection
     if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
         navigator.mediaDevices.addEventListener('devicechange', async () => {
             console.log('[Camera] Device change detected — refreshing list...');
-
-            // Only auto-refresh if the Live tab is currently the active one
             const livePane = document.getElementById('live');
-            const selectedType = document.querySelector('input[name="cameraType"]:checked')?.value;
-            if (livePane && livePane.classList.contains('active') && selectedType !== 'ip') {
+            if (livePane && livePane.classList.contains('active')) {
                 await refreshCameraList();
-
-                // Flash the status briefly to inform the user
                 const statusEl = document.getElementById('cameraStatus');
                 if (statusEl) {
                     const prev = statusEl.innerHTML;
@@ -475,152 +460,177 @@ async function testIpCamera() {
     }
 }
 
-// ── Live Monitoring Functions ───────────────────────────────────────────────
+// ── TF.js Live Monitoring ────────────────────────────────────────────────────
 
 async function startLiveMonitoring() {
-    // Determine camera source based on selected type
-    const selectedType = document.querySelector('input[name="cameraType"]:checked')?.value;
-    const statusEl = document.getElementById('cameraStatus');
-
-    let payload = { sensitivity: 'medium' };
-
-    if (selectedType === 'ip') {
-        const url = document.getElementById('ipCameraUrl')?.value?.trim();
-        if (!url) {
-            showAlert('Please enter an IP camera URL before starting.', 'warning');
-            return;
-        }
-        if (!url.startsWith('rtsp://') && !url.startsWith('http://') && !url.startsWith('https://')) {
-            showAlert('IP camera URL must start with rtsp://, http://, or https://', 'warning');
-            return;
-        }
-        payload.camera_url = url;
-        payload.camera_index = 0; // ignored by backend when camera_url is set
-        console.log('[Live] Starting with IP camera URL:', url);
-    } else {
-        // USB/webcam mode
-        const cameraSelect = document.getElementById('cameraSelect');
-        selectedCameraIndex = cameraSelect ? parseInt(cameraSelect.value) : 0;
-        payload.camera_index = selectedCameraIndex;
-        console.log('[Live] Starting with USB camera index:', selectedCameraIndex);
+    if (_tfjsSession && _tfjsSession.isRunning) {
+        showAlert('Monitoring is already active.', 'warning');
+        return;
     }
 
+    const sensitivity = document.getElementById('sensitivitySelect')?.value || 'medium';
+    const deviceId    = selectedCameraDeviceId || null;
+
+    // Show the video container & loading overlay immediately
+    const liveVideoContainer = document.getElementById('liveVideoContainer');
+    liveVideoContainer.classList.remove('d-none');
+    document.getElementById('liveInfoBanner').classList.add('d-none');
+
+    const loadingOverlay = document.getElementById('tfjsLoadingOverlay');
+    const loadingMsg     = document.getElementById('tfjsLoadingMsg');
+    if (loadingOverlay) loadingOverlay.style.display = 'flex';
+    if (loadingMsg)     loadingMsg.textContent = 'Loading MoveNet model…';
+
+    // Update header UI
+    document.getElementById('startLiveBtn').classList.add('d-none');
+    document.getElementById('stopLiveBtn').classList.remove('d-none');
+    const liveIndicator = document.getElementById('liveIndicator');
+    if (liveIndicator) liveIndicator.innerHTML = '<span class="live-indicator"></span>';
+
     try {
-        const response = await fetch(`${API_BASE}/video-monitoring/start`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
+        const videoEl  = document.getElementById('tfjs-video');
+        const canvasEl = document.getElementById('tfjs-canvas');
+
+        _tfjsSession = new TFJSLiveSession(videoEl, canvasEl, {
+            sensitivity,
+
+            onFall(event) {
+                // Show fall banner
+                const banner = document.getElementById('fallAlertBanner');
+                const timeEl = document.getElementById('fallAlertTime');
+                if (banner) banner.classList.add('show');
+                if (timeEl)  timeEl.textContent = `Detected at ${new Date(event.timestamp).toLocaleTimeString()}`;
+
+                // Auto-dismiss banner after 6 s
+                clearTimeout(_fallAlertTimer);
+                _fallAlertTimer = setTimeout(() => {
+                    if (banner) banner.classList.remove('show');
+                }, 6000);
+
+                // Add entry to the live alerts list
+                _appendLiveAlert({ type: 'fall', timestamp: event.timestamp, confidence: event.confidence });
+
+                // Play alert sound
+                playAlertSound();
+
+                // Optionally report to backend for DB logging (fire-and-forget)
+                _reportFallToBackend(event).catch(e => console.warn('[Fall] Backend report failed:', e));
             },
-            body: JSON.stringify(payload)
+
+            onFrame(features, fps) {
+                // Update metrics panel
+                const fpEl  = document.getElementById('metricFps');
+                const angEl = document.getElementById('metricAngle');
+                const aspEl = document.getElementById('metricAspect');
+
+                if (fpEl)  fpEl.textContent  = fps.toFixed(1);
+                if (angEl) angEl.textContent = features.torsoAngle  != null ? features.torsoAngle.toFixed(1)  + '°' : '--';
+                if (aspEl) aspEl.textContent = features.aspectRatio != null ? features.aspectRatio.toFixed(2) : '--';
+            },
         });
 
-        if (!response.ok) {
-            throw new Error('Failed to start monitoring');
-        }
+        if (loadingMsg) loadingMsg.textContent = 'Opening camera…';
+        await _tfjsSession.start(deviceId);
 
-        const data = await response.json();
-        currentSessionId = data.session_id;
-        const streamUrl = data.stream_url;
+        // Hide loading overlay once running
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
 
-        console.log('[Live Monitoring] Session started:', currentSessionId);
-        console.log('[Live Monitoring] Relative stream URL:', streamUrl);
+        showAlert('✅ TF.js live monitoring started! (MoveNet, in-browser)', 'success');
+        console.log('[startLiveMonitoring] TF.js session running at', sensitivity, 'sensitivity.');
 
-        // Convert relative URL to absolute URL pointing to backend
-        const absoluteStreamUrl = `${API_BASE.replace('/api', '')}${streamUrl}`;
-        console.log('[Live Monitoring] Absolute stream URL:', absoluteStreamUrl);
+    } catch (err) {
+        console.error('[startLiveMonitoring] Error:', err);
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
 
-        // Update UI
-        document.getElementById('startLiveBtn').classList.add('d-none');
-        document.getElementById('stopLiveBtn').classList.remove('d-none');
-        document.getElementById('liveSessionInfo').classList.remove('d-none');
+        // Roll back UI
+        document.getElementById('startLiveBtn').classList.remove('d-none');
+        document.getElementById('stopLiveBtn').classList.add('d-none');
+        liveVideoContainer.classList.add('d-none');
+        document.getElementById('liveInfoBanner').classList.remove('d-none');
+        if (liveIndicator) liveIndicator.innerHTML = '';
 
-        const sessionIdEl = document.getElementById('sessionId');
-        if (sessionIdEl) sessionIdEl.textContent = currentSessionId;
-
-        const sessionTimeEl = document.getElementById('sessionStartTime');
-        if (sessionTimeEl) sessionTimeEl.textContent = new Date().toLocaleString();
-
-        const liveIndicatorEl = document.getElementById('liveIndicator');
-        if (liveIndicatorEl) liveIndicatorEl.innerHTML = '<span class="live-indicator"></span>';
-
-        // Display the video stream
-        const liveVideoContainer = document.getElementById('liveVideoContainer');
-        liveVideoContainer.innerHTML = `
-            <div class="card">
-                <div class="card-header bg-dark text-white">
-                    <h5 class="mb-0"><i class="fas fa-video me-2"></i>Live Feed</h5>
-                </div>
-                <div class="card-body p-0">
-                    <div class="ratio ratio-16x9">
-                        <img id="liveStreamImg"
-                             src="${absoluteStreamUrl}" 
-                             alt="Live monitoring feed" 
-                             class="w-100"
-                             style="object-fit: contain; background: #000;"
-                             onload="console.log('[Stream] Image loaded successfully')"
-                             onerror="console.error('[Stream] Failed to load:', this.src)">
-                    </div>
-                </div>
-            </div>
-        `;
-        liveVideoContainer.classList.remove('d-none');
-
-        showAlert('Live monitoring session started successfully!', 'success');
-
-        // Start checking for alerts
-        checkAlertsInterval = setInterval(checkLiveAlerts, 5000);
-
-    } catch (error) {
-        console.error('Error starting live monitoring:', error);
-        showAlert('Failed to start live monitoring. Please try again.', 'danger');
+        let msg = 'Failed to start live monitoring.';
+        if (err.name === 'NotAllowedError')  msg = 'Camera permission denied. Please allow camera access and try again.';
+        if (err.name === 'NotFoundError')    msg = 'No camera found. Please connect a camera and refresh.';
+        showAlert(msg, 'danger');
     }
 }
 
-async function stopLiveMonitoring() {
-    if (!currentSessionId) return;
-
-    try {
-        const response = await fetch(`${API_BASE}/video-monitoring/stop/${currentSessionId}`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to stop monitoring');
-        }
-
-        // Update UI
-        // Update UI
-        document.getElementById('startLiveBtn').classList.remove('d-none');
-        document.getElementById('stopLiveBtn').classList.add('d-none');
-
-        const liveSessionInfo = document.getElementById('liveSessionInfo');
-        if (liveSessionInfo) liveSessionInfo.classList.add('d-none');
-
-        const liveIndicator = document.getElementById('liveIndicator');
-        if (liveIndicator) liveIndicator.innerHTML = '';
-
-        // Hide video container
-        const liveVideoContainer = document.getElementById('liveVideoContainer');
-        liveVideoContainer.classList.add('d-none');
-        liveVideoContainer.innerHTML = '';
-
-        // Stop checking for alerts
-        if (checkAlertsInterval) {
-            clearInterval(checkAlertsInterval);
-            checkAlertsInterval = null;
-        }
-
-        showAlert('Live monitoring session stopped', 'info');
-        currentSessionId = null;
-
-    } catch (error) {
-        console.error('Error stopping live monitoring:', error);
-        showAlert('Failed to stop monitoring session', 'danger');
+function stopLiveMonitoring() {
+    if (_tfjsSession) {
+        _tfjsSession.stop();
+        _tfjsSession = null;
     }
+
+    // UI reset
+    document.getElementById('startLiveBtn').classList.remove('d-none');
+    document.getElementById('stopLiveBtn').classList.add('d-none');
+    document.getElementById('liveVideoContainer').classList.add('d-none');
+    document.getElementById('liveInfoBanner').classList.remove('d-none');
+
+    const liveIndicator = document.getElementById('liveIndicator');
+    if (liveIndicator) liveIndicator.innerHTML = '';
+
+    const banner = document.getElementById('fallAlertBanner');
+    if (banner) banner.classList.remove('show');
+
+    // Reset metrics
+    ['metricFps', 'metricAngle', 'metricAspect'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = '--';
+    });
+
+    showAlert('Live monitoring stopped.', 'info');
+    console.log('[stopLiveMonitoring] TF.js session stopped.');
+}
+
+/** Append a new entry to the live alerts list panel. */
+function _appendLiveAlert(alert) {
+    const alertsList = document.getElementById('liveAlertsList');
+    if (!alertsList) return;
+
+    // Remove 'no alerts' placeholder
+    const placeholder = alertsList.querySelector('p.text-muted');
+    if (placeholder) placeholder.remove();
+
+    const alertClass = alert.type === 'fall' ? 'danger' : 'warning';
+    const icon       = alert.type === 'fall' ? 'exclamation-triangle' : 'exclamation-circle';
+    const conf       = alert.confidence != null ? ` &mdash; ${(alert.confidence * 100).toFixed(0)}% conf.` : '';
+
+    const div = document.createElement('div');
+    div.className = `alert alert-${alertClass} mb-2`;
+    div.innerHTML = `
+        <small>
+            <i class="fas fa-${icon} me-1"></i>
+            <strong>${alert.type.toUpperCase()}</strong>${conf}<br>
+            ${new Date(alert.timestamp).toLocaleString()}
+        </small>`;
+
+    alertsList.insertBefore(div, alertsList.firstChild);
+
+    // Keep only the last 10
+    while (alertsList.children.length > 10) alertsList.removeChild(alertsList.lastChild);
+}
+
+/** Fire-and-forget: log fall event to backend for DB storage. */
+async function _reportFallToBackend(event) {
+    if (!token) return;
+    const urlParams   = new URLSearchParams(window.location.search);
+    const recipientId = urlParams.get('recipient_id');
+
+    const body = {
+        type:        'fall',
+        timestamp:   event.timestamp,
+        confidence:  event.confidence,
+        source:      'tfjs_live',
+    };
+    if (recipientId) body.recipient_id = recipientId;
+
+    await fetch(`${API_BASE}/video-monitoring/log-event`, {
+        method:  'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+    });
 }
 
 // --- Settings Functions ---
