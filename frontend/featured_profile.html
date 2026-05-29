@@ -15,7 +15,7 @@
             --critical: #EF4444;
             --warning: #F59E0B;
             --normal: #10B981;
-            
+
             /* UI Foundation */
             --bg-color: #F8FAFC;
             --card-bg: rgba(255, 255, 255, 0.7);
@@ -30,13 +30,16 @@
             --pastel-mint: #B2F7EF;
             --pastel-peach: #FFDAC1;
             --pastel-lavender: #E2D1F9;
-            
+
             --sidebar-width: 280px;
         }
 
-        * { box-sizing: border-box; }
+        * {
+            box-sizing: border-box;
+        }
 
-        body, html {
+        body,
+        html {
             width: 100%;
             max-width: 100%;
             margin: 0;
@@ -56,7 +59,9 @@
             min-height: 100vh;
         }
 
-        p, span, div {
+        p,
+        span,
+        div {
             word-break: break-word;
         }
 
@@ -65,7 +70,8 @@
             display: flex;
             min-height: 100vh;
             width: 100%;
-            overflow-x: hidden; /* Global safety */
+            overflow-x: hidden;
+            /* Global safety */
         }
 
         /* Sidebar Navigation */
@@ -121,7 +127,12 @@
             text-overflow: ellipsis;
         }
 
-        .nav-item i { width: 20px; text-align: center; font-size: 1.1rem; flex-shrink: 0; }
+        .nav-item i {
+            width: 20px;
+            text-align: center;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
 
         .nav-item:hover {
             background: rgba(74, 144, 226, 0.08);
@@ -139,7 +150,8 @@
             flex: 1;
             margin-left: var(--sidebar-width);
             padding: 32px;
-            min-width: 0; /* CRITICAL: Allows flex child to contain scrolling children */
+            min-width: 0;
+            /* CRITICAL: Allows flex child to contain scrolling children */
             transition: all 0.3s ease;
             position: relative;
         }
@@ -212,14 +224,26 @@
             width: 100%;
         }
 
-        .col-12 { grid-column: span 12; }
-        .col-8 { grid-column: span 8; }
-        .col-6 { grid-column: span 6; }
-        .col-4 { grid-column: span 4; }
+        .col-12 {
+            grid-column: span 12;
+        }
+
+        .col-8 {
+            grid-column: span 8;
+        }
+
+        .col-6 {
+            grid-column: span 6;
+        }
+
+        .col-4 {
+            grid-column: span 4;
+        }
 
         /* Critical Alert Banner */
         .critical-banner {
-            display: none; /* Shown via JS */
+            display: none;
+            /* Shown via JS */
             background: linear-gradient(135deg, #ef4444, #991b1b);
             color: white;
             padding: 20px 32px;
@@ -232,16 +256,59 @@
             flex-shrink: 0;
         }
 
-        .banner-content { display: flex; align-items: center; gap: 20px; }
-        .banner-icon { width: 44px; height: 44px; background: rgba(255,255,255,0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
-        .banner-title { font-weight: 800; font-size: 1.1rem; }
-        .banner-desc { font-size: 0.9rem; opacity: 0.9; font-weight: 500; }
-        .banner-action { background: white; color: #ef4444; border: none; padding: 10px 20px; border-radius: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
-        .banner-action:hover { transform: scale(1.05); }
+        .banner-content {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .banner-icon {
+            width: 44px;
+            height: 44px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .banner-title {
+            font-weight: 800;
+            font-size: 1.1rem;
+        }
+
+        .banner-desc {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            font-weight: 500;
+        }
+
+        .banner-action {
+            background: white;
+            color: #ef4444;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .banner-action:hover {
+            transform: scale(1.05);
+        }
 
         @keyframes slideDown {
-            from { transform: translateY(-20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
+            from {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
         }
 
         /* Tabs System */
@@ -249,11 +316,21 @@
             display: none;
             animation: fadeIn 0.4s ease;
         }
-        .tab-pane.active { display: block; }
+
+        .tab-pane.active {
+            display: block;
+        }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         /* Quick Chips */
@@ -284,7 +361,7 @@
             gap: 12px;
             margin-top: 16px;
             padding: 16px;
-            background: rgba(255,255,255,0.4);
+            background: rgba(255, 255, 255, 0.4);
             border-radius: 16px;
             border: 1px solid var(--border-light);
         }
@@ -313,9 +390,20 @@
             text-transform: uppercase;
         }
 
-        .badge.critical { background: #fee2e2; color: #dc2626; }
-        .badge.warning { background: #fef3c7; color: #d97706; }
-        .badge.success { background: #dcfce7; color: #16a34a; }
+        .badge.critical {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .badge.warning {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .badge.success {
+            background: #dcfce7;
+            color: #16a34a;
+        }
 
         /* Critical Alert Banner Redesign */
         .critical-banner {
@@ -330,17 +418,45 @@
             margin-bottom: 24px;
             box-shadow: 0 10px 25px rgba(220, 38, 38, 0.1);
         }
+
         .banner-icon {
-            width: 56px; height: 56px;
+            width: 56px;
+            height: 56px;
             background: var(--critical);
             border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            color: white; font-size: 1.5rem; flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+            flex-shrink: 0;
         }
-        .banner-content { flex: 1; display: flex; align-items: center; gap: 16px; }
-        .banner-text-wrap { flex: 1; }
-        .banner-title { font-weight: 800; font-size: 1.2rem; color: #991B1B; margin-bottom: 4px; }
-        .banner-desc { font-size: 0.95rem; color: #7F1D1D; opacity: 0.8; line-height: 1.5; }
+
+        .banner-content {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .banner-text-wrap {
+            flex: 1;
+        }
+
+        .banner-title {
+            font-weight: 800;
+            font-size: 1.2rem;
+            color: #991B1B;
+            margin-bottom: 4px;
+        }
+
+        .banner-desc {
+            font-size: 0.95rem;
+            color: #7F1D1D;
+            opacity: 0.8;
+            line-height: 1.5;
+        }
+
         .banner-action {
             background: var(--critical);
             color: white;
@@ -352,24 +468,30 @@
             white-space: nowrap;
             transition: transform 0.2s;
         }
-        .banner-action:hover { transform: scale(1.05); }
+
+        .banner-action:hover {
+            transform: scale(1.05);
+        }
 
         /* Profile Card Elements */
-        .profile-header { 
-            display: flex; 
-            gap: 16px; 
-            align-items: center; 
-            margin-bottom: 24px; 
-            flex-wrap: wrap; /* Prevent overlap */
+        .profile-header {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            /* Prevent overlap */
         }
-        .profile-avatar { 
-            width: 80px; 
-            height: 80px; 
-            border-radius: 50%; 
-            object-fit: cover; 
+
+        .profile-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
             border: 3px solid var(--accent);
             flex-shrink: 0;
         }
+
         /* Icon-based avatar fallback */
         .profile-avatar-icon {
             width: 80px;
@@ -384,37 +506,51 @@
             color: white;
             background: linear-gradient(135deg, #1e3a8a, #3b82f6);
         }
+
         .profile-avatar-icon.female {
             background: linear-gradient(135deg, #9d174d, #ec4899);
         }
+
         .profile-name-wrap {
             flex: 1;
             min-width: 150px;
         }
-        .profile-name { 
-            font-size: 1.6rem; 
-            font-weight: 800; 
-            color: var(--text-main); 
-            line-height: 1.2; 
+
+        .profile-name {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--text-main);
+            line-height: 1.2;
             word-break: break-word;
         }
-        .profile-meta-badge { background: #DBEAFE; color: #1E40AF; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; margin-top: 6px; display: inline-block; }
-        
-        .stat-box-grid { 
-            display: grid; 
-            grid-template-columns: 1fr 1fr; 
-            gap: 12px; 
-            margin-bottom: 20px; 
+
+        .profile-meta-badge {
+            background: #DBEAFE;
+            color: #1E40AF;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            margin-top: 6px;
+            display: inline-block;
         }
-        .stat-box { 
-            background: rgba(241, 245, 249, 0.5); 
-            padding: 16px; 
-            border-radius: 16px; 
+
+        .stat-box-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background: rgba(241, 245, 249, 0.5);
+            padding: 16px;
+            border-radius: 16px;
             display: flex;
             flex-direction: column;
             justify-content: center;
         }
-        
+
         /* Standardized Stat Row System */
         .stat-row {
             display: flex;
@@ -424,15 +560,20 @@
             width: 100%;
             margin-bottom: 8px;
         }
-        .stat-row:last-child { margin-bottom: 0; }
+
+        .stat-row:last-child {
+            margin-bottom: 0;
+        }
 
         .stat-left {
             display: flex;
             align-items: center;
             gap: 10px;
             flex: 1;
-            min-width: 0; /* Important for ellipsis */
+            min-width: 0;
+            /* Important for ellipsis */
         }
+
         .stat-label-modern {
             font-size: 0.85rem;
             font-weight: 600;
@@ -441,6 +582,7 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
+
         .stat-value-modern {
             font-size: 1.15rem;
             font-weight: 800;
@@ -448,6 +590,7 @@
             flex-shrink: 0;
             text-align: right;
         }
+
         .stat-unit-modern {
             font-size: 0.75rem;
             font-weight: 600;
@@ -455,75 +598,199 @@
             margin-left: 2px;
         }
 
-        .stat-label { font-size: 0.7rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
-        .stat-value { font-size: 1.4rem; font-weight: 800; color: #1E3A8A; }
-        .stat-unit { font-size: 0.9rem; font-weight: 500; color: var(--text-muted); margin-left: 4px; }
+        .stat-label {
+            font-size: 0.7rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: #1E3A8A;
+        }
+
+        .stat-unit {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-left: 4px;
+        }
 
         /* AI Risk Elements */
-        .risk-viz-container { display: flex; gap: 24px; align-items: center; justify-content: space-between; width: 100%; }
-        .risk-circle-wrap { position: relative; width: 130px; height: 130px; flex-shrink: 0; }
-        .risk-score-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 100%; }
-        .risk-score-val { font-size: 2.2rem; font-weight: 800; color: #1E3A8A; display: block; line-height: 1; }
-        .risk-score-label { font-size: 0.6rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-top: 2px; display: block; }
-        
-        .risk-factors-list { 
-            display: flex; 
-            flex-direction: column; 
-            gap: 10px; 
-            flex: 1.5; /* Give list more space */
-            min-width: 0; 
+        .risk-viz-container {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
         }
-        .factor-item { 
-            background: rgba(248, 250, 252, 0.8); 
-            padding: 10px 14px; 
-            border-radius: 12px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between; 
+
+        .risk-circle-wrap {
+            position: relative;
+            width: 130px;
+            height: 130px;
+            flex-shrink: 0;
+        }
+
+        .risk-score-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            width: 100%;
+        }
+
+        .risk-score-val {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: #1E3A8A;
+            display: block;
+            line-height: 1;
+        }
+
+        .risk-score-label {
+            font-size: 0.6rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-top: 2px;
+            display: block;
+        }
+
+        .risk-factors-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex: 1.5;
+            /* Give list more space */
+            min-width: 0;
+        }
+
+        .factor-item {
+            background: rgba(248, 250, 252, 0.8);
+            padding: 10px 14px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             border: 1px solid var(--border-light);
             gap: 10px;
         }
-        .factor-info { 
-            display: flex; 
-            align-items: center; 
-            gap: 10px; 
+
+        .factor-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
             flex: 1;
             min-width: 0;
         }
-        .factor-icon { 
-            width: 28px; 
-            height: 28px; 
-            border-radius: 8px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
+
+        .factor-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 0.8rem;
             flex-shrink: 0;
         }
-        .factor-label { 
-            font-size: 0.8rem; 
-            font-weight: 700; 
+
+        .factor-label {
+            font-size: 0.8rem;
+            font-weight: 700;
             color: var(--text-main);
             /* Remove nowrap to prevent 'A...' */
             line-height: 1.2;
         }
-        .factor-count { 
-            font-size: 1rem; 
-            font-weight: 800; 
+
+        .factor-count {
+            font-size: 1rem;
+            font-weight: 800;
             color: #1E3A8A;
             flex-shrink: 0;
         }
 
         /* Clinical Remarks Card (Dark Blue) */
-        .remarks-card { background: linear-gradient(135deg, #0284C7, #0369A1) !important; color: white !important; position: relative; overflow: hidden; }
-        .remarks-quote-icon { position: absolute; top: 10px; right: -20px; font-size: 10rem; color: rgba(255,255,255,0.1); font-family: serif; pointer-events: none; }
-        .remarks-header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; position: relative; }
-        .remarks-icon-bg { width: 40px; height: 40px; background: rgba(255,255,255,0.2); border-radius: 10px; display: flex; align-items: center; justify-content: center; }
-        .remarks-content { font-size: 1.1rem; font-style: italic; line-height: 1.6; opacity: 0.9; margin-bottom: 32px; padding-left: 20px; border-left: 2px solid rgba(255,255,255,0.3); position: relative; }
-        .doctor-profile { display: flex; align-items: center; gap: 12px; position: relative; }
-        .doctor-avatar { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
-        .doctor-name { font-weight: 700; font-size: 0.9rem; }
-        .doctor-title { font-size: 0.7rem; font-weight: 500; opacity: 0.7; text-transform: uppercase; }
+        .remarks-card {
+            background: linear-gradient(135deg, #0284C7, #0369A1) !important;
+            color: white !important;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .remarks-quote-icon {
+            position: absolute;
+            top: 10px;
+            right: -20px;
+            font-size: 10rem;
+            color: rgba(255, 255, 255, 0.1);
+            font-family: serif;
+            pointer-events: none;
+        }
+
+        .remarks-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            position: relative;
+        }
+
+        .remarks-icon-bg {
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .remarks-content {
+            font-size: 1.1rem;
+            font-style: italic;
+            line-height: 1.6;
+            opacity: 0.9;
+            margin-bottom: 32px;
+            padding-left: 20px;
+            border-left: 2px solid rgba(255, 255, 255, 0.3);
+            position: relative;
+        }
+
+        .doctor-profile {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: relative;
+        }
+
+        .doctor-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .doctor-name {
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+
+        .doctor-title {
+            font-size: 0.7rem;
+            font-weight: 500;
+            opacity: 0.7;
+            text-transform: uppercase;
+        }
 
         .chart-container {
             height: 350px;
@@ -542,8 +809,11 @@
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
-        .lab-pill-group::-webkit-scrollbar { display: none; }
-        
+
+        .lab-pill-group::-webkit-scrollbar {
+            display: none;
+        }
+
         .lab-pill {
             flex-shrink: 0;
             background: rgba(255, 255, 255, 0.6);
@@ -560,8 +830,16 @@
             transition: all 0.2s ease;
             white-space: nowrap;
         }
-        .lab-pill i { font-size: 0.6rem; }
-        .lab-pill:hover { background: white; transform: translateY(-1px); }
+
+        .lab-pill i {
+            font-size: 0.6rem;
+        }
+
+        .lab-pill:hover {
+            background: white;
+            transform: translateY(-1px);
+        }
+
         .lab-pill.active {
             background: #1E3A8A;
             color: white;
@@ -581,7 +859,11 @@
             position: relative;
             border: 1px solid var(--border-light);
         }
-        .chart-scroll-container:active { cursor: grabbing; }
+
+        .chart-scroll-container:active {
+            cursor: grabbing;
+        }
+
         .chart-canvas-wrapper {
             height: 400px;
             min-width: 100%;
@@ -594,6 +876,7 @@
             gap: 16px;
             margin-top: 32px;
         }
+
         .insight-card {
             display: flex;
             align-items: center;
@@ -602,7 +885,11 @@
             border-radius: 20px;
             transition: transform 0.2s ease;
         }
-        .insight-card:hover { transform: translateX(8px); }
+
+        .insight-card:hover {
+            transform: translateX(8px);
+        }
+
         .insight-icon-wrap {
             width: 56px;
             height: 56px;
@@ -612,9 +899,13 @@
             align-items: center;
             justify-content: center;
             font-size: 1.5rem;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
         }
-        .insight-text-wrap { flex: 1; }
+
+        .insight-text-wrap {
+            flex: 1;
+        }
+
         .insight-label {
             font-size: 0.75rem;
             font-weight: 800;
@@ -623,17 +914,30 @@
             margin-bottom: 4px;
             opacity: 0.8;
         }
-        .insight-message {
+
+        .insight-message {}
+
+        .trend-up {
+            background: #fee2e2;
+            color: #ef4444;
         }
-        .trend-up { background: #fee2e2; color: #ef4444; }
-        .trend-down { background: #f0fdf4; color: #10b981; }
-        .trend-stable { background: #f1f5f9; color: #64748b; }
+
+        .trend-down {
+            background: #f0fdf4;
+            color: #10b981;
+        }
+
+        .trend-stable {
+            background: #f1f5f9;
+            color: #64748b;
+        }
 
         .chart-container {
             height: 260px;
             width: 100%;
             position: relative;
         }
+
         /* Scrollable List Areas (HARDENED) */
         .scroll-area {
             max-height: 400px;
@@ -641,7 +945,8 @@
             overflow-x: hidden;
             padding-right: 8px;
             margin-bottom: 8px;
-            flex: 1; /* Allow list to take remaining space in card */
+            flex: 1;
+            /* Allow list to take remaining space in card */
         }
 
         /* Standardized List Items */
@@ -657,11 +962,16 @@
             gap: 12px;
             transition: transform 0.2s;
         }
-        .list-item:hover { transform: translateY(-2px); background: white; }
+
+        .list-item:hover {
+            transform: translateY(-2px);
+            background: white;
+        }
 
         .list-item-content {
             flex: 1;
-            min-width: 0; /* Enable truncation for children */
+            min-width: 0;
+            /* Enable truncation for children */
         }
 
         .list-item-title {
@@ -698,11 +1008,13 @@
             border-radius: 20px;
             transition: all 0.3s ease;
         }
+
         .vital-gauge-item:hover {
             transform: translateY(-4px);
             background: white;
             box-shadow: var(--shadow);
         }
+
         .gauge-label {
             font-weight: 700;
             font-size: 0.8rem;
@@ -712,11 +1024,13 @@
             align-items: center;
             gap: 6px;
         }
+
         .gauge-container {
             position: relative;
             width: 140px;
             height: 80px;
         }
+
         .gauge-value-wrap {
             position: absolute;
             bottom: 0;
@@ -725,12 +1039,14 @@
             text-align: center;
             width: 100%;
         }
+
         .gauge-value-wrap strong {
             display: block;
             font-size: 1.3rem;
             color: var(--text-main);
             line-height: 1;
         }
+
         .gauge-value-wrap span {
             font-size: 0.65rem;
             color: var(--text-muted);
@@ -740,44 +1056,68 @@
 
         /* Intermediate Responsive (Laptops/Tablets) */
         @media (max-width: 1366px) {
-            .dashboard-grid { gap: 16px; }
-            .col-4 { grid-column: span 6; } /* Switch to 2 columns on medium screens */
-            .col-8 { grid-column: span 12; }
-            .profile-name { font-size: 1.4rem; }
+            .dashboard-grid {
+                gap: 16px;
+            }
+
+            .col-4 {
+                grid-column: span 6;
+            }
+
+            /* Switch to 2 columns on medium screens */
+            .col-8 {
+                grid-column: span 12;
+            }
+
+            .profile-name {
+                font-size: 1.4rem;
+            }
         }
 
         @media (max-width: 1024px) {
-            :root { --sidebar-width: 0px; }
-            .sidebar { 
-                left: -100%; 
-                width: 280px; 
+            :root {
+                --sidebar-width: 0px;
+            }
+
+            .sidebar {
+                left: -100%;
+                width: 280px;
                 box-shadow: none;
             }
-            .sidebar.mobile-open { 
-                left: 0; 
+
+            .sidebar.mobile-open {
+                left: 0;
                 box-shadow: 20px 0 60px rgba(15, 23, 42, 0.2);
             }
-            .main-viewport { 
-                margin-left: 0; 
-                padding: 16px; 
+
+            .main-viewport {
+                margin-left: 0;
+                padding: 16px;
                 width: 100%;
             }
-            .hamburger { display: flex; }
 
-            .dashboard-grid { 
+            .hamburger {
+                display: flex;
+            }
+
+            .dashboard-grid {
                 display: flex;
                 flex-direction: column;
-                gap: 16px; 
+                gap: 16px;
             }
-            .col-12, .col-8, .col-6, .col-4 { 
-                width: 100%; 
+
+            .col-12,
+            .col-8,
+            .col-6,
+            .col-4 {
+                width: 100%;
                 grid-column: auto;
             }
-            
+
             .chart-container {
                 height: 250px !important;
             }
-            
+
             .card {
                 padding: 20px;
                 border-radius: 16px;
@@ -798,7 +1138,7 @@
                 text-align: center;
                 gap: 16px;
             }
-            
+
             .stat-box-grid {
                 grid-template-columns: 1fr;
             }
@@ -810,40 +1150,62 @@
         }
 
         @media (max-width: 480px) {
-            .main-viewport { padding: 12px; }
-            .header-top { margin: -12px -12px 20px -12px; padding: 12px; }
-            .profile-avatar { width: 70px; height: 70px; }
-            .profile-name { font-size: 1.5rem; }
+            .main-viewport {
+                padding: 12px;
+            }
+
+            .header-top {
+                margin: -12px -12px 20px -12px;
+                padding: 12px;
+            }
+
+            .profile-avatar {
+                width: 70px;
+                height: 70px;
+            }
+
+            .profile-name {
+                font-size: 1.5rem;
+            }
         }
 
         /* Modal Overrides */
         .modal {
             display: none;
             position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             background: rgba(15, 23, 42, 0.6);
             backdrop-filter: blur(12px);
             z-index: 3000;
-            padding: 10px; /* Minimal padding for mobile */
-            overflow-y: auto; /* Nuclear fix: Allow the entire modal overlay to scroll */
-            align-items: flex-start; /* Start from top to prevent clipping */
+            padding: 10px;
+            /* Minimal padding for mobile */
+            overflow-y: auto;
+            /* Nuclear fix: Allow the entire modal overlay to scroll */
+            align-items: flex-start;
+            /* Start from top to prevent clipping */
             justify-content: center;
         }
+
         .modal-content {
             background: white;
             border-radius: 20px;
-            padding: 16px; /* Slimmer padding */
+            padding: 16px;
+            /* Slimmer padding */
             width: 100%;
-            max-width: 420px; /* Reduced width */
+            max-width: 420px;
+            /* Reduced width */
             margin: 20px auto;
             position: relative;
-            box-shadow: 0 25px 60px rgba(0,0,0,0.3);
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
             border: 1px solid var(--border-light);
             display: flex;
             flex-direction: column;
             max-height: none;
         }
+
         .modal-header {
             display: flex;
             justify-content: space-between;
@@ -852,12 +1214,16 @@
             padding-bottom: 12px;
             border-bottom: 1px solid var(--border-light);
         }
+
         .modal-body {
             margin-bottom: 12px;
         }
+
         .form-group {
-            margin-bottom: 12px; /* Compact spacing */
+            margin-bottom: 12px;
+            /* Compact spacing */
         }
+
         .form-group label {
             display: block;
             margin-bottom: 4px;
@@ -866,15 +1232,19 @@
             color: var(--text-main);
             opacity: 0.8;
         }
-        .form-group input, .form-group select {
+
+        .form-group input,
+        .form-group select {
             width: 100%;
-            padding: 8px 12px; /* Slimmer inputs */
+            padding: 8px 12px;
+            /* Slimmer inputs */
             border-radius: 10px;
             border: 1px solid var(--border-light);
             background: var(--bg-color);
             font-family: inherit;
             font-size: 0.9rem;
         }
+
         .modal-footer {
             display: flex;
             justify-content: flex-end;
@@ -883,6 +1253,7 @@
             border-top: 1px solid var(--border-light);
             flex-shrink: 0;
         }
+
         /* Medical Reports Section Styles */
         .upload-dropzone {
             border: 2px dashed #CBD5E1;
@@ -895,14 +1266,33 @@
             position: relative;
             overflow: hidden;
         }
+
         .upload-dropzone.dragover {
             border-color: var(--accent);
             background: rgba(74, 144, 226, 0.05);
             transform: scale(1.01);
         }
-        .upload-dropzone i { font-size: 2.5rem; color: var(--accent); margin-bottom: 16px; opacity: 0.6; }
-        .upload-dropzone h4 { margin: 0 0 8px; font-size: 1.1rem; font-weight: 700; color: var(--text-main); }
-        .upload-dropzone p { margin: 0; font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
+
+        .upload-dropzone i {
+            font-size: 2.5rem;
+            color: var(--accent);
+            margin-bottom: 16px;
+            opacity: 0.6;
+        }
+
+        .upload-dropzone h4 {
+            margin: 0 0 8px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .upload-dropzone p {
+            margin: 0;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
 
         .upload-progress-wrap {
             margin-top: 20px;
@@ -912,6 +1302,7 @@
             overflow: hidden;
             display: none;
         }
+
         .upload-progress-bar {
             height: 100%;
             background: linear-gradient(90deg, var(--accent), #60A5FA);
@@ -930,20 +1321,47 @@
             gap: 16px;
             transition: all 0.2s ease;
         }
-        .report-item:hover { transform: translateX(8px); border-color: var(--accent); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-        
+
+        .report-item:hover {
+            transform: translateX(8px);
+            border-color: var(--accent);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
         .report-icon {
-            width: 48px; height: 48px;
+            width: 48px;
+            height: 48px;
             background: #EFF6FF;
             border-radius: 12px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.3rem; color: var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            color: var(--accent);
             flex-shrink: 0;
         }
-        .report-info { flex: 1; min-width: 0; }
-        .report-name { font-weight: 700; font-size: 0.95rem; color: var(--text-main); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .report-date { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; }
-        
+
+        .report-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .report-name {
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: var(--text-main);
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .report-date {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
         .report-status {
             padding: 4px 12px;
             border-radius: 20px;
@@ -952,22 +1370,46 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        .status-analyzed { background: #D1FAE5; color: #059669; }
-        .status-pending { background: #F3F4F6; color: #6B7280; }
 
-        .report-actions { display: flex; gap: 8px; }
+        .status-analyzed {
+            background: #D1FAE5;
+            color: #059669;
+        }
+
+        .status-pending {
+            background: #F3F4F6;
+            color: #6B7280;
+        }
+
+        .report-actions {
+            display: flex;
+            gap: 8px;
+        }
+
         .action-btn {
-            width: 36px; height: 36px;
+            width: 36px;
+            height: 36px;
             border-radius: 10px;
-            display: flex; align-items: center; justify-content: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             border: 1px solid var(--border-light);
             background: white;
             color: var(--text-muted);
             cursor: pointer;
             transition: all 0.2s;
         }
-        .action-btn:hover { background: var(--accent); color: white; border-color: var(--accent); }
-        .action-btn.delete:hover { background: var(--critical); border-color: var(--critical); }
+
+        .action-btn:hover {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        .action-btn.delete:hover {
+            background: var(--critical);
+            border-color: var(--critical);
+        }
 
         .clinical-preview-box {
             background: #F8FAFC;
@@ -980,6 +1422,7 @@
             color: #334155;
             white-space: pre-line;
         }
+
         /* Global Button System */
         .btn {
             display: inline-flex;
@@ -1000,6 +1443,7 @@
             background-color: #2563eb;
             color: white;
         }
+
         .btn-primary:hover {
             background-color: #1d4ed8;
             transform: translateY(-2px);
@@ -1010,6 +1454,7 @@
             background-color: #f3f4f6;
             color: #374151;
         }
+
         .btn-secondary:hover {
             background-color: #e5e7eb;
         }
@@ -1018,6 +1463,7 @@
             background-color: #ef4444;
             color: white;
         }
+
         .btn-danger:hover {
             background-color: #dc2626;
         }
@@ -1027,8 +1473,9 @@
             padding: 6px;
             color: inherit;
         }
+
         .btn-icon:hover {
-            background: rgba(0,0,0,0.05);
+            background: rgba(0, 0, 0, 0.05);
             border-radius: 8px;
         }
 
@@ -1036,6 +1483,7 @@
             padding: 6px 10px;
             font-size: 12px;
         }
+
         .btn-lg {
             padding: 12px 20px;
             font-size: 16px;
@@ -1048,18 +1496,22 @@
         }
 
         /* v3 Recommendation Redesign */
-        .rec-zone { margin-bottom: 32px; }
-        .rec-zone-title { 
-            font-size: 0.75rem; 
-            font-weight: 800; 
-            color: var(--text-muted); 
-            text-transform: uppercase; 
-            letter-spacing: 1.5px; 
+        .rec-zone {
+            margin-bottom: 32px;
+        }
+
+        .rec-zone-title {
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
             margin-bottom: 16px;
             display: flex;
             align-items: center;
             gap: 8px;
         }
+
         .rec-card-premium {
             background: rgba(255, 255, 255, 0.7);
             backdrop-filter: blur(12px);
@@ -1073,57 +1525,117 @@
             position: relative;
             overflow: hidden;
         }
+
         .rec-card-premium:hover {
             transform: translateY(-4px);
             box-shadow: 0 12px 40px rgba(31, 38, 135, 0.12);
             background: rgba(255, 255, 255, 0.85);
         }
-        .rec-card-premium.critical { border-left: 6px solid var(--critical); }
-        .rec-card-premium.high { border-left: 6px solid var(--warning); }
-        .rec-card-premium.medium { border-left: 6px solid var(--normal); }
-        .rec-card-premium.low { border-left: 6px solid var(--text-muted); }
-        
-        .rec-title-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-        .rec-main-title { font-size: 1.25rem; font-weight: 800; color: #1E3A8A; line-height: 1.2; }
-        .rec-urgency-badge { 
-            font-size: 0.65rem; 
-            font-weight: 800; 
-            padding: 4px 10px; 
-            border-radius: 20px; 
+
+        .rec-card-premium.critical {
+            border-left: 6px solid var(--critical);
+        }
+
+        .rec-card-premium.high {
+            border-left: 6px solid var(--warning);
+        }
+
+        .rec-card-premium.medium {
+            border-left: 6px solid var(--normal);
+        }
+
+        .rec-card-premium.low {
+            border-left: 6px solid var(--text-muted);
+        }
+
+        .rec-title-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .rec-main-title {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #1E3A8A;
+            line-height: 1.2;
+        }
+
+        .rec-urgency-badge {
+            font-size: 0.65rem;
+            font-weight: 800;
+            padding: 4px 10px;
+            border-radius: 20px;
             text-transform: uppercase;
         }
-        .urgency-now { background: #fee2e2; color: #dc2626; }
-        .urgency-today { background: #fef3c7; color: #d97706; }
-        
+
+        .urgency-now {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .urgency-today {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
         .rec-today-actions {
             background: rgba(241, 245, 249, 0.5);
             border-radius: 12px;
             padding: 16px;
             margin: 16px 0;
         }
+
         .action-item-v3 {
             display: flex;
             align-items: center;
             gap: 12px;
             padding: 8px 0;
-            border-bottom: 1px solid rgba(0,0,0,0.05);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
             font-size: 0.95rem;
             color: var(--text-main);
             font-weight: 600;
         }
-        .action-item-v3:last-child { border-bottom: none; }
-        .action-icon { color: var(--accent); font-size: 1rem; width: 20px; text-align: center; }
-        
-        .rec-meta-grid { 
-            display: grid; 
-            grid-template-columns: 1fr 1fr; 
-            gap: 16px; 
-            margin-top: 16px; 
-            font-size: 0.85rem; 
+
+        .action-item-v3:last-child {
+            border-bottom: none;
         }
-        .meta-box { background: white; padding: 12px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.03); }
-        .meta-label { font-size: 0.65rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
-        .meta-value { font-weight: 700; color: var(--text-main); }
+
+        .action-icon {
+            color: var(--accent);
+            font-size: 1rem;
+            width: 20px;
+            text-align: center;
+        }
+
+        .rec-meta-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 16px;
+            font-size: 0.85rem;
+        }
+
+        .meta-box {
+            background: white;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.03);
+        }
+
+        .meta-label {
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .meta-value {
+            font-weight: 700;
+            color: var(--text-main);
+        }
 
         .btn-resolve {
             background: #1E3A8A;
@@ -1141,18 +1653,30 @@
             justify-content: center;
             margin-top: 16px;
         }
-        .btn-resolve:hover { background: #1e40af; transform: scale(1.02); }
-        .btn-resolve:active { transform: scale(0.98); }
-        
-        .history-card { 
-            opacity: 0.7; 
-            filter: grayscale(0.5); 
+
+        .btn-resolve:hover {
+            background: #1e40af;
+            transform: scale(1.02);
+        }
+
+        .btn-resolve:active {
             transform: scale(0.98);
         }
-        .history-card:hover { opacity: 1; filter: grayscale(0); transform: scale(1); }
-        
+
+        .history-card {
+            opacity: 0.7;
+            filter: grayscale(0.5);
+            transform: scale(0.98);
+        }
+
+        .history-card:hover {
+            opacity: 1;
+            filter: grayscale(0);
+            transform: scale(1);
+        }
+
         .glass-tag {
-            background: rgba(255,255,255,0.4);
+            background: rgba(255, 255, 255, 0.4);
             padding: 4px 10px;
             border-radius: 8px;
             font-size: 0.7rem;
@@ -1172,7 +1696,8 @@
                     <i class="fas fa-heartbeat"></i>
                     <span>CareTaker.ai</span>
                 </div>
-                <button class="hamburger" onclick="toggleSidebar()" style="display:none; border:none; background:transparent;">
+                <button class="hamburger" onclick="toggleSidebar()"
+                    style="display:none; border:none; background:transparent;">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -1211,14 +1736,15 @@
 
         <!-- Main Content -->
         <main class="main-viewport">
-            
+
             <!-- Top Critical Alert Banner -->
             <div id="criticalAlertBanner" class="critical-banner">
                 <div class="banner-content">
                     <div class="banner-icon"><i class="fas fa-exclamation"></i></div>
                     <div class="banner-text-wrap">
                         <div class="banner-title" id="bannerTitle">Critical Risk</div>
-                        <div class="banner-desc" id="bannerMessage">Elevated risk scores detected. Review abnormal lab values and uncontrolled hypertension.</div>
+                        <div class="banner-desc" id="bannerMessage">Elevated risk scores detected. Review abnormal lab
+                            values and uncontrolled hypertension.</div>
                     </div>
                 </div>
                 <button class="btn btn-secondary" onclick="switchTab('tab-intelligence')">Action Items</button>
@@ -1231,10 +1757,12 @@
                 </button>
                 <div>
                     <h1 style="margin:0; font-size:1.8rem; font-weight:800;" id="recipientName">Patient Profile</h1>
-                    <p style="margin:4px 0 0; color:var(--text-muted); font-weight:500;">Comprehensive Health Intelligence</p>
+                    <p style="margin:4px 0 0; color:var(--text-muted); font-weight:500;">Comprehensive Health
+                        Intelligence</p>
                 </div>
                 <div class="header-actions-wrap" style="display: flex; align-items: center; gap: 20px;">
-                    <button id="voiceBotNavBtn" class="btn btn-primary" style="border-radius: 30px; font-weight: 700; flex-shrink: 0;">
+                    <button id="voiceBotNavBtn" class="btn btn-primary"
+                        style="border-radius: 30px; font-weight: 700; flex-shrink: 0;">
                         <i class="fas fa-microphone"></i>
                         <span>AI ASSISTANT</span>
                     </button>
@@ -1245,11 +1773,13 @@
                 </div>
             </div>
 
-            <div id="loadingIndicator" style="text-align: center; padding: 100px; font-size: 1.2rem; color: var(--text-muted);">
+            <div id="loadingIndicator"
+                style="text-align: center; padding: 100px; font-size: 1.2rem; color: var(--text-muted);">
                 <i class="fas fa-spinner fa-spin"></i> Analyzing Health Data...
             </div>
 
-            <div id="errorContainer" style="display:none; text-align:center; padding:100px; color:var(--critical); background:white; border-radius:24px;">
+            <div id="errorContainer"
+                style="display:none; text-align:center; padding:100px; color:var(--critical); background:white; border-radius:24px;">
                 <i class="fas fa-exclamation-circle" style="font-size:3rem; margin-bottom:20px;"></i>
                 <h2>Error Loading Data</h2>
                 <p id="errorMessage"></p>
@@ -1262,7 +1792,7 @@
                 <!-- TAB: DASHBOARD (Summary View) -->
                 <div id="tab-dashboard" class="tab-pane active">
                     <div class="dashboard-grid">
-                        
+
                         <!-- Overview Cards Redesigned -->
                         <div class="col-4">
                             <div class="card" id="profileCard" style="height: 100%;"></div>
@@ -1277,25 +1807,33 @@
                         <!-- Health Signals Section -->
                         <div class="col-12" style="margin-top: 24px;">
                             <div class="card" style="padding: 24px;">
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+                                <div
+                                    style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
                                     <div>
-                                        <div style="font-size:0.75rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">HEALTH SIGNALS</div>
-                                        <h2 style="font-size:1.4rem; font-weight:800; color:#1E3A8A; margin:0;">Vitals & Sensor Status</h2>
+                                        <div
+                                            style="font-size:0.75rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">
+                                            HEALTH SIGNALS</div>
+                                        <h2 style="font-size:1.4rem; font-weight:800; color:#1E3A8A; margin:0;">Vitals &
+                                            Sensor Status</h2>
                                     </div>
                                     <div style="display:flex; align-items:center; gap:12px;">
-                                        <div class="status-pill" style="font-size:0.8rem; background:#F1F5F9; border-radius:8px; padding:6px 12px; font-weight:600; color:var(--text-muted);">
+                                        <div class="status-pill"
+                                            style="font-size:0.8rem; background:#F1F5F9; border-radius:8px; padding:6px 12px; font-weight:600; color:var(--text-muted);">
                                             Updated: <span id="last-updated">--</span>
                                         </div>
-                                        <button class="btn btn-sm" onclick="openVitalsModal()" style="background:var(--accent); color:white; border:none; padding:8px 16px; border-radius:10px; font-weight:700; box-shadow: 0 4px 12px rgba(74, 144, 226, 0.2);">
+                                        <button class="btn btn-sm" onclick="openVitalsModal()"
+                                            style="background:var(--accent); color:white; border:none; padding:8px 16px; border-radius:10px; font-weight:700; box-shadow: 0 4px 12px rgba(74, 144, 226, 0.2);">
                                             <i class="fas fa-edit"></i> Log Vitals
                                         </button>
                                     </div>
                                 </div>
-                                
-                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:20px;">
+
+                                <div
+                                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:20px;">
                                     <!-- Heart Rate -->
                                     <div class="vital-gauge-item">
-                                        <div class="gauge-label"><i class="fas fa-heart" style="color:#fb7185;"></i> Heart Rate</div>
+                                        <div class="gauge-label"><i class="fas fa-heart" style="color:#fb7185;"></i>
+                                            Heart Rate</div>
                                         <div class="gauge-container">
                                             <canvas id="chart-hr"></canvas>
                                             <div class="gauge-value-wrap">
@@ -1306,7 +1844,8 @@
                                     </div>
                                     <!-- BP -->
                                     <div class="vital-gauge-item">
-                                        <div class="gauge-label"><i class="fas fa-heartbeat" style="color:#4A90E2;"></i> BP (Sys/Dia)</div>
+                                        <div class="gauge-label"><i class="fas fa-heartbeat" style="color:#4A90E2;"></i>
+                                            BP (Sys/Dia)</div>
                                         <div class="gauge-container">
                                             <canvas id="chart-bp"></canvas>
                                             <div class="gauge-value-wrap">
@@ -1317,7 +1856,8 @@
                                     </div>
                                     <!-- SpO2 -->
                                     <div class="vital-gauge-item">
-                                        <div class="gauge-label"><i class="fas fa-tint" style="color:#36b9cc;"></i> SpO2</div>
+                                        <div class="gauge-label"><i class="fas fa-tint" style="color:#36b9cc;"></i> SpO2
+                                        </div>
                                         <div class="gauge-container">
                                             <canvas id="chart-o2"></canvas>
                                             <div class="gauge-value-wrap">
@@ -1328,7 +1868,8 @@
                                     </div>
                                     <!-- Temp -->
                                     <div class="vital-gauge-item">
-                                        <div class="gauge-label"><i class="fas fa-thermometer-half" style="color:#f6c23e;"></i> Temp</div>
+                                        <div class="gauge-label"><i class="fas fa-thermometer-half"
+                                                style="color:#f6c23e;"></i> Temp</div>
                                         <div class="gauge-container">
                                             <canvas id="chart-temp"></canvas>
                                             <div class="gauge-value-wrap">
@@ -1339,7 +1880,8 @@
                                     </div>
                                     <!-- Sleep -->
                                     <div class="vital-gauge-item">
-                                        <div class="gauge-label"><i class="fas fa-moon" style="color:#8b5cf6;"></i> Sleep</div>
+                                        <div class="gauge-label"><i class="fas fa-moon" style="color:#8b5cf6;"></i>
+                                            Sleep</div>
                                         <div class="gauge-container">
                                             <canvas id="chart-sleep"></canvas>
                                             <div class="gauge-value-wrap">
@@ -1350,7 +1892,8 @@
                                     </div>
                                     <!-- BMI -->
                                     <div class="vital-gauge-item">
-                                        <div class="gauge-label"><i class="fas fa-calculator" style="color:#a855f7;"></i> BMI</div>
+                                        <div class="gauge-label"><i class="fas fa-calculator"
+                                                style="color:#a855f7;"></i> BMI</div>
                                         <div class="gauge-container">
                                             <canvas id="chart-bmi"></canvas>
                                             <div class="gauge-value-wrap">
@@ -1367,7 +1910,8 @@
                         <div class="col-12" style="margin-top: 24px;">
                             <div class="card" style="padding: 24px;">
                                 <div class="card-header" style="border-bottom:none; margin-bottom:16px;">
-                                    <h2 style="color:var(--text-main);"><i class="fas fa-leaf" style="color:var(--accent);"></i> Environment Conditions</h2>
+                                    <h2 style="color:var(--text-main);"><i class="fas fa-leaf"
+                                            style="color:var(--accent);"></i> Environment Conditions</h2>
                                 </div>
                                 <div id="weather-widget-container"></div>
                             </div>
@@ -1376,8 +1920,11 @@
                         <div class="col-8">
                             <div class="card" style="margin-bottom:24px;">
                                 <div class="card-header" style="border-bottom:none; margin-bottom:8px;">
-                                    <h2 style="color:var(--text-main);"><i class="fas fa-chart-bar" style="color:var(--accent);"></i> Abnormal Lab Trend (Latest)</h2>
-                                    <a href="#" onclick="switchTab('tab-labs')" style="font-size:0.85rem; color:var(--accent); font-weight:600; text-decoration:none;">View Full Report &rarr;</a>
+                                    <h2 style="color:var(--text-main);"><i class="fas fa-chart-bar"
+                                            style="color:var(--accent);"></i> Abnormal Lab Trend (Latest)</h2>
+                                    <a href="#" onclick="switchTab('tab-labs')"
+                                        style="font-size:0.85rem; color:var(--accent); font-weight:600; text-decoration:none;">View
+                                        Full Report &rarr;</a>
                                 </div>
                                 <div id="abnormalLabSnapshot" style="display:flex; flex-wrap:wrap; gap:12px;">
                                     <div class="empty-state">No abnormal lab values found.</div>
@@ -1386,7 +1933,8 @@
 
                             <!-- Meds & Allergies integrated here -->
                             <div class="card" style="padding: 24px;">
-                                <div style="font-size:0.75rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:16px;">
+                                <div
+                                    style="font-size:0.75rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:16px;">
                                     Meds & Allergies
                                 </div>
                                 <div id="quickInfoChips" class="chip-container" style="gap:12px;"></div>
@@ -1394,12 +1942,16 @@
                         </div>
 
                         <div class="col-4">
-                            <div class="card dashboard-alerts-card" style="height: 100%; display: flex; flex-direction: column;">
+                            <div class="card dashboard-alerts-card"
+                                style="height: 100%; display: flex; flex-direction: column;">
                                 <div class="card-header">
                                     <h2><i class="fas fa-bell"></i> Recent Alerts</h2>
                                 </div>
-                                <div id="dashboardAlerts" style="flex: 1; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 10px; max-height: 480px;"></div>
-                                <button class="btn btn-outline" style="margin-top:20px; width:100%; flex-shrink: 0;" onclick="switchTab('tab-intelligence')">See All Alerts</button>
+                                <div id="dashboardAlerts"
+                                    style="flex: 1; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 10px; max-height: 480px;">
+                                </div>
+                                <button class="btn btn-outline" style="margin-top:20px; width:100%; flex-shrink: 0;"
+                                    onclick="switchTab('tab-intelligence')">See All Alerts</button>
                             </div>
                         </div>
 
@@ -1421,13 +1973,17 @@
                 <!-- TAB: LABS -->
                 <div id="tab-labs" class="tab-pane">
                     <div class="card" style="padding: 24px;">
-                        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
+                        <div
+                            style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
                             <div>
-                                <h2 style="font-size:1.4rem; font-weight:800; color:#1E3A8A; margin:0;">Clinical Lab Analytics</h2>
-                                <p style="color:var(--text-muted); margin:2px 0 0; font-size:0.9rem; font-weight:500;">Temporal trend mapping for metabolic markers</p>
+                                <h2 style="font-size:1.4rem; font-weight:800; color:#1E3A8A; margin:0;">Clinical Lab
+                                    Analytics</h2>
+                                <p style="color:var(--text-muted); margin:2px 0 0; font-size:0.9rem; font-weight:500;">
+                                    Temporal trend mapping for metabolic markers</p>
                             </div>
                             <div class="list-item-actions">
-                                <button class="btn btn-sm btn-outline" style="border-radius:12px;"><i class="fas fa-filter"></i></button>
+                                <button class="btn btn-sm btn-outline" style="border-radius:12px;"><i
+                                        class="fas fa-filter"></i></button>
                             </div>
                         </div>
 
@@ -1444,10 +2000,14 @@
                 <!-- TAB: MEDICATIONS -->
                 <div id="tab-medications" class="tab-pane">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
-                        <h2 style="font-size:1.5rem; font-weight:800; color:#1E3A8A; margin:0;"><i class="fas fa-pills"></i> Medication Management</h2>
+                        <h2 style="font-size:1.5rem; font-weight:800; color:#1E3A8A; margin:0;"><i
+                                class="fas fa-pills"></i> Medication Management</h2>
                         <div style="display:flex; gap:12px;">
-                            <button class="btn btn-sm btn-outline" onclick="showHistory('medications')"><i class="fas fa-history"></i> History</button>
-                            <button class="btn btn-sm" onclick="showAddModal('medication')" style="background:var(--normal); color:white; border:none;"><i class="fas fa-plus"></i> New Med</button>
+                            <button class="btn btn-sm btn-outline" onclick="showHistory('medications')"><i
+                                    class="fas fa-history"></i> History</button>
+                            <button class="btn btn-sm" onclick="showAddModal('medication')"
+                                style="background:var(--normal); color:white; border:none;"><i class="fas fa-plus"></i>
+                                New Med</button>
                         </div>
                     </div>
                     <div id="medicationsList" class="dashboard-grid"></div>
@@ -1457,17 +2017,25 @@
                 <div id="tab-conditions" class="tab-pane">
                     <div class="dashboard-grid">
                         <div class="col-12">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
-                                <h2 style="font-size:1.5rem; font-weight:800; color:#1E3A8A; margin:0;"><i class="fas fa-stethoscope"></i> Clinical Conditions</h2>
-                                <button class="btn btn-sm" onclick="showAddModal('condition')" style="background:var(--normal); color:white; border:none;"><i class="fas fa-plus"></i> Add Condition</button>
+                            <div
+                                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+                                <h2 style="font-size:1.5rem; font-weight:800; color:#1E3A8A; margin:0;"><i
+                                        class="fas fa-stethoscope"></i> Clinical Conditions</h2>
+                                <button class="btn btn-sm" onclick="showAddModal('condition')"
+                                    style="background:var(--normal); color:white; border:none;"><i
+                                        class="fas fa-plus"></i> Add Condition</button>
                             </div>
                             <div id="conditionsList" class="dashboard-grid"></div>
                         </div>
-                        
+
                         <div class="col-12" style="margin-top:40px;">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
-                                <h2 style="font-size:1.5rem; font-weight:800; color:#1E3A8A; margin:0;"><i class="fas fa-allergies"></i> Allergies & Sensitivities</h2>
-                                <button class="btn btn-sm" onclick="showAddModal('allergy')" style="background:var(--normal); color:white; border:none;"><i class="fas fa-plus"></i> Add Allergy</button>
+                            <div
+                                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+                                <h2 style="font-size:1.5rem; font-weight:800; color:#1E3A8A; margin:0;"><i
+                                        class="fas fa-allergies"></i> Allergies & Sensitivities</h2>
+                                <button class="btn btn-sm" onclick="showAddModal('allergy')"
+                                    style="background:var(--normal); color:white; border:none;"><i
+                                        class="fas fa-plus"></i> Add Allergy</button>
                             </div>
                             <div id="allergiesList" class="dashboard-grid"></div>
                         </div>
@@ -1476,13 +2044,17 @@
 
                 <!-- TAB: INTELLIGENCE (v3 Redesign) -->
                 <div id="tab-intelligence" class="tab-pane">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px;">
                         <div>
-                            <h2 style="font-size: 1.8rem; font-weight: 800; color: #1E3A8A; margin: 0;">Clinical Intelligence Hub</h2>
-                            <p style="color: var(--text-muted); font-weight: 500; margin-top: 4px;">Grouped by health domains for clarity</p>
+                            <h2 style="font-size: 1.8rem; font-weight: 800; color: #1E3A8A; margin: 0;">Clinical
+                                Intelligence Hub</h2>
+                            <p style="color: var(--text-muted); font-weight: 500; margin-top: 4px;">Grouped by health
+                                domains for clarity</p>
                         </div>
                         <div style="display: flex; gap: 12px;">
-                            <button class="btn btn-outline" id="btnRefreshRecs" onclick="refreshRecommendations()" style="border-radius: 12px; font-weight: 700;">
+                            <button class="btn btn-outline" id="btnRefreshRecs" onclick="refreshRecommendations()"
+                                style="border-radius: 12px; font-weight: 700;">
                                 <i class="fas fa-sync-alt"></i> Force AI Refresh
                             </button>
                         </div>
@@ -1493,18 +2065,21 @@
                         <div class="col-8">
                             <!-- Zone 1: Today's High-Focus Actions -->
                             <div class="rec-zone">
-                                <div class="rec-zone-title"><i class="fas fa-bolt" style="color: #f59e0b;"></i> Today's Focus</div>
+                                <div class="rec-zone-title"><i class="fas fa-bolt" style="color: #f59e0b;"></i> Today's
+                                    Focus</div>
                                 <div id="zone-urgent-recs"></div>
                             </div>
 
                             <!-- Zone 2: Deep Context & Health Monitoring -->
                             <div class="rec-zone">
-                                <div class="rec-zone-title"><i class="fas fa-microscope" style="color: #3b82f6;"></i> Deep Context & Monitoring</div>
+                                <div class="rec-zone-title"><i class="fas fa-microscope" style="color: #3b82f6;"></i>
+                                    Deep Context & Monitoring</div>
                                 <div id="zone-monitoring-recs"></div>
                             </div>
-                            
+
                             <div id="recsEmptyState" class="empty-state" style="display:none; padding: 60px;">
-                                <i class="fas fa-check-circle" style="font-size: 3rem; color: var(--normal); margin-bottom: 16px;"></i>
+                                <i class="fas fa-check-circle"
+                                    style="font-size: 3rem; color: var(--normal); margin-bottom: 16px;"></i>
                                 <h3>All caught up!</h3>
                                 <p>No active clinical interventions required at this moment.</p>
                             </div>
@@ -1515,7 +2090,8 @@
                             <!-- Zone 3: Treatment History & Archive -->
                             <div class="rec-zone">
                                 <div class="rec-zone-title"><i class="fas fa-history"></i> Treatment History</div>
-                                <div id="zone-history-recs" style="max-height: 400px; overflow-y: auto; padding-right: 8px;"></div>
+                                <div id="zone-history-recs"
+                                    style="max-height: 400px; overflow-y: auto; padding-right: 8px;"></div>
                             </div>
 
                             <!-- Legacy Alerts Section -->
@@ -1535,22 +2111,29 @@
                         <div class="col-12">
                             <div class="card" style="padding: 32px;">
                                 <div style="margin-bottom: 24px;">
-                                    <div style="font-size:0.75rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">DOCUMENT INGESTION</div>
-                                    <h2 style="font-size:1.4rem; font-weight:800; color:#1E3A8A; margin:0;">Upload Medical Report</h2>
+                                    <div
+                                        style="font-size:0.75rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">
+                                        DOCUMENT INGESTION</div>
+                                    <h2 style="font-size:1.4rem; font-weight:800; color:#1E3A8A; margin:0;">Upload
+                                        Medical Report</h2>
                                 </div>
-                                
+
                                 <div class="upload-dropzone" id="reportDropZone">
-                                    <input type="file" id="reportFileInput" style="display: none;" accept=".pdf,.png,.jpg,.jpeg">
+                                    <input type="file" id="reportFileInput" style="display: none;"
+                                        accept=".pdf,.png,.jpg,.jpeg">
                                     <i class="fas fa-cloud-upload-alt"></i>
                                     <h4>Drag & drop a report here or click to browse</h4>
                                     <p>PDF, PNG, JPEG — Max 10 MB per file</p>
-                                    <div id="selectedFileName" style="margin-top: 12px; font-weight: 700; color: var(--accent); display: none;"></div>
-                                    
+                                    <div id="selectedFileName"
+                                        style="margin-top: 12px; font-weight: 700; color: var(--accent); display: none;">
+                                    </div>
+
                                     <div class="upload-progress-wrap" id="uploadProgressWrap">
                                         <div class="upload-progress-bar" id="uploadProgressBar"></div>
                                     </div>
-                                    
-                                    <button class="btn" id="uploadReportBtn" style="margin-top: 24px; padding: 12px 32px;" disabled>
+
+                                    <button class="btn" id="uploadReportBtn"
+                                        style="margin-top: 24px; padding: 12px 32px;" disabled>
                                         <i class="fas fa-arrow-up"></i> Upload & Analyze
                                     </button>
                                 </div>
@@ -1559,20 +2142,29 @@
 
                         <div class="col-4">
                             <div class="card" style="text-align: center; padding: 20px;">
-                                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 800; margin-bottom: 4px;">Total Documents</div>
-                                <div id="totalReportsCount" style="font-size: 1.8rem; font-weight: 800; color: var(--accent);">0</div>
+                                <div
+                                    style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 800; margin-bottom: 4px;">
+                                    Total Documents</div>
+                                <div id="totalReportsCount"
+                                    style="font-size: 1.8rem; font-weight: 800; color: var(--accent);">0</div>
                             </div>
                         </div>
                         <div class="col-4">
                             <div class="card" style="text-align: center; padding: 20px;">
-                                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 800; margin-bottom: 4px;">Analyzed</div>
-                                <div id="analyzedReportsCount" style="font-size: 1.8rem; font-weight: 800; color: var(--normal);">0</div>
+                                <div
+                                    style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 800; margin-bottom: 4px;">
+                                    Analyzed</div>
+                                <div id="analyzedReportsCount"
+                                    style="font-size: 1.8rem; font-weight: 800; color: var(--normal);">0</div>
                             </div>
                         </div>
                         <div class="col-4">
                             <div class="card" style="text-align: center; padding: 20px;">
-                                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 800; margin-bottom: 4px;">Pending</div>
-                                <div id="pendingReportsCount" style="font-size: 1.8rem; font-weight: 800; color: var(--warning);">0</div>
+                                <div
+                                    style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 800; margin-bottom: 4px;">
+                                    Pending</div>
+                                <div id="pendingReportsCount"
+                                    style="font-size: 1.8rem; font-weight: 800; color: var(--warning);">0</div>
                             </div>
                         </div>
 
@@ -1581,7 +2173,8 @@
                                 <div class="card-header">
                                     <h2><i class="fas fa-list-ul"></i> Document History</h2>
                                     <div style="display: flex; gap: 12px;">
-                                        <select id="reportSortOrder" class="btn btn-sm btn-outline" style="padding: 4px 12px; font-weight: 600;">
+                                        <select id="reportSortOrder" class="btn btn-sm btn-outline"
+                                            style="padding: 4px 12px; font-weight: 600;">
                                             <option value="date_desc">Newest First</option>
                                             <option value="date_asc">Oldest First</option>
                                             <option value="name_asc">Name A-Z</option>
@@ -1594,7 +2187,8 @@
                                 <div class="scroll-area" id="reportsList" style="max-height: 600px; padding: 20px;">
                                     <!-- Dynamic Content -->
                                     <div style="text-align: center; padding: 40px; color: var(--text-muted);">
-                                        <i class="fas fa-file-medical" style="font-size: 2rem; opacity: 0.3; margin-bottom: 12px;"></i>
+                                        <i class="fas fa-file-medical"
+                                            style="font-size: 2rem; opacity: 0.3; margin-bottom: 12px;"></i>
                                         <p>Loading document history...</p>
                                     </div>
                                 </div>
@@ -1607,17 +2201,25 @@
                 <div id="tab-video" class="tab-pane">
                     <div class="dashboard-grid">
                         <div class="col-12">
-                            <div class="card" style="padding: 20px; text-align: center; background: linear-gradient(135deg, #ffffff, #f0f9ff);">
-                                <div style="width: 50px; height: 50px; background: rgba(74, 144, 226, 0.1); border-radius: 12px; display: grid; place-items: center; margin: 0 auto 16px; color: var(--accent); font-size: 1.2rem;">
+                            <div class="card"
+                                style="padding: 20px; text-align: center; background: linear-gradient(135deg, #ffffff, #f0f9ff);">
+                                <div
+                                    style="width: 50px; height: 50px; background: rgba(74, 144, 226, 0.1); border-radius: 12px; display: grid; place-items: center; margin: 0 auto 16px; color: var(--accent); font-size: 1.2rem;">
                                     <i class="fas fa-video"></i>
                                 </div>
-                                <h2 style="font-size: 1.4rem; font-weight: 800; color: #1E3A8A; margin-bottom: 8px;">Care Recipient Video Monitoring</h2>
-                                <p style="color: var(--text-muted); max-width: 550px; margin: 0 auto 20px; font-size: 0.95rem; line-height: 1.5;">
-                                    Advanced AI-powered fall detection and inactivity monitoring. Monitor the care recipient in real-time or analyze uploaded recordings.
+                                <h2 style="font-size: 1.4rem; font-weight: 800; color: #1E3A8A; margin-bottom: 8px;">
+                                    Care Recipient Video Monitoring</h2>
+                                <p
+                                    style="color: var(--text-muted); max-width: 550px; margin: 0 auto 20px; font-size: 0.95rem; line-height: 1.5;">
+                                    Advanced AI-powered fall detection and inactivity monitoring. Monitor the care
+                                    recipient in real-time or analyze uploaded recordings.
                                 </p>
                                 <div style="display: flex; justify-content: center;">
-                                    <button class="btn" id="btnVideoMonitor" style="padding: 12px 24px; font-size: 1rem; background: var(--accent); color: white; border: none; border-radius: 12px; font-weight: 700; box-shadow: 0 4px 12px rgba(74, 144, 226, 0.2);" onclick="openVideoMonitoring()">
-                                        <i class="fas fa-play-circle" style="margin-right: 8px;"></i> care_recipent monitoring
+                                    <button class="btn" id="btnVideoMonitor"
+                                        style="padding: 12px 24px; font-size: 1rem; background: var(--accent); color: white; border: none; border-radius: 12px; font-weight: 700; box-shadow: 0 4px 12px rgba(74, 144, 226, 0.2);"
+                                        onclick="openVideoMonitoring()">
+                                        <i class="fas fa-play-circle" style="margin-right: 8px;"></i> care_recipent
+                                        monitoring
                                     </button>
                                 </div>
                             </div>
@@ -1627,26 +2229,38 @@
                             <div class="dashboard-grid">
                                 <div class="col-4">
                                     <div class="card" style="text-align: center; padding: 16px;">
-                                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 800; margin-bottom: 4px;">Total Sessions</div>
-                                        <div id="totalVideos" style="font-size: 1.8rem; font-weight: 800; color: var(--accent);">0</div>
+                                        <div
+                                            style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 800; margin-bottom: 4px;">
+                                            Total Sessions</div>
+                                        <div id="totalVideos"
+                                            style="font-size: 1.8rem; font-weight: 800; color: var(--accent);">0</div>
                                     </div>
                                 </div>
                                 <div class="col-4">
                                     <div class="card" style="text-align: center; padding: 16px;">
-                                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 800; margin-bottom: 4px;">Falls Detected</div>
-                                        <div id="totalFalls" style="font-size: 1.8rem; font-weight: 800; color: var(--critical);">0</div>
+                                        <div
+                                            style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 800; margin-bottom: 4px;">
+                                            Falls Detected</div>
+                                        <div id="totalFalls"
+                                            style="font-size: 1.8rem; font-weight: 800; color: var(--critical);">0</div>
                                     </div>
                                 </div>
                                 <div class="col-4">
                                     <div class="card" style="text-align: center; padding: 16px;">
-                                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 800; margin-bottom: 4px;">Avg. Mobility</div>
-                                        <div id="avgActivity" style="font-size: 1.8rem; font-weight: 800; color: var(--normal);">0/10</div>
+                                        <div
+                                            style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 800; margin-bottom: 4px;">
+                                            Avg. Mobility</div>
+                                        <div id="avgActivity"
+                                            style="font-size: 1.8rem; font-weight: 800; color: var(--normal);">0/10
+                                        </div>
                                     </div>
                                 </div>
 
                                 <div class="col-6">
                                     <div class="card">
-                                        <div class="card-header" style="padding: 12px 16px;"><h2><i class="fas fa-chart-line"></i> Fall History</h2></div>
+                                        <div class="card-header" style="padding: 12px 16px;">
+                                            <h2><i class="fas fa-chart-line"></i> Fall History</h2>
+                                        </div>
                                         <div class="chart-container" style="height: 240px; padding: 0 12px 12px;">
                                             <canvas id="fallsHistoryChart"></canvas>
                                         </div>
@@ -1654,7 +2268,9 @@
                                 </div>
                                 <div class="col-6">
                                     <div class="card">
-                                        <div class="card-header" style="padding: 12px 16px;"><h2><i class="fas fa-walking"></i> Mobility Trends</h2></div>
+                                        <div class="card-header" style="padding: 12px 16px;">
+                                            <h2><i class="fas fa-walking"></i> Mobility Trends</h2>
+                                        </div>
                                         <div class="chart-container" style="height: 240px; padding: 0 12px 12px;">
                                             <canvas id="mobilityHistoryChart"></canvas>
                                         </div>
@@ -1704,7 +2320,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('conditionModal')">Cancel</button>
+                    <button type="button" class="btn btn-secondary"
+                        onclick="closeModal('conditionModal')">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Changes</button>
                 </div>
             </form>
@@ -1749,7 +2366,8 @@
                         <input type="text" id="medFrequency" placeholder="e.g. Twice daily">
                     </div>
                     <div class="form-group">
-                        <label>Schedule Time <small style="color:#94a3b8;font-weight:400;">(e.g. 08:00, 20:00)</small></label>
+                        <label>Schedule Time <small style="color:#94a3b8;font-weight:400;">(e.g. 08:00,
+                                20:00)</small></label>
                         <input type="text" id="medSchedule" placeholder="e.g. 08:00, 20:00">
                     </div>
                     <div class="form-group">
@@ -1759,12 +2377,14 @@
                     <div class="form-group">
                         <label style="display:flex;align-items:center;gap:10px;">
                             Duration (days)
-                            <span style="font-size:11px;color:#94a3b8;font-weight:400;">— leave blank for Lifetime</span>
+                            <span style="font-size:11px;color:#94a3b8;font-weight:400;">— leave blank for
+                                Lifetime</span>
                         </label>
                         <div style="display:flex;align-items:center;gap:12px;">
-                            <input type="number" id="medDuration" min="1" max="3650" placeholder="e.g. 10" style="flex:1;"
-                                oninput="document.getElementById('medLifetime').checked=false;">
-                            <label style="display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap;cursor:pointer;">
+                            <input type="number" id="medDuration" min="1" max="3650" placeholder="e.g. 10"
+                                style="flex:1;" oninput="document.getElementById('medLifetime').checked=false;">
+                            <label
+                                style="display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap;cursor:pointer;">
                                 <input type="checkbox" id="medLifetime"
                                     onchange="if(this.checked){document.getElementById('medDuration').value='';document.getElementById('medDuration').disabled=true;}else{document.getElementById('medDuration').disabled=false;}">
                                 Lifetime
@@ -1791,7 +2411,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('medicationModal')">Cancel</button>
+                    <button type="button" class="btn btn-secondary"
+                        onclick="closeModal('medicationModal')">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Changes</button>
                 </div>
             </form>
@@ -1870,7 +2491,8 @@
     <div id="vitalsModal" class="modal">
         <div class="modal-content" style="max-width: 500px;">
             <div class="modal-header">
-                <h3 style="margin:0; font-size:1.1rem;"><i class="fas fa-heartbeat" style="color:var(--accent);"></i> Log Today's Vitals</h3>
+                <h3 style="margin:0; font-size:1.1rem;"><i class="fas fa-heartbeat" style="color:var(--accent);"></i>
+                    Log Today's Vitals</h3>
                 <button class="btn btn-sm btn-outline" onclick="closeModal('vitalsModal')">&times;</button>
             </div>
             <form id="vitalsForm" onsubmit="event.preventDefault(); saveVitals();" style="display:contents;">
@@ -1901,7 +2523,8 @@
                             <input type="number" id="input-sleep" placeholder="e.g. 85">
                         </div>
                         <div class="form-group" style="grid-column: span 2;">
-                            <label>Weight (kg) — <small style="color:var(--text-muted); font-weight:400;">updates profile</small></label>
+                            <label>Weight (kg) — <small style="color:var(--text-muted); font-weight:400;">updates
+                                    profile</small></label>
                             <input type="number" step="0.1" id="input-weight" placeholder="e.g. 72">
                         </div>
                     </div>
@@ -2089,7 +2712,7 @@
         function openVitalsModal() {
             const vitals = profileData.vitals || {};
             const info = profileData.general_info || {};
-            
+
             document.getElementById('input-hr').value = vitals.heart_rate || '';
             document.getElementById('input-o2').value = vitals.oxygen_saturation || '';
             document.getElementById('input-sys').value = vitals.systolic_bp || '';
@@ -2097,7 +2720,7 @@
             document.getElementById('input-temp').value = vitals.temperature || '';
             document.getElementById('input-sleep').value = vitals.sleep_score || '';
             document.getElementById('input-weight').value = info.weight || '';
-            
+
             document.getElementById('vitalsModal').style.display = 'flex';
         }
 
@@ -2126,7 +2749,7 @@
                 });
 
                 if (!res.ok) throw new Error('Failed to save vitals');
-                
+
                 closeModal('vitalsModal');
                 await fetchProfileData(); // Refresh everything
             } catch (err) {
@@ -2189,7 +2812,7 @@
             if (!sev) return 'info';
             sev = sev.toLowerCase();
             return (sev === 'critical' || sev === 'severe' || sev === 'high') ? 'critical' :
-                   (sev === 'moderate' || sev === 'warning') ? 'warning' : 'success';
+                (sev === 'moderate' || sev === 'warning') ? 'warning' : 'success';
         }
 
         // ============================================
@@ -2315,7 +2938,7 @@
                 // Hide loading, show dashboard
                 document.getElementById('loadingIndicator').style.display = 'none';
                 document.getElementById('profileDashboard').style.display = 'block';
-                document.getElementById('syncTime').innerText = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                document.getElementById('syncTime').innerText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 document.getElementById('recipientName').innerText = profileData.general_info.name;
 
                 loadRecipientOverview();
@@ -2324,14 +2947,14 @@
                 renderSummaryTags();
                 renderLabSnapshot();
                 renderDashboardAlerts();
-                
+
                 // Detailed Tab Data
                 loadConditions();
                 loadMedications();
                 loadAllergies();
                 loadAlerts();
                 loadRecommendations();
-                
+
                 // Visualizations
                 renderVitalCharts();
                 initLabCharts();
@@ -2350,9 +2973,9 @@
             const banner = document.getElementById('criticalAlertBanner');
             const messageEl = document.getElementById('bannerMessage');
             const titleEl = document.getElementById('bannerTitle');
-            
+
             // Find highest severity alert
-            const criticalAlert = (profileData.alerts || []).find(a => 
+            const criticalAlert = (profileData.alerts || []).find(a =>
                 a.severity?.toLowerCase() === 'critical' || a.severity?.toLowerCase() === 'high'
             );
 
@@ -2367,14 +2990,14 @@
 
         function loadRecipientOverview() {
             const info = profileData.general_info;
-            
+
             // 1. Profile Card
             const profileEl = document.getElementById('profileCard');
             const isFemal = (info.gender || '').toLowerCase() === 'female';
             const avatarIcon = isFemal ? 'fa-venus' : 'fa-mars';
             const avatarClass = isFemal ? 'female' : '';
             const avatarHtml = `<div class="profile-avatar-icon ${avatarClass}"><i class="fas ${avatarIcon}"></i></div>`;
-            
+
             profileEl.innerHTML = `
                 <div class="profile-header">
                     ${avatarHtml}
@@ -2400,9 +3023,9 @@
                 <div>
                     <div class="stat-label" style="margin-bottom:12px;">Active Conditions</div>
                     <div class="chip-container">
-                        ${(profileData.conditions || []).filter(c => c.status !== 'resolved').slice(0, 3).map(c => 
-                            `<span class="chip" style="background:white; border:1px solid var(--border-light);">${c.disease_name}</span>`
-                        ).join('') || '<span class="text-muted">None</span>'}
+                        ${(profileData.conditions || []).filter(c => c.status !== 'resolved').slice(0, 3).map(c =>
+                `<span class="chip" style="background:white; border:1px solid var(--border-light);">${c.disease_name}</span>`
+            ).join('') || '<span class="text-muted">None</span>'}
                     </div>
                 </div>
             `;
@@ -2555,7 +3178,7 @@
 
             el.innerHTML = labs.map(l => {
                 const theme = getColor(l.test_name);
-                
+
                 // Construct range string from reference_low and reference_high
                 let range = '—';
                 if (l.reference_low !== undefined && l.reference_high !== undefined && l.reference_low !== null && l.reference_high !== null) {
@@ -2565,7 +3188,7 @@
                 } else if (l.threshold) {
                     range = l.threshold;
                 }
-                
+
                 return `
                     <div style="background:${theme.bg}; border: 1px solid ${theme.border}; border-radius:12px; padding:12px 16px; display:flex; align-items:center; gap:16px; min-width:240px; border-left: 4px solid ${theme.text};">
                         <div style="width:36px; height:36px; border-radius:10px; background:${theme.text}15; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
@@ -2604,7 +3227,7 @@
                     const [hh, mm] = slot.split(':');
                     const slotTime = new Date();
                     slotTime.setHours(parseInt(hh), parseInt(mm), 0, 0);
-                    
+
                     // Only show if it's within +/- 4 hours of now to keep dashboard "recent/relevant"
                     const diffHrs = (slotTime - new Date()) / 3600000;
                     if (Math.abs(diffHrs) <= 4) {
@@ -2632,9 +3255,9 @@
 
             container.innerHTML = allAlerts.map(a => {
                 const colors = a.severity === 'critical' ? { bg: '#FEF2F2', text: '#EF4444' } :
-                               a.severity === 'warning' ? { bg: '#FFFBEB', text: '#F59E0B' } :
-                               { bg: '#F0F9FF', text: '#0EA5E9' };
-                
+                    a.severity === 'warning' ? { bg: '#FFFBEB', text: '#F59E0B' } :
+                        { bg: '#F0F9FF', text: '#0EA5E9' };
+
                 return `
                     <div class="clickable-alert-item" onclick="switchTab('tab-intelligence')" style="background:white; border:1px solid var(--border-light); border-radius:10px; padding:12px; display:flex; align-items:center; gap:12px; cursor:pointer; transition: all 0.2s ease;">
                         <div style="width:4px; height:24px; border-radius:2px; background:${colors.text};"></div>
@@ -2784,7 +3407,7 @@
             const date = new Date(dateString);
             const now = new Date();
             const seconds = Math.floor((now - date) / 1000);
-            
+
             // Format absolute time for comparison/display
             const absTime = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -2822,7 +3445,7 @@
                 const renderCard = (r, isHistory = false) => {
                     const urgencyClass = (r.time_window || '').toLowerCase().includes('now') ? 'urgency-now' : 'urgency-today';
                     const urgencyLabel = r.time_window || (r.severity === 'critical' ? 'Now' : 'Today');
-                    
+
                     const actionsHtml = (r.today_actions || []).map(a => `
                         <div class="action-item-v3">
                             <i class="fas fa-circle-notch action-icon"></i>
@@ -2876,7 +3499,7 @@
                 // Filter items into zones
                 const urgent = items.filter(r => !r.resolved_at && (r.severity === 'critical' || r.severity === 'high'));
                 const monitor = items.filter(r => !r.resolved_at && (r.severity !== 'critical' && r.severity !== 'high'));
-                const history = items.filter(r => r.resolved_at).sort((a,b) => new Date(b.resolved_at) - new Date(a.resolved_at));
+                const history = items.filter(r => r.resolved_at).sort((a, b) => new Date(b.resolved_at) - new Date(a.resolved_at));
 
                 zUrgent.innerHTML = urgent.length ? urgent.map(r => renderCard(r)).join('') : '<div class="empty-state" style="padding:20px;">No high-priority actions.</div>';
                 zMonitor.innerHTML = monitor.length ? monitor.map(r => renderCard(r)).join('') : '<div class="empty-state" style="padding:20px;">No active monitoring items.</div>';
@@ -2901,7 +3524,7 @@
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (!res.ok) throw new Error('Failed to resolve');
-                
+
                 // Refresh list to move to history
                 await loadRecommendations();
             } catch (err) {
@@ -2930,7 +3553,7 @@
                 });
 
                 if (!res.ok) throw new Error('Refresher failed');
-                
+
                 // Reload list
                 await loadRecommendations();
             } catch (err) {
@@ -3148,7 +3771,7 @@
                 const msg = a.message || '';
                 const testMatch = msg.match(/(?:ordered|prescribed|new) lab test:?\s*([^.]+)/i);
                 let bookingBtn = '';
-                
+
                 if (testMatch) {
                     const testName = testMatch[1].trim();
                     // Direct search URL on Lal PathLabs as per user preference
@@ -3181,7 +3804,7 @@
             if (!vitals.length) return;
 
             vitals = [...vitals].sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
-            const labels = vitals.map(v => new Date(v.recorded_at).toLocaleDateString([], {month:'short', day:'numeric'}));
+            const labels = vitals.map(v => new Date(v.recorded_at).toLocaleDateString([], { month: 'short', day: 'numeric' }));
 
             const hrData = vitals.map(v => v.heart_rate);
             const trend = calculateTrend(hrData);
@@ -3195,28 +3818,28 @@
                 data: {
                     labels: labels,
                     datasets: [
-                        { 
-                            label: 'Heart Rate', 
-                            data: hrData, 
-                            borderColor: CHART_THEME.colors.primary, 
+                        {
+                            label: 'Heart Rate',
+                            data: hrData,
+                            borderColor: CHART_THEME.colors.primary,
                             fill: false,
-                            tension: 0.4, 
+                            tension: 0.4,
                             borderWidth: 2,
                             pointRadius: 0
                         },
-                        { 
-                            label: 'SpO2', 
-                            data: vitals.map(v => v.oxygen_saturation), 
-                            borderColor: CHART_THEME.colors.secondary, 
+                        {
+                            label: 'SpO2',
+                            data: vitals.map(v => v.oxygen_saturation),
+                            borderColor: CHART_THEME.colors.secondary,
                             fill: false,
                             borderWidth: 2,
                             tension: 0.4,
                             pointRadius: 0
                         },
-                        { 
-                            label: 'Temperature', 
-                            data: vitals.map(v => v.temperature), 
-                            borderColor: CHART_THEME.colors.tertiary, 
+                        {
+                            label: 'Temperature',
+                            data: vitals.map(v => v.temperature),
+                            borderColor: CHART_THEME.colors.tertiary,
                             fill: false,
                             borderWidth: 2,
                             tension: 0.4,
@@ -3254,7 +3877,7 @@
             Object.values(grouped).forEach(arr => arr.sort((a, b) => new Date(a.test_date) - new Date(b.test_date)));
 
             const metrics = Object.keys(grouped).sort();
-            
+
             const colors = ['#1E3A8A', '#3B82F6', '#10B981', '#F59E0B'];
 
             selector.innerHTML = metrics.map((m, idx) => `
@@ -3273,7 +3896,7 @@
             } else if (metrics.length) {
                 selector.querySelector('.lab-pill').classList.add('active');
             }
-            
+
             updateLabChart();
         }
 
@@ -3294,7 +3917,7 @@
             const selector = document.getElementById('labMetricSelector');
             const activePills = Array.from(selector.querySelectorAll('.lab-pill.active'));
             const selected = activePills.map(p => p.getAttribute('data-metric'));
-            
+
             const labs = profileData.lab_values || [];
             const grouped = {};
             labs.forEach(l => {
@@ -3327,8 +3950,8 @@
             charts.labs = new Chart(ctx, {
                 type: 'line',
                 plugins: [ChartDataLabels],
-                data: { 
-                    labels: allDates.map(d => new Date(d).toLocaleDateString([], {month:'short', day:'numeric', year:'numeric'})),
+                data: {
+                    labels: allDates.map(d => new Date(d).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })),
                     datasets: selected.map((m, index) => {
                         const datasetData = allDates.map(dateStr => {
                             const match = (grouped[m] || []).find(d => new Date(d.test_date).toISOString().split('T')[0] === dateStr);
@@ -3358,7 +3981,7 @@
                         };
                     })
                 },
-                options: { 
+                options: {
                     ...CHART_THEME.baseOptions,
                     plugins: {
                         ...CHART_THEME.baseOptions.plugins,
@@ -3389,7 +4012,7 @@
             });
 
             renderLabInsights(selected, grouped);
-            
+
             // Selected Metrics Summary removed as per user request
         }
 
@@ -3421,7 +4044,7 @@
                 aiInsights.forEach(insight => {
                     const sevColor = insight.risk_level === 'critical' ? '#EF4444' : (insight.risk_level === 'high' ? '#F97316' : (insight.risk_level === 'moderate' ? '#F59E0B' : '#10B981'));
                     const sevBg = insight.risk_level === 'critical' ? '#FEF2F2' : (insight.risk_level === 'high' ? '#FFF7ED' : (insight.risk_level === 'moderate' ? '#FFFBEB' : '#ECFDF5'));
-                    
+
                     html += `
                         <div class="insight-card" style="background:${sevBg}; border: 1px solid ${sevColor}40; margin-bottom: 12px; border-radius: 12px; align-items:flex-start;">
                             <div class="insight-icon-wrap" style="color:${sevColor}; margin-top:2px;">
@@ -3456,7 +4079,7 @@
                 }
 
                 container.innerHTML = html;
-            } catch(e) {
+            } catch (e) {
                 console.error("AI Insight Error:", e);
                 container.innerHTML = `<div style="color:var(--critical); font-size:0.85rem; padding: 10px;"><i class="fas fa-exclamation-triangle"></i> Failed to connect to Gemini AI Engine.</div>`;
             }
@@ -3614,7 +4237,7 @@
                 // Success
                 btn.innerHTML = '<i class="fas fa-check"></i> Analysis Triggered';
                 btn.style.background = 'var(--normal)';
-                
+
                 setTimeout(() => {
                     btn.disabled = true;
                     btn.style.background = '';
@@ -3624,7 +4247,7 @@
                     selectedFileForUpload = null;
                     fetchRecipientReports();
                     // Also refresh profile data since new reports might trigger new extraction
-                    setTimeout(fetchProfileData, 2000); 
+                    setTimeout(fetchProfileData, 2000);
                 }, 2000);
 
             } catch (err) {
@@ -3644,7 +4267,7 @@
                 if (!res.ok) throw new Error('Failed to fetch reports');
                 const data = await res.json();
                 reportsData = data.result?.reports || [];
-                
+
                 // Update stats
                 document.getElementById('totalReportsCount').textContent = reportsData.length;
                 document.getElementById('analyzedReportsCount').textContent = reportsData.filter(r => r.processing_status === 'completed' || r.processing_status === 'analyzed').length;
@@ -3680,7 +4303,7 @@
                 const isAnalyzed = r.processing_status === 'completed' || r.processing_status === 'analyzed';
                 const date = new Date(r.uploaded_at).toLocaleDateString();
                 const reportDate = r.report_date ? new Date(r.report_date).toLocaleDateString() : '—';
-                
+
                 return `
                     <div class="report-item" id="report-item-${r.id}">
                         <div class="report-icon">
@@ -3720,7 +4343,7 @@
         async function selectReport(reportId) {
             const previewEl = document.getElementById(`preview-${reportId}`);
             const itemEl = document.getElementById(`report-item-${reportId}`);
-            
+
             // Toggle
             if (previewEl.style.display === 'block') {
                 previewEl.style.display = 'none';

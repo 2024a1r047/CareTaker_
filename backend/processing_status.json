@@ -1,1041 +1,753 @@
 {
-    "1eb8397d-be05-4534-b3a7-242873247fd8": {
+    "f0b4876e-5593-4239-abf4-3be1105fc0de": {
         "status": "completed",
         "progress": 100,
-        "user_email": "2022a6r031@mietjammu.in",
-        "username": "TEST",
-        "caretaker_id": 45,
-        "recipient_id": 45,
-        "input_file": "temp_uploads\\2f191efe-ee20-4e7f-8ed7-c8071c2f11b2.mp4",
-        "output_file": "processed_videos\\analyzed_2f191efe-ee20-4e7f-8ed7-c8071c2f11b2.mp4",
-        "output_filename": "analyzed_2f191efe-ee20-4e7f-8ed7-c8071c2f11b2.mp4",
-        "start_time": 1776242495.566702,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\ab57c37d-3b5d-4bcf-ad8d-8ccb38cee5b2.mp4",
+        "output_file": "processed_videos\\analyzed_ab57c37d-3b5d-4bcf-ad8d-8ccb38cee5b2.mp4",
+        "output_filename": "analyzed_ab57c37d-3b5d-4bcf-ad8d-8ccb38cee5b2.mp4",
+        "start_time": 1779985805.8863018,
         "error": null,
         "falls_detected": [],
         "has_falls": false,
-        "completed_at": "2026-04-15T14:13:52.255669"
+        "completed_at": "2026-05-28T22:01:00.886483"
     },
-    "fc9fb884-9404-4a98-9d9c-e09e7785fc6a": {
+    "d500d432-2766-474a-b590-b1e6c113cbcc": {
         "status": "completed",
         "progress": 100,
-        "user_email": "2022a6r031@mietjammu.in",
-        "username": "TEST",
-        "caretaker_id": 45,
-        "recipient_id": 45,
-        "input_file": "temp_uploads\\6166d73e-e76a-425e-a670-e841daa425de.mp4",
-        "output_file": "processed_videos\\analyzed_6166d73e-e76a-425e-a670-e841daa425de.mp4",
-        "output_filename": "analyzed_6166d73e-e76a-425e-a670-e841daa425de.mp4",
-        "start_time": 1776832414.5672452,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\4c4f0dff-7ced-43bd-bf4b-02b310ff3f59.mp4",
+        "output_file": "processed_videos\\analyzed_4c4f0dff-7ced-43bd-bf4b-02b310ff3f59.mp4",
+        "output_filename": "analyzed_4c4f0dff-7ced-43bd-bf4b-02b310ff3f59.mp4",
+        "start_time": 1779985880.3763342,
         "error": null,
         "falls_detected": [],
         "has_falls": false,
-        "completed_at": "2026-04-22T10:07:18.082425"
+        "completed_at": "2026-05-28T22:02:15.038943"
     },
-    "fd528fda-de83-4e86-965b-85752ee43a50": {
+    "b9311f52-b403-49f1-9dfe-a45e1812a985": {
         "status": "completed",
         "progress": 100,
-        "user_email": "2022a6r031@mietjammu.in",
-        "username": "TEST",
-        "caretaker_id": 45,
-        "recipient_id": 45,
-        "input_file": "temp_uploads\\9fa5356e-7c66-419e-82f5-e72a86249e46.mp4",
-        "output_file": "processed_videos\\analyzed_9fa5356e-7c66-419e-82f5-e72a86249e46.mp4",
-        "output_filename": "analyzed_9fa5356e-7c66-419e-82f5-e72a86249e46.mp4",
-        "start_time": 1776832804.7924387,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\05280dad-48f7-4c26-ae05-5a4b6f117b53.avi",
+        "output_file": "processed_videos\\analyzed_05280dad-48f7-4c26-ae05-5a4b6f117b53.mp4",
+        "output_filename": "analyzed_05280dad-48f7-4c26-ae05-5a4b6f117b53.mp4",
+        "start_time": 1779986112.5508485,
         "error": null,
         "falls_detected": [],
         "has_falls": false,
-        "completed_at": "2026-04-22T10:10:49.295463"
+        "completed_at": "2026-05-28T22:10:48.499057"
     },
-    "7354b939-8c81-455c-83be-ef71b999dba8": {
+    "4f964292-123e-4c9c-a1ae-cfe33a0563c4": {
         "status": "completed",
         "progress": 100,
-        "user_email": "2022a6r031@mietjammu.in",
-        "username": "TEST",
-        "caretaker_id": 45,
-        "recipient_id": 45,
-        "input_file": "temp_uploads\\768739b3-699d-4e82-90aa-8ad0677f1791.mp4",
-        "output_file": "processed_videos\\analyzed_768739b3-699d-4e82-90aa-8ad0677f1791.mp4",
-        "output_filename": "analyzed_768739b3-699d-4e82-90aa-8ad0677f1791.mp4",
-        "start_time": 1776833003.725901,
-        "error": null,
-        "falls_detected": [],
-        "has_falls": false,
-        "completed_at": "2026-04-22T10:14:02.882925"
-    },
-    "91bec3e4-86ec-4cfe-8752-423a17b8baca": {
-        "status": "completed",
-        "progress": 100,
-        "user_email": "2022a6r031@mietjammu.in",
-        "username": "TEST",
-        "caretaker_id": 45,
-        "recipient_id": 45,
-        "input_file": "temp_uploads\\15a563bb-16ab-431f-874f-7dcedaa97ccd.mp4",
-        "output_file": "processed_videos\\analyzed_15a563bb-16ab-431f-874f-7dcedaa97ccd.mp4",
-        "output_filename": "analyzed_15a563bb-16ab-431f-874f-7dcedaa97ccd.mp4",
-        "start_time": 1776833562.742035,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\2e72a518-cee7-4e7b-8dd6-e9aee1e1dde8.mp4",
+        "output_file": "processed_videos\\analyzed_2e72a518-cee7-4e7b-8dd6-e9aee1e1dde8.mp4",
+        "output_filename": "analyzed_2e72a518-cee7-4e7b-8dd6-e9aee1e1dde8.mp4",
+        "start_time": 1779986541.4011085,
         "error": null,
         "falls_detected": [
             {
-                "timestamp": 1.0591418743133545,
-                "message": "Fall Detected",
-                "frame": 91
-            },
-            {
-                "timestamp": 0.3642549514770508,
-                "message": "Fall Detected",
-                "frame": 92
-            },
-            {
-                "timestamp": 0.7136075496673584,
-                "message": "Fall Detected",
-                "frame": 93
-            },
-            {
-                "timestamp": 1.0917446613311768,
-                "message": "Fall Detected",
-                "frame": 94
-            },
-            {
-                "timestamp": 0.3615732192993164,
-                "message": "Fall Detected",
-                "frame": 95
-            },
-            {
-                "timestamp": 0.7033367156982422,
-                "message": "Fall Detected",
-                "frame": 96
-            },
-            {
-                "timestamp": 1.0488359928131104,
-                "message": "Fall Detected",
-                "frame": 97
-            },
-            {
-                "timestamp": 0.3848135471343994,
-                "message": "Fall Detected",
-                "frame": 98
-            },
-            {
-                "timestamp": 0.8147077560424805,
-                "message": "Fall Detected",
-                "frame": 99
-            },
-            {
-                "timestamp": 1.1680934429168701,
-                "message": "Fall Detected",
-                "frame": 100
-            },
-            {
-                "timestamp": 0.33577680587768555,
-                "message": "Fall Detected",
-                "frame": 101
-            },
-            {
-                "timestamp": 0.7718369960784912,
-                "message": "Fall Detected",
-                "frame": 102
-            },
-            {
-                "timestamp": 1.1896896362304688,
-                "message": "Fall Detected",
-                "frame": 103
-            },
-            {
-                "timestamp": 0.39670658111572266,
-                "message": "Fall Detected",
-                "frame": 104
-            },
-            {
-                "timestamp": 0.6583535671234131,
-                "message": "Fall Detected",
-                "frame": 105
-            },
-            {
-                "timestamp": 0.9244320392608643,
-                "message": "Fall Detected",
-                "frame": 106
-            },
-            {
-                "timestamp": 1.1932060718536377,
-                "message": "Fall Detected",
-                "frame": 107
-            },
-            {
-                "timestamp": 0.25530409812927246,
-                "message": "Fall Detected",
-                "frame": 108
-            },
-            {
-                "timestamp": 0.5172216892242432,
-                "message": "Fall Detected",
-                "frame": 109
-            },
-            {
-                "timestamp": 0.7833592891693115,
-                "message": "Fall Detected",
-                "frame": 110
-            },
-            {
-                "timestamp": 1.0617854595184326,
-                "message": "Fall Detected",
-                "frame": 111
-            },
-            {
-                "timestamp": 0.2542421817779541,
-                "message": "Fall Detected",
-                "frame": 112
-            },
-            {
-                "timestamp": 0.4646334648132324,
-                "message": "Fall Detected",
-                "frame": 113
-            },
-            {
-                "timestamp": 0.724658727645874,
-                "message": "Fall Detected",
-                "frame": 114
-            },
-            {
-                "timestamp": 0.9630358219146729,
-                "message": "Fall Detected",
-                "frame": 115
-            },
-            {
-                "timestamp": 1.9162180423736572,
-                "message": "Fall Detected",
-                "frame": 116
-            },
-            {
-                "timestamp": 0.6779932975769043,
-                "message": "Fall Detected",
-                "frame": 117
-            },
-            {
-                "timestamp": 2.0464489459991455,
-                "message": "Fall Detected",
-                "frame": 118
-            },
-            {
-                "timestamp": 0.7613718509674072,
-                "message": "Fall Detected",
-                "frame": 119
-            },
-            {
-                "timestamp": 1.0945470333099365,
-                "message": "Fall Detected",
-                "frame": 120
-            },
-            {
-                "timestamp": 0.2556917667388916,
-                "message": "Fall Detected",
-                "frame": 121
-            },
-            {
-                "timestamp": 0.5035171508789062,
-                "message": "Fall Detected",
-                "frame": 122
-            },
-            {
-                "timestamp": 0.8537068367004395,
-                "message": "Fall Detected",
-                "frame": 123
-            },
-            {
-                "timestamp": 1.4057023525238037,
-                "message": "Fall Detected",
-                "frame": 124
-            },
-            {
-                "timestamp": 0.2538771629333496,
-                "message": "Fall Detected",
-                "frame": 125
-            },
-            {
-                "timestamp": 0.501338005065918,
-                "message": "Fall Detected",
-                "frame": 126
-            },
-            {
-                "timestamp": 0.7576520442962646,
-                "message": "Fall Detected",
-                "frame": 127
-            },
-            {
-                "timestamp": 0.9976780414581299,
-                "message": "Fall Detected",
-                "frame": 128
-            },
-            {
-                "timestamp": 1.2379610538482666,
-                "message": "Fall Detected",
-                "frame": 129
-            },
-            {
-                "timestamp": 0.24898934364318848,
-                "message": "Fall Detected",
-                "frame": 130
-            },
-            {
-                "timestamp": 0.48410630226135254,
-                "message": "Fall Detected",
-                "frame": 131
-            },
-            {
-                "timestamp": 0.7201087474822998,
-                "message": "Fall Detected",
-                "frame": 132
-            },
-            {
-                "timestamp": 0.9848384857177734,
-                "message": "Fall Detected",
-                "frame": 133
-            },
-            {
-                "timestamp": 1.2245314121246338,
-                "message": "Fall Detected",
-                "frame": 134
-            },
-            {
-                "timestamp": 0.24619770050048828,
-                "message": "Fall Detected",
-                "frame": 135
-            },
-            {
-                "timestamp": 0.4887232780456543,
-                "message": "Fall Detected",
-                "frame": 136
-            },
-            {
-                "timestamp": 0.729313850402832,
-                "message": "Fall Detected",
-                "frame": 137
-            },
-            {
-                "timestamp": 1.135835886001587,
-                "message": "Fall Detected",
-                "frame": 138
-            },
-            {
-                "timestamp": 0.2325589656829834,
-                "message": "Fall Detected",
-                "frame": 139
-            },
-            {
-                "timestamp": 0.46820569038391113,
-                "message": "Fall Detected",
-                "frame": 140
-            },
-            {
-                "timestamp": 0.7081179618835449,
-                "message": "Fall Detected",
-                "frame": 141
-            },
-            {
-                "timestamp": 0.9469318389892578,
-                "message": "Fall Detected",
-                "frame": 142
-            },
-            {
-                "timestamp": 1.1859171390533447,
-                "message": "Fall Detected",
-                "frame": 143
-            },
-            {
-                "timestamp": 0.38413381576538086,
-                "message": "Fall Detected",
-                "frame": 144
-            },
-            {
-                "timestamp": 0.6406590938568115,
-                "message": "Fall Detected",
-                "frame": 145
-            },
-            {
-                "timestamp": 0.8991091251373291,
-                "message": "Fall Detected",
-                "frame": 146
-            }
-        ],
-        "has_falls": true,
-        "completed_at": "2026-04-22T10:23:50.140750"
-    },
-    "c48f272b-1ddf-49b6-ac82-7b87c3917956": {
-        "status": "completed",
-        "progress": 100,
-        "user_email": "2022a6r031@mietjammu.in",
-        "username": "TEST",
-        "caretaker_id": 45,
-        "recipient_id": 45,
-        "input_file": "temp_uploads\\cfaaf8ea-0c72-4e5b-992a-7b7a58dd9051.mp4",
-        "output_file": "processed_videos\\analyzed_cfaaf8ea-0c72-4e5b-992a-7b7a58dd9051.mp4",
-        "output_filename": "analyzed_cfaaf8ea-0c72-4e5b-992a-7b7a58dd9051.mp4",
-        "start_time": 1776833669.7477996,
-        "error": null,
-        "falls_detected": [
-            {
-                "timestamp": 1.6491155624389648,
-                "message": "Fall Detected",
-                "frame": 58
-            },
-            {
-                "timestamp": 0.6874444484710693,
-                "message": "Fall Detected",
-                "frame": 59
-            },
-            {
-                "timestamp": 1.153752088546753,
-                "message": "Fall Detected",
-                "frame": 60
-            },
-            {
-                "timestamp": 0.4767460823059082,
-                "message": "Fall Detected",
-                "frame": 61
-            },
-            {
-                "timestamp": 0.9277048110961914,
-                "message": "Fall Detected",
-                "frame": 62
-            },
-            {
-                "timestamp": 1.3748805522918701,
-                "message": "Fall Detected",
-                "frame": 63
-            },
-            {
-                "timestamp": 0.4756455421447754,
-                "message": "Fall Detected",
-                "frame": 64
-            },
-            {
-                "timestamp": 1.653900146484375,
-                "message": "Fall Detected",
-                "frame": 65
-            },
-            {
-                "timestamp": 1.3674020767211914,
-                "message": "Fall Detected",
-                "frame": 66
-            },
-            {
-                "timestamp": 0.5308663845062256,
-                "message": "Fall Detected",
-                "frame": 67
-            },
-            {
-                "timestamp": 1.0067288875579834,
-                "message": "Fall Detected",
-                "frame": 68
-            },
-            {
-                "timestamp": 0.45856809616088867,
-                "message": "Fall Detected",
-                "frame": 69
-            },
-            {
-                "timestamp": 1.0822725296020508,
-                "message": "Fall Detected",
-                "frame": 70
-            },
-            {
-                "timestamp": 0.6513292789459229,
-                "message": "Fall Detected",
-                "frame": 71
-            },
-            {
-                "timestamp": 1.111602783203125,
-                "message": "Fall Detected",
-                "frame": 72
-            },
-            {
-                "timestamp": 0.43862009048461914,
-                "message": "Fall Detected",
-                "frame": 73
-            },
-            {
-                "timestamp": 0.9118728637695312,
-                "message": "Fall Detected",
-                "frame": 74
-            },
-            {
-                "timestamp": 1.3796544075012207,
-                "message": "Fall Detected",
-                "frame": 75
-            },
-            {
-                "timestamp": 0.4500877857208252,
-                "message": "Fall Detected",
-                "frame": 76
-            },
-            {
-                "timestamp": 0.9122540950775146,
-                "message": "Fall Detected",
-                "frame": 77
-            },
-            {
-                "timestamp": 1.3869280815124512,
-                "message": "Fall Detected",
-                "frame": 78
-            },
-            {
-                "timestamp": 1.4080872535705566,
-                "message": "Fall Detected",
-                "frame": 79
-            },
-            {
-                "timestamp": 0.6241147518157959,
-                "message": "Fall Detected",
-                "frame": 80
-            },
-            {
-                "timestamp": 1.246807336807251,
-                "message": "Fall Detected",
-                "frame": 81
-            },
-            {
-                "timestamp": 1.5415687561035156,
-                "message": "Fall Detected",
-                "frame": 82
-            },
-            {
-                "timestamp": 0.5315492153167725,
-                "message": "Fall Detected",
-                "frame": 83
-            },
-            {
-                "timestamp": 1.920574426651001,
-                "message": "Fall Detected",
-                "frame": 84
-            },
-            {
-                "timestamp": 2.8384547233581543,
-                "message": "Fall Detected",
-                "frame": 85
-            },
-            {
-                "timestamp": 1.3363382816314697,
-                "message": "Fall Detected",
-                "frame": 86
-            },
-            {
-                "timestamp": 0.8564355373382568,
-                "message": "Fall Detected",
-                "frame": 87
-            },
-            {
-                "timestamp": 1.5224697589874268,
-                "message": "Fall Detected",
-                "frame": 88
-            },
-            {
-                "timestamp": 0.7212531566619873,
-                "message": "Fall Detected",
-                "frame": 89
-            },
-            {
-                "timestamp": 1.6984162330627441,
-                "message": "Fall Detected",
-                "frame": 90
-            },
-            {
-                "timestamp": 1.573526382446289,
-                "message": "Fall Detected",
-                "frame": 91
-            },
-            {
-                "timestamp": 0.5196356773376465,
-                "message": "Fall Detected",
-                "frame": 92
-            },
-            {
-                "timestamp": 1.3467957973480225,
-                "message": "Fall Detected",
-                "frame": 93
-            },
-            {
-                "timestamp": 0.4520277976989746,
-                "message": "Fall Detected",
-                "frame": 94
-            },
-            {
-                "timestamp": 0.9181172847747803,
-                "message": "Fall Detected",
-                "frame": 95
-            },
-            {
-                "timestamp": 1.370234489440918,
-                "message": "Fall Detected",
-                "frame": 96
-            },
-            {
-                "timestamp": 0.45262837409973145,
-                "message": "Fall Detected",
-                "frame": 97
-            },
-            {
-                "timestamp": 0.9136874675750732,
-                "message": "Fall Detected",
-                "frame": 98
-            },
-            {
-                "timestamp": 1.5972352027893066,
-                "message": "Fall Detected",
-                "frame": 99
-            },
-            {
-                "timestamp": 0.6467077732086182,
-                "message": "Fall Detected",
-                "frame": 100
-            },
-            {
-                "timestamp": 1.1060431003570557,
-                "message": "Fall Detected",
-                "frame": 101
-            },
-            {
-                "timestamp": 0.46048498153686523,
-                "message": "Fall Detected",
-                "frame": 102
-            },
-            {
-                "timestamp": 0.9680912494659424,
-                "message": "Fall Detected",
-                "frame": 103
-            },
-            {
-                "timestamp": 1.919511079788208,
-                "message": "Fall Detected",
-                "frame": 104
-            },
-            {
-                "timestamp": 0.457317590713501,
-                "message": "Fall Detected",
-                "frame": 105
-            },
-            {
-                "timestamp": 0.901923656463623,
-                "message": "Fall Detected",
-                "frame": 106
-            },
-            {
-                "timestamp": 1.3558282852172852,
-                "message": "Fall Detected",
-                "frame": 107
-            },
-            {
-                "timestamp": 0.695643424987793,
-                "message": "Fall Detected",
-                "frame": 108
-            },
-            {
-                "timestamp": 1.403346300125122,
-                "message": "Fall Detected",
-                "frame": 109
-            },
-            {
-                "timestamp": 0.9706778526306152,
-                "message": "Fall Detected",
-                "frame": 110
-            },
-            {
-                "timestamp": 1.6787316799163818,
-                "message": "Fall Detected",
-                "frame": 111
-            },
-            {
-                "timestamp": 0.5228698253631592,
-                "message": "Fall Detected",
-                "frame": 112
-            },
-            {
-                "timestamp": 1.2178606986999512,
-                "message": "Fall Detected",
-                "frame": 113
-            },
-            {
-                "timestamp": 1.4317042827606201,
-                "message": "Fall Detected",
-                "frame": 114
-            },
-            {
-                "timestamp": 0.8879015445709229,
-                "message": "Fall Detected",
-                "frame": 115
-            },
-            {
-                "timestamp": 1.527461051940918,
-                "message": "Fall Detected",
-                "frame": 116
-            },
-            {
-                "timestamp": 0.4837534427642822,
-                "message": "Fall Detected",
-                "frame": 117
-            },
-            {
-                "timestamp": 0.9274594783782959,
-                "message": "Fall Detected",
-                "frame": 118
-            },
-            {
-                "timestamp": 1.358814001083374,
-                "message": "Fall Detected",
-                "frame": 119
-            },
-            {
-                "timestamp": 0.6769237518310547,
-                "message": "Fall Detected",
-                "frame": 120
-            },
-            {
-                "timestamp": 2.1634604930877686,
-                "message": "Fall Detected",
-                "frame": 121
-            },
-            {
-                "timestamp": 3.7643187046051025,
-                "message": "Fall Detected",
-                "frame": 122
-            },
-            {
-                "timestamp": 1.3043732643127441,
-                "message": "Fall Detected",
-                "frame": 123
-            },
-            {
-                "timestamp": 1.988708734512329,
-                "message": "Fall Detected",
-                "frame": 124
-            },
-            {
-                "timestamp": 3.482842206954956,
-                "message": "Fall Detected",
-                "frame": 125
-            },
-            {
-                "timestamp": 1.8870301246643066,
-                "message": "Fall Detected",
-                "frame": 126
-            },
-            {
-                "timestamp": 3.111255168914795,
-                "message": "Fall Detected",
-                "frame": 127
-            },
-            {
-                "timestamp": 0.6701803207397461,
-                "message": "Fall Detected",
-                "frame": 128
-            },
-            {
-                "timestamp": 1.1211140155792236,
-                "message": "Fall Detected",
-                "frame": 129
-            },
-            {
-                "timestamp": 0.7552165985107422,
-                "message": "Fall Detected",
-                "frame": 130
-            },
-            {
-                "timestamp": 1.7957820892333984,
-                "message": "Fall Detected",
-                "frame": 131
-            },
-            {
-                "timestamp": 0.8407144546508789,
-                "message": "Fall Detected",
-                "frame": 132
-            },
-            {
-                "timestamp": 2.3920187950134277,
-                "message": "Fall Detected",
-                "frame": 133
-            },
-            {
-                "timestamp": 1.417494535446167,
-                "message": "Fall Detected",
-                "frame": 134
-            },
-            {
-                "timestamp": 1.0759031772613525,
-                "message": "Fall Detected",
-                "frame": 135
-            },
-            {
-                "timestamp": 1.4794838428497314,
-                "message": "Fall Detected",
-                "frame": 136
-            },
-            {
-                "timestamp": 2.0914409160614014,
-                "message": "Fall Detected",
-                "frame": 137
-            },
-            {
-                "timestamp": 1.6945905685424805,
-                "message": "Fall Detected",
-                "frame": 138
-            },
-            {
-                "timestamp": 0.4803130626678467,
-                "message": "Fall Detected",
-                "frame": 139
-            },
-            {
-                "timestamp": 1.2586429119110107,
-                "message": "Fall Detected",
-                "frame": 140
-            },
-            {
-                "timestamp": 2.7712128162384033,
-                "message": "Fall Detected",
-                "frame": 141
-            },
-            {
-                "timestamp": 0.49065279960632324,
-                "message": "Fall Detected",
-                "frame": 142
-            },
-            {
-                "timestamp": 0.9642088413238525,
-                "message": "Fall Detected",
-                "frame": 143
-            },
-            {
-                "timestamp": 1.9109776020050049,
-                "message": "Fall Detected",
-                "frame": 144
-            },
-            {
-                "timestamp": 0.6667134761810303,
-                "message": "Fall Detected",
-                "frame": 145
-            },
-            {
-                "timestamp": 2.7477753162384033,
-                "message": "Fall Detected",
-                "frame": 146
-            },
-            {
-                "timestamp": 1.2321264743804932,
-                "message": "Fall Detected",
-                "frame": 147
-            },
-            {
-                "timestamp": 1.4825494289398193,
-                "message": "Fall Detected",
-                "frame": 148
-            },
-            {
-                "timestamp": 1.7290315628051758,
-                "message": "Fall Detected",
-                "frame": 149
-            },
-            {
-                "timestamp": 1.6768689155578613,
-                "message": "Fall Detected",
-                "frame": 150
-            },
-            {
-                "timestamp": 0.5159568786621094,
-                "message": "Fall Detected",
-                "frame": 151
-            },
-            {
-                "timestamp": 0.9846086502075195,
-                "message": "Fall Detected",
-                "frame": 152
-            },
-            {
-                "timestamp": 2.4031691551208496,
-                "message": "Fall Detected",
-                "frame": 153
-            },
-            {
-                "timestamp": 0.5109567642211914,
-                "message": "Fall Detected",
-                "frame": 154
-            },
-            {
-                "timestamp": 0.948188066482544,
-                "message": "Fall Detected",
-                "frame": 155
-            },
-            {
-                "timestamp": 1.3846166133880615,
-                "message": "Fall Detected",
-                "frame": 156
-            },
-            {
-                "timestamp": 1.120943307876587,
-                "message": "Fall Detected",
-                "frame": 157
-            },
-            {
-                "timestamp": 2.205528497695923,
+                "timestamp": 5.27,
                 "message": "Fall Detected",
                 "frame": 158
-            },
-            {
-                "timestamp": 2.447882652282715,
-                "message": "Fall Detected",
-                "frame": 159
-            },
-            {
-                "timestamp": 0.9727160930633545,
-                "message": "Fall Detected",
-                "frame": 160
-            },
-            {
-                "timestamp": 1.8537664413452148,
-                "message": "Fall Detected",
-                "frame": 161
-            },
-            {
-                "timestamp": 1.395702600479126,
-                "message": "Fall Detected",
-                "frame": 162
-            },
-            {
-                "timestamp": 1.461805820465088,
-                "message": "Fall Detected",
-                "frame": 163
-            },
-            {
-                "timestamp": 1.7349839210510254,
-                "message": "Fall Detected",
-                "frame": 164
-            },
-            {
-                "timestamp": 2.1920669078826904,
-                "message": "Fall Detected",
-                "frame": 165
-            },
-            {
-                "timestamp": 1.1692404747009277,
-                "message": "Fall Detected",
-                "frame": 166
-            },
-            {
-                "timestamp": 1.1301565170288086,
-                "message": "Fall Detected",
-                "frame": 167
-            },
-            {
-                "timestamp": 2.590371608734131,
-                "message": "Fall Detected",
-                "frame": 168
-            },
-            {
-                "timestamp": 2.944507122039795,
-                "message": "Fall Detected",
-                "frame": 169
-            },
-            {
-                "timestamp": 0.9218528270721436,
-                "message": "Fall Detected",
-                "frame": 170
-            },
-            {
-                "timestamp": 1.866471529006958,
-                "message": "Fall Detected",
-                "frame": 171
-            },
-            {
-                "timestamp": 3.017770767211914,
-                "message": "Fall Detected",
-                "frame": 172
-            },
-            {
-                "timestamp": 1.018721580505371,
-                "message": "Fall Detected",
-                "frame": 173
-            },
-            {
-                "timestamp": 0.9533312320709229,
-                "message": "Fall Detected",
-                "frame": 174
-            },
-            {
-                "timestamp": 2.1983492374420166,
-                "message": "Fall Detected",
-                "frame": 175
-            },
-            {
-                "timestamp": 1.3829460144042969,
-                "message": "Fall Detected",
-                "frame": 176
-            },
-            {
-                "timestamp": 0.5133705139160156,
-                "message": "Fall Detected",
-                "frame": 177
-            },
-            {
-                "timestamp": 1.0054357051849365,
-                "message": "Fall Detected",
-                "frame": 178
-            },
-            {
-                "timestamp": 0.8607189655303955,
-                "message": "Fall Detected",
-                "frame": 179
-            },
-            {
-                "timestamp": 2.0945513248443604,
-                "message": "Fall Detected",
-                "frame": 180
-            },
-            {
-                "timestamp": 0.5473589897155762,
-                "message": "Fall Detected",
-                "frame": 181
-            },
-            {
-                "timestamp": 1.5009007453918457,
-                "message": "Fall Detected",
-                "frame": 182
-            },
-            {
-                "timestamp": 0.5402839183807373,
-                "message": "Fall Detected",
-                "frame": 183
-            },
-            {
-                "timestamp": 1.110339641571045,
-                "message": "Fall Detected",
-                "frame": 184
-            },
-            {
-                "timestamp": 0.5566494464874268,
-                "message": "Fall Detected",
-                "frame": 185
-            },
-            {
-                "timestamp": 1.129103183746338,
-                "message": "Fall Detected",
-                "frame": 186
             }
         ],
         "has_falls": true,
-        "completed_at": "2026-04-22T10:27:50.001920"
+        "completed_at": "2026-05-28T22:13:55.562949"
     },
-    "edf4e1ec-e373-4e15-a3c7-d38ef520925f": {
+    "44c2a8d0-e831-4d93-9297-120feeda69fb": {
         "status": "completed",
         "progress": 100,
-        "user_email": "2022a6r031@mietjammu.in",
-        "username": "TEST",
-        "caretaker_id": 45,
-        "recipient_id": 45,
-        "input_file": "temp_uploads\\52a59e02-00b0-41b2-ab97-dc28b29f4f61.mp4",
-        "output_file": "processed_videos\\analyzed_52a59e02-00b0-41b2-ab97-dc28b29f4f61.mp4",
-        "output_filename": "analyzed_52a59e02-00b0-41b2-ab97-dc28b29f4f61.mp4",
-        "start_time": 1776833699.0129075,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\04c0c6b8-8fe0-4848-914a-47c42204fed2.mp4",
+        "output_file": "processed_videos\\analyzed_04c0c6b8-8fe0-4848-914a-47c42204fed2.mp4",
+        "output_filename": "analyzed_04c0c6b8-8fe0-4848-914a-47c42204fed2.mp4",
+        "start_time": 1779986899.7185767,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 2.13,
+                "message": "Fall Detected",
+                "frame": 64
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-28T22:18:42.985785"
+    },
+    "13c4dd65-3992-4395-9684-61410c9e4666": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\23d9b668-11ac-4b88-a0c8-b22361efe25c.mp4",
+        "output_file": "processed_videos\\analyzed_23d9b668-11ac-4b88-a0c8-b22361efe25c.mp4",
+        "output_filename": "analyzed_23d9b668-11ac-4b88-a0c8-b22361efe25c.mp4",
+        "start_time": 1779987610.3810842,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 0.67,
+                "message": "Fall Detected",
+                "frame": 20
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-28T22:30:29.170118"
+    },
+    "590c41d0-63a3-43e1-a1b1-379fcf076a50": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\b864c45f-a7de-4cb4-9bb6-1b026af25a37.mp4",
+        "output_file": "processed_videos\\analyzed_b864c45f-a7de-4cb4-9bb6-1b026af25a37.mp4",
+        "output_filename": "analyzed_b864c45f-a7de-4cb4-9bb6-1b026af25a37.mp4",
+        "start_time": 1779987920.9673462,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 1.03,
+                "message": "Fall Detected",
+                "frame": 31
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-28T22:35:38.421469"
+    },
+    "8640a96a-2252-487a-9f71-3e1b1607e54c": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\544dc722-8c78-4f2f-aecf-7faedb3750d6.mp4",
+        "output_file": "processed_videos\\analyzed_544dc722-8c78-4f2f-aecf-7faedb3750d6.mp4",
+        "output_filename": "analyzed_544dc722-8c78-4f2f-aecf-7faedb3750d6.mp4",
+        "start_time": 1779987993.8463924,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 1.37,
+                "message": "Fall Detected",
+                "frame": 41
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-28T22:37:08.696236"
+    },
+    "7a9092b9-27f7-47d4-a4e3-3348716c13d3": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\1acd60e3-118c-43eb-a272-f48e0cf1b8bd.avi",
+        "output_file": "processed_videos\\analyzed_1acd60e3-118c-43eb-a272-f48e0cf1b8bd.mp4",
+        "output_filename": "analyzed_1acd60e3-118c-43eb-a272-f48e0cf1b8bd.mp4",
+        "start_time": 1779988123.2718248,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 3.6,
+                "message": "Fall Detected",
+                "frame": 432
+            },
+            {
+                "timestamp": 4.15,
+                "message": "Fall Detected",
+                "frame": 498
+            },
+            {
+                "timestamp": 4.8,
+                "message": "Fall Detected",
+                "frame": 576
+            },
+            {
+                "timestamp": 5.32,
+                "message": "Fall Detected",
+                "frame": 638
+            },
+            {
+                "timestamp": 5.83,
+                "message": "Fall Detected",
+                "frame": 699
+            },
+            {
+                "timestamp": 6.35,
+                "message": "Fall Detected",
+                "frame": 762
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-28T22:46:11.597116"
+    },
+    "a4b27afe-45c6-4aa6-b55f-e59cec345b54": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\296603ea-369b-452d-b811-ffb3e2898861.mp4",
+        "output_file": "processed_videos\\analyzed_296603ea-369b-452d-b811-ffb3e2898861.mp4",
+        "output_filename": "analyzed_296603ea-369b-452d-b811-ffb3e2898861.mp4",
+        "start_time": 1779989896.4219236,
         "error": null,
         "falls_detected": [],
         "has_falls": false,
-        "completed_at": "2026-04-22T10:29:04.531985"
+        "completed_at": "2026-05-28T23:08:43.547807"
+    },
+    "f30bcb51-aad8-4769-8659-c16d1fd68b6f": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\bb70a1d4-e1e9-45da-beed-de7283c0f6f2.mp4",
+        "output_file": "processed_videos\\analyzed_bb70a1d4-e1e9-45da-beed-de7283c0f6f2.mp4",
+        "output_filename": "analyzed_bb70a1d4-e1e9-45da-beed-de7283c0f6f2.mp4",
+        "start_time": 1779989983.5903773,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 1.23,
+                "message": "Fall Detected",
+                "frame": 37
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-28T23:10:17.842726"
+    },
+    "500dfeba-7d0e-4733-9e0a-7713b5b1b110": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\3cc94b3e-2750-4e8e-ab40-64d01bc8f1b1.mp4",
+        "output_file": "processed_videos\\analyzed_3cc94b3e-2750-4e8e-ab40-64d01bc8f1b1.mp4",
+        "output_filename": "analyzed_3cc94b3e-2750-4e8e-ab40-64d01bc8f1b1.mp4",
+        "start_time": 1779990069.0094311,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 0.67,
+                "message": "Fall Detected",
+                "frame": 20
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-28T23:11:43.010351"
+    },
+    "62a4f3ad-4185-4af3-ab1c-2b4c9a5080c8": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\531adcad-d810-446e-9327-57a10218f4b9.mp4",
+        "output_file": "processed_videos\\analyzed_531adcad-d810-446e-9327-57a10218f4b9.mp4",
+        "output_filename": "analyzed_531adcad-d810-446e-9327-57a10218f4b9.mp4",
+        "start_time": 1779990134.2646732,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 0.83,
+                "message": "Fall Detected",
+                "frame": 25
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-28T23:12:41.911482"
+    },
+    "fc2ab706-43d1-489f-adb5-5cb5b11fa716": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\bf8736b1-e666-4a17-9a92-11903ed20ebe.mp4",
+        "output_file": "processed_videos\\analyzed_bf8736b1-e666-4a17-9a92-11903ed20ebe.mp4",
+        "output_filename": "analyzed_bf8736b1-e666-4a17-9a92-11903ed20ebe.mp4",
+        "start_time": 1779990203.9816473,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 1.1,
+                "message": "Fall Detected",
+                "frame": 33
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-28T23:13:58.794733"
+    },
+    "72b45d66-4a02-41d8-ac8b-d569015c26f7": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\60f34e5d-a6b0-49f6-83ab-1afb897704e2.mp4",
+        "output_file": "processed_videos\\analyzed_60f34e5d-a6b0-49f6-83ab-1afb897704e2.mp4",
+        "output_filename": "analyzed_60f34e5d-a6b0-49f6-83ab-1afb897704e2.mp4",
+        "start_time": 1779990368.1771777,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 1.03,
+                "message": "Fall Detected",
+                "frame": 31
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-28T23:16:40.923611"
+    },
+    "d84a4d69-eddd-42c8-b480-a79bbc19322f": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\b9037fcb-59c9-4c0f-a36e-d9140f1687bc.mp4",
+        "output_file": "processed_videos\\analyzed_b9037fcb-59c9-4c0f-a36e-d9140f1687bc.mp4",
+        "output_filename": "analyzed_b9037fcb-59c9-4c0f-a36e-d9140f1687bc.mp4",
+        "start_time": 1779990468.6180842,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 1.63,
+                "message": "Fall Detected",
+                "frame": 49
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-28T23:18:21.055623"
+    },
+    "1e1d26d7-d73b-42c0-a90a-3a74432657ea": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\0619cf3b-4f0c-4194-8037-adeb73840b0f.mp4",
+        "output_file": "processed_videos\\analyzed_0619cf3b-4f0c-4194-8037-adeb73840b0f.mp4",
+        "output_filename": "analyzed_0619cf3b-4f0c-4194-8037-adeb73840b0f.mp4",
+        "start_time": 1779990514.140887,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 1.53,
+                "message": "Fall Detected",
+                "frame": 46
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-28T23:19:02.506828"
+    },
+    "4c207082-af47-453d-927c-7a7caaadebb6": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\9525e944-ab83-4e6c-85af-f759a5807451.mp4",
+        "output_file": "processed_videos\\analyzed_9525e944-ab83-4e6c-85af-f759a5807451.mp4",
+        "output_filename": "analyzed_9525e944-ab83-4e6c-85af-f759a5807451.mp4",
+        "start_time": 1779990569.373503,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 4.97,
+                "message": "Fall Detected",
+                "frame": 149
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-28T23:20:54.653843"
+    },
+    "8f458214-90f3-4ced-961d-49120082b7af": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\e54c1fb5-8cfb-4ec1-bb80-3c9e1c7546a8.avi",
+        "output_file": "processed_videos\\analyzed_e54c1fb5-8cfb-4ec1-bb80-3c9e1c7546a8.mp4",
+        "output_filename": "analyzed_e54c1fb5-8cfb-4ec1-bb80-3c9e1c7546a8.mp4",
+        "start_time": 1779990713.363125,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 3.15,
+                "message": "Fall Detected",
+                "frame": 378
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-28T23:25:31.137405"
+    },
+    "c21364fb-f8ba-4fb2-91af-77c8bdb2a1cb": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\1371aa64-c26a-4480-9675-61f7cfc664fc.avi",
+        "output_file": "processed_videos\\analyzed_1371aa64-c26a-4480-9675-61f7cfc664fc.mp4",
+        "output_filename": "analyzed_1371aa64-c26a-4480-9675-61f7cfc664fc.mp4",
+        "start_time": 1779990987.6398816,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 3.23,
+                "message": "Fall Detected",
+                "frame": 388
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-28T23:30:08.959468"
+    },
+    "83b55862-bde9-46d9-9698-4004ebb2ae9d": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\7fde2948-ac89-4d3c-b19f-2767e439ea7e.avi",
+        "output_file": "processed_videos\\analyzed_7fde2948-ac89-4d3c-b19f-2767e439ea7e.mp4",
+        "output_filename": "analyzed_7fde2948-ac89-4d3c-b19f-2767e439ea7e.mp4",
+        "start_time": 1779991738.747448,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 3.23,
+                "message": "Fall Detected",
+                "frame": 388
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-28T23:42:38.896741"
+    },
+    "26d2cb00-bd78-4181-95c0-6b1277f04b70": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\a006f37d-4a62-4e77-b1d4-34798f79ee07.avi",
+        "output_file": "processed_videos\\analyzed_a006f37d-4a62-4e77-b1d4-34798f79ee07.mp4",
+        "output_filename": "analyzed_a006f37d-4a62-4e77-b1d4-34798f79ee07.mp4",
+        "start_time": 1779992803.014691,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 3.23,
+                "message": "Fall Detected",
+                "frame": 388
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-29T00:04:05.120209"
+    },
+    "c122d231-462b-4f9d-955a-1e378fedd632": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\af802ca7-2436-4440-9fb5-13228558ec4b.avi",
+        "output_file": "processed_videos\\analyzed_af802ca7-2436-4440-9fb5-13228558ec4b.mp4",
+        "output_filename": "analyzed_af802ca7-2436-4440-9fb5-13228558ec4b.mp4",
+        "start_time": 1779993480.7546263,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 3.23,
+                "message": "Fall Detected",
+                "frame": 388
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-29T00:14:40.417513"
+    },
+    "67e15244-df91-41e0-a363-e0d272508181": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\13c11e27-f994-4d0e-96dd-7291d9edb11c.mp4",
+        "output_file": "processed_videos\\analyzed_13c11e27-f994-4d0e-96dd-7291d9edb11c.mp4",
+        "output_filename": "analyzed_13c11e27-f994-4d0e-96dd-7291d9edb11c.mp4",
+        "start_time": 1779994031.7800872,
+        "error": null,
+        "falls_detected": [],
+        "has_falls": false,
+        "completed_at": "2026-05-29T00:18:04.092181"
+    },
+    "bd3b57f5-33c2-4d97-b8fe-16e163adaa82": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\044d4bc2-9ec9-4f52-8612-ddcced14ff3a.mp4",
+        "output_file": "processed_videos\\analyzed_044d4bc2-9ec9-4f52-8612-ddcced14ff3a.mp4",
+        "output_filename": "analyzed_044d4bc2-9ec9-4f52-8612-ddcced14ff3a.mp4",
+        "start_time": 1779994419.5197985,
+        "error": null,
+        "falls_detected": [],
+        "has_falls": false,
+        "completed_at": "2026-05-29T00:24:40.352424"
+    },
+    "7a20f02d-fda8-4261-9406-06184fe37cfc": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\0da3eebf-6550-4b04-8760-162787fba187.mp4",
+        "output_file": "processed_videos\\analyzed_0da3eebf-6550-4b04-8760-162787fba187.mp4",
+        "output_filename": "analyzed_0da3eebf-6550-4b04-8760-162787fba187.mp4",
+        "start_time": 1779994711.8093727,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 8.73,
+                "message": "Fall Detected",
+                "frame": 262
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-29T00:29:39.180342"
+    },
+    "fbd7da30-73cc-4682-b8e5-d5011ec32dd5": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\70d75f34-c122-4031-80a3-033ab90fe98f.mp4",
+        "output_file": "processed_videos\\analyzed_70d75f34-c122-4031-80a3-033ab90fe98f.mp4",
+        "output_filename": "analyzed_70d75f34-c122-4031-80a3-033ab90fe98f.mp4",
+        "start_time": 1779995910.6896584,
+        "error": null,
+        "falls_detected": [],
+        "has_falls": false,
+        "completed_at": "2026-05-29T00:49:28.104871"
+    },
+    "adf45c14-d462-4bf6-ba62-1775d2222d44": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\cbce1590-42ac-4fff-acd2-b1d75eadd6e1.mp4",
+        "output_file": "processed_videos\\analyzed_cbce1590-42ac-4fff-acd2-b1d75eadd6e1.mp4",
+        "output_filename": "analyzed_cbce1590-42ac-4fff-acd2-b1d75eadd6e1.mp4",
+        "start_time": 1779995989.9214447,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 6.43,
+                "message": "Fall Detected",
+                "frame": 193
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-29T00:50:50.596429"
+    },
+    "2d03e9ef-7ceb-490b-808a-a7cc3dc8470a": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\e0d87df0-8588-4d3a-ac5e-dc77af9f1a94.mp4",
+        "output_file": "processed_videos\\analyzed_e0d87df0-8588-4d3a-ac5e-dc77af9f1a94.mp4",
+        "output_filename": "analyzed_e0d87df0-8588-4d3a-ac5e-dc77af9f1a94.mp4",
+        "start_time": 1779996247.152812,
+        "error": null,
+        "falls_detected": [],
+        "has_falls": false,
+        "completed_at": "2026-05-29T00:54:43.089929"
+    },
+    "5cab4806-2ee0-4934-9954-841489a52237": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\98c0f0b7-a331-4bc3-9cf3-e3e31dfb7df5.mp4",
+        "output_file": "processed_videos\\analyzed_98c0f0b7-a331-4bc3-9cf3-e3e31dfb7df5.mp4",
+        "output_filename": "analyzed_98c0f0b7-a331-4bc3-9cf3-e3e31dfb7df5.mp4",
+        "start_time": 1779996330.0697587,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 3.27,
+                "message": "Fall Detected",
+                "frame": 98
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-29T00:56:34.452692"
+    },
+    "ff5de161-d4e8-4e10-8d40-d0c173118470": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\7edee8bf-c4f2-491c-a588-9e6c73b05f3c.mp4",
+        "output_file": "processed_videos\\analyzed_7edee8bf-c4f2-491c-a588-9e6c73b05f3c.mp4",
+        "output_filename": "analyzed_7edee8bf-c4f2-491c-a588-9e6c73b05f3c.mp4",
+        "start_time": 1779996458.4832535,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 3.8,
+                "message": "Fall Detected",
+                "frame": 114
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-29T00:58:22.885796"
+    },
+    "c1ea0ce7-0a24-4f0c-8ace-94a1401eb0cd": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\37d619ae-b7b3-477b-b904-844b6a207c46.mp4",
+        "output_file": "processed_videos\\analyzed_37d619ae-b7b3-477b-b904-844b6a207c46.mp4",
+        "output_filename": "analyzed_37d619ae-b7b3-477b-b904-844b6a207c46.mp4",
+        "start_time": 1779996740.898792,
+        "error": null,
+        "falls_detected": [],
+        "has_falls": false,
+        "completed_at": "2026-05-29T01:05:31.696535"
+    },
+    "5f256cb4-2a95-4e23-9a8a-4fe305423855": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\1d3eea00-ad7b-4416-8ce0-53ff2b802719.mp4",
+        "output_file": "processed_videos\\analyzed_1d3eea00-ad7b-4416-8ce0-53ff2b802719.mp4",
+        "output_filename": "analyzed_1d3eea00-ad7b-4416-8ce0-53ff2b802719.mp4",
+        "start_time": 1779996976.5097923,
+        "error": null,
+        "falls_detected": [],
+        "has_falls": false,
+        "completed_at": "2026-05-29T01:07:17.761470"
+    },
+    "b46dbf5a-a0d4-42bf-8478-7368f0bc4293": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\edd0db0c-92fa-434e-ab29-a1984d20d02b.mp4",
+        "output_file": "processed_videos\\analyzed_edd0db0c-92fa-434e-ab29-a1984d20d02b.mp4",
+        "output_filename": "analyzed_edd0db0c-92fa-434e-ab29-a1984d20d02b.mp4",
+        "start_time": 1779997066.7058537,
+        "error": null,
+        "falls_detected": [],
+        "has_falls": false,
+        "completed_at": "2026-05-29T01:08:06.319534"
+    },
+    "5c45a7a6-887a-4257-9fe6-5552834f7420": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\9f11ea6e-4b45-45dd-8662-0a579eb1e2f7.mp4",
+        "output_file": "processed_videos\\analyzed_9f11ea6e-4b45-45dd-8662-0a579eb1e2f7.mp4",
+        "output_filename": "analyzed_9f11ea6e-4b45-45dd-8662-0a579eb1e2f7.mp4",
+        "start_time": 1779997104.694078,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 1.23,
+                "message": "Fall Detected",
+                "frame": 37
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-29T01:08:44.388134"
+    },
+    "91da16ca-f444-4a41-a2f7-e7015d8f2860": {
+        "status": "completed",
+        "progress": 100,
+        "user_email": "antrabali.21@gmail.com",
+        "username": "Antra",
+        "caretaker_id": 11,
+        "recipient_id": 8,
+        "input_file": "temp_uploads\\7e61bca7-997a-4f5c-8573-f6b34296dd83.mp4",
+        "output_file": "processed_videos\\analyzed_7e61bca7-997a-4f5c-8573-f6b34296dd83.mp4",
+        "output_filename": "analyzed_7e61bca7-997a-4f5c-8573-f6b34296dd83.mp4",
+        "start_time": 1779997150.2562788,
+        "error": null,
+        "falls_detected": [
+            {
+                "timestamp": 0.67,
+                "message": "Fall Detected",
+                "frame": 20
+            }
+        ],
+        "has_falls": true,
+        "completed_at": "2026-05-29T01:09:27.988490"
     }
 }

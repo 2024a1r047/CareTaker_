@@ -981,7 +981,7 @@ async def test_ip_camera(
 @router.get("/recipient/{recipient_id}/stats")
 async def get_recipient_video_stats(
     recipient_id: int,
-    days: int = Query(7, description="Number of days to analyze"),
+    days: Optional[int] = Query(None, description="Number of days to analyze"),
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db)
 ):
@@ -992,13 +992,13 @@ async def get_recipient_video_stats(
     if not username:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing token")
     
-    # 1. Get all analysis records for this recipient within the time range
-    from datetime import timedelta
-    cutoff_date = datetime.utcnow() - timedelta(days=days)
-    analyses = db.query(VideoAnalysis).filter(
-        VideoAnalysis.recipient_id == recipient_id,
-        VideoAnalysis.timestamp >= cutoff_date
-    ).all()
+    # 1. Get all analysis records for this recipient
+    query = db.query(VideoAnalysis).filter(VideoAnalysis.recipient_id == recipient_id)
+    if days is not None:
+        from datetime import timedelta
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        query = query.filter(VideoAnalysis.timestamp >= cutoff_date)
+    analyses = query.all()
     
     if not analyses:
         return {
