@@ -76,17 +76,41 @@ def _last_interaction_gap(recipient_id, db):
 
 
 def _due_medicine(recipient_id, db, hour):
+    """Return medicine name if any active med is due within ±1 hour of current time."""
     meds = db.query(Medication).filter(
         Medication.care_recipient_id == recipient_id,
         Medication.status == "active"
     ).all()
     for med in meds:
+        # 1. Use schedule_time field if available (e.g. "08:00", "20:00", "morning")
+        sched = (med.schedule_time or "").strip().lower()
+        if sched:
+            # Try HH:MM format
+            try:
+                parts = sched.split(":")
+                if len(parts) == 2:
+                    med_hour = int(parts[0])
+                    if abs(hour - med_hour) <= 1:
+                        return med.medicine_name
+            except ValueError:
+                pass
+            # Try word-based
+            if sched in ("morning", "subah") and 5 <= hour <= 11:
+                return med.medicine_name
+            if sched in ("afternoon", "dopahar") and 12 <= hour <= 15:
+                return med.medicine_name
+            if sched in ("evening", "shaam") and 17 <= hour <= 20:
+                return med.medicine_name
+            if sched in ("night", "raat") and 20 <= hour <= 23:
+                return med.medicine_name
+
+        # 2. Fall back to frequency text matching
         freq = (med.frequency or "").lower()
         if "morning" in freq and 5 <= hour <= 11:
             return med.medicine_name
         if any(w in freq for w in ["evening", "night", "pm"]) and 19 <= hour <= 22:
             return med.medicine_name
-        if ("twice" in freq or "bd" in freq) and (5 <= hour <= 11 or 19 <= hour <= 22):
+        if ("twice" in freq or "bd" in freq or "2 times" in freq) and (5 <= hour <= 11 or 19 <= hour <= 22):
             return med.medicine_name
     return None
 

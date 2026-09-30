@@ -1260,11 +1260,21 @@
             // Safety fallback — stop talking animation if nothing ends it
             const _safetyOff = setTimeout(() => setAvatarState('idle'), 15000);
 
+            // Helper: called when any TTS path finishes — resumes mic
+            const _onSpeakEnd = () => {
+                clearTimeout(_safetyOff);
+                setAvatarState('idle');
+                // Auto-resume listening so user can speak without pressing the button
+                if (recognition && !state.isListening) {
+                    try { recognition.start(); setListening(true); } catch(e) {}
+                }
+            };
+
             // 1. If we already have base64 audio (from chat response), play it immediately
             if (base64Audio && base64Audio.length > 100) {
                 try {
                     const audio = new Audio("data:audio/mp3;base64," + base64Audio);
-                    audio.onended = () => { clearTimeout(_safetyOff); setAvatarState('idle'); };
+                    audio.onended = _onSpeakEnd;
                     await audio.play();
                     return;
                 } catch (e) {
@@ -1284,7 +1294,7 @@
                     const data = await res.json();
                     if (data.code === 200 && data.result.audio_base64) {
                         const audio = new Audio("data:audio/mp3;base64," + data.result.audio_base64);
-                        audio.onended = () => { clearTimeout(_safetyOff); setAvatarState('idle'); };
+                        audio.onended = _onSpeakEnd;
                         await audio.play();
                         return;
                     }
@@ -1297,7 +1307,7 @@
             const u = new SpeechSynthesisUtterance(cleanText);
             u.rate = 1.0;
             u.pitch = 1.0;
-            u.onend = () => { clearTimeout(_safetyOff); setAvatarState('idle'); };
+            u.onend = _onSpeakEnd;
 
             const hasDevanagari = isHindi(cleanText);
             const isHindiPref = state.userLanguage === 'hi';
@@ -1340,7 +1350,10 @@
                 const recipient = data.care_recipients.find(r => String(r.id) === String(rid));
                 if (recipient) {
                     state.recipientInfo = recipient;
-                    state.healthSummary = recipient.report_summary || "";
+                    state.recipientName = (recipient.full_name || '').split(' ')[0]; // First name only
+                    state.recipientAge  = recipient.age || null;
+                    state.recipientGender = recipient.gender || null;
+                    state.healthSummary = recipient.report_summary || '';
 
                     // Extract medications from profile data
                     if (recipient.medications && recipient.medications.length > 0) {

@@ -194,8 +194,14 @@ def build_conversation_context(recipient_id: int, db: Session):
         "recipient": {
             "name": recipient.full_name,
             "age": recipient.age,
+            "gender": recipient.gender.value if recipient.gender and hasattr(recipient.gender, 'value') else (str(recipient.gender) if recipient.gender else ""),
             "city": recipient.city,
-            "report_summary": recipient.report_summary
+            "report_summary": recipient.report_summary,
+            # Extended profile fields (used by system prompt for persona)
+            "family_info": getattr(recipient, 'family_info', None),
+            "preferences": getattr(recipient, 'preferences', None),
+            "culture": getattr(recipient, 'culture', None),
+            "last_summary": getattr(recipient, 'last_summary', None),
         },
         "history": [{"sender": m.sender.value, "text": m.message_text} for m in history],
         "mood_counts": mood_counts,
