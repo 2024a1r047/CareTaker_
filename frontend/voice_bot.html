@@ -3563,40 +3563,36 @@
             state.ws.onopen = () => {
                 console.log("[WS] Connected to Voice Bot engine");
                 const token = getToken();
-                const rid = getRecipientId();
+                const rid   = getRecipientId() || "1";   // fallback so it never silently skips
 
-                if (token && rid) {
-                    // Auth first
-                    state.ws.send(JSON.stringify({ type: "auth", token }));
+                if (!token) { console.warn("[WS] No token — cannot auth"); return; }
 
-                    // Proactive init — fires ONCE per page load (not on reconnects)
-                    if (!state.proactiveSent) {
-                        state.proactiveSent = true;
-                        setTimeout(() => {
-                            if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-                                showTyping();
-                                state.ws.send(JSON.stringify({
-                                    type: 'proactive_init',
-                                    token,
-                                    recipient_id: parseInt(rid),
-                                    session_id: sessionId,
-                                    language: state.userLanguage || 'hi'
-                                }));
-                            }
-                        }, 400);
-                    }
-                } else if (token) {
-                    state.ws.send(JSON.stringify({ type: "auth", token }));
+                // ── Step 1: Authenticate ─────────────────────────────────────────────
+                state.ws.send(JSON.stringify({ type: "auth", token }));
+
+                // ── Step 2: Proactive greeting (once per page load, not on reconnects) ─
+                if (!state.proactiveSent) {
+                    state.proactiveSent = true;
+                    console.log("[Saathi] Sending proactive_init...");
+                    // proactive_init includes token so backend auth+init in one pass
+                    state.ws.send(JSON.stringify({
+                        type: "proactive_init",
+                        token,
+                        recipient_id: parseInt(rid),
+                        session_id: sessionId,
+                        language: state.userLanguage || "hi"
+                    }));
+                    showTyping();
                 }
 
-                // Flush any pending message that was queued while WS was connecting
+                // ── Step 3: Flush any pending queued message ──────────────────────────
                 if (state._pendingWsMsg) {
-                    const { text, triggerType, lang, rid: pendingRid } = state._pendingWsMsg;
+                    const { text, lang, rid: pendingRid } = state._pendingWsMsg;
                     state._pendingWsMsg = null;
                     showTyping();
                     state.ws.send(JSON.stringify({
                         type: "chat", token, text,
-                        recipient_id: parseInt(pendingRid),
+                        recipient_id: parseInt(pendingRid || rid),
                         session_id: sessionId, language: lang
                     }));
                 }
