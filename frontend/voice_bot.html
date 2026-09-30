@@ -51,11 +51,13 @@
                             600: '#7e9677',
                         },
                         red: {
-                            50: '#fae6e9',
-                            100: '#fae6e9',
-                            400: '#B97886',
-                            500: '#B97886',
-                            600: '#a36472',
+                            50: '#FCEDEA',   // Emergency background
+                            100: '#f5d9d3',  // Emergency border
+                            200: '#f0cec5',  // Emergency border hover
+                            400: '#C96B55',  // Emergency accent
+                            500: '#C96B55',  // Emergency accent
+                            600: '#A94F3D',  // Emergency text
+                            700: '#A94F3D',  // Emergency text
                         }
                     }
                 }
@@ -427,7 +429,7 @@
                         <input type="text" id="rem-text" placeholder="Drink water..." class="v-input flex-1" required>
                         <input type="time" id="rem-time" class="v-input w-28" required>
                     </div>
-                    <button type="submit" class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-2 rounded-xl text-sm transition-all shadow-sm hover:shadow-md cursor-pointer">
+                    <button type="submit" class="w-full bg-[#B97886] hover:bg-[#A86573] text-white font-semibold py-2 rounded-xl text-sm transition-all shadow-sm hover:shadow-md cursor-pointer">
                         + Add Reminder
                     </button>
                 </form>
@@ -436,12 +438,12 @@
             <!-- Quick Actions -->
             <div class="space-y-2.5">
                 <button onclick="triggerEmergency()"
-                    class="w-full py-3 bg-red-50 hover:bg-red-100 text-red-500 rounded-2xl flex items-center justify-center gap-2 transition-all border border-red-100 hover:border-red-200 hover:shadow-sm cursor-pointer font-semibold text-sm">
-                    <i data-lucide="alert-circle" class="h-4.5 w-4.5"></i>
+                    class="w-full py-3 bg-[#FCEDEA] hover:opacity-90 text-[#A94F3D] rounded-2xl flex items-center justify-center gap-2 transition-all border border-[#f5d9d3] hover:shadow-sm cursor-pointer font-semibold text-sm">
+                    <i data-lucide="alert-circle" class="h-4.5 w-4.5 text-[#C96B55]"></i>
                     Trigger Emergency
                 </button>
                 <button onclick="startVideoCall()"
-                    class="w-full py-3 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-2xl flex items-center justify-center gap-2 transition-all shadow-sm hover:shadow-md cursor-pointer font-semibold text-sm">
+                    class="w-full py-3 bg-[#B8A9C9] hover:bg-[#a695b7] text-[#443744] rounded-2xl flex items-center justify-center gap-2 transition-all shadow-sm hover:shadow-md cursor-pointer font-semibold text-sm">
                     <i data-lucide="phone" class="h-4.5 w-4.5"></i>
                     Call Caretaker
                 </button>
@@ -3053,10 +3055,10 @@
             el.className = 'flex w-full justify-start';
             el.innerHTML = `
                 <div class="flex items-end gap-2 max-w-[82%]">
-                    <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white shadow-sm">
+                    <div class="flex-shrink-0 w-8 h-8 rounded-full bg-[#B97886] flex items-center justify-center text-white shadow-sm">
                         <i data-lucide="heart-handshake" class="w-3.5 h-3.5"></i>
                     </div>
-                    <div class="bg-white border border-slate-100 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex gap-1.5 items-center">
+                    <div class="bg-[#FFFFFF] border border-[#E8E1DB] rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex gap-1.5 items-center">
                         <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>
                     </div>
                 </div>`;
@@ -3091,14 +3093,14 @@
                 <div class="flex max-w-[82%] ${m.sender === 'user' ? 'flex-row-reverse' : 'flex-row'} items-end gap-2">
                     <div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center
                         ${m.sender === 'user'
-                            ? 'bg-gradient-to-br from-indigo-400 to-indigo-600'
-                            : 'bg-gradient-to-br from-blue-400 to-blue-600'} text-white shadow-sm">
+                            ? 'bg-[#B8A9C9]'
+                            : 'bg-[#B97886]'} text-white shadow-sm">
                         <i data-lucide="${m.sender === 'user' ? 'user' : 'heart-handshake'}" class="w-3.5 h-3.5"></i>
                     </div>
                     <div class="flex items-center px-4 py-2.5 rounded-2xl text-sm leading-relaxed
                         ${m.sender === 'user'
-                            ? 'bg-gradient-to-br from-indigo-500 to-indigo-600 text-white rounded-tr-sm shadow-md shadow-indigo-100'
-                            : 'bg-white text-slate-700 border border-slate-100 rounded-tl-sm shadow-sm'}">
+                            ? 'bg-[#E6DEED] text-[#443744] rounded-tr-sm shadow-sm'
+                            : 'bg-[#FFFFFF] text-[#443744] border border-[#E8E1DB] rounded-tl-sm shadow-sm'}">
                         <span>${m.text}</span>
                         ${m.sender === 'user' ? moodBadge : replayBtn}
                     </div>

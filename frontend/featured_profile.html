@@ -12,18 +12,18 @@
     <style>
         :root {
             /* Palette: Critical, Warning, Normal */
-            --critical: #EF4444;
-            --warning: #F59E0B;
-            --normal: #10B981;
+            --critical: #C96B55;
+            --warning: #E8B89A;
+            --normal: #91AA8A;
 
             /* UI Foundation */
-            --bg-color: #F8FAFC;
-            --card-bg: rgba(255, 255, 255, 0.7);
-            --text-main: #0F172A;
-            --text-muted: #64748B;
-            --accent: #4A90E2;
-            --accent-hover: #3b82f6;
-            --border-light: rgba(226, 232, 240, 0.8);
+            --bg-color: #FFF9F2;
+            --card-bg: #FFFFFF;
+            --text-main: #443744;
+            --text-muted: #756D70;
+            --accent: #B8A9C9;
+            --accent-hover: #B97886;
+            --border-light: rgba(232, 225, 219, 0.8);
             --radius: 24px;
             --shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
 
@@ -244,7 +244,7 @@
         .critical-banner {
             display: none;
             /* Shown via JS */
-            background: linear-gradient(135deg, #ef4444, #991b1b);
+            background: linear-gradient(135deg, #C96B55, #991b1b);
             color: white;
             padding: 20px 32px;
             border-radius: 20px;
@@ -286,7 +286,7 @@
 
         .banner-action {
             background: white;
-            color: #ef4444;
+            color: #C96B55;
             border: none;
             padding: 10px 20px;
             border-radius: 12px;
@@ -504,7 +504,7 @@
             justify-content: center;
             font-size: 2rem;
             color: white;
-            background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+            background: linear-gradient(135deg, #B97886, #B97886);
         }
 
         .profile-avatar-icon.female {
@@ -586,7 +586,7 @@
         .stat-value-modern {
             font-size: 1.15rem;
             font-weight: 800;
-            color: #1E3A8A;
+            color: #B97886;
             flex-shrink: 0;
             text-align: right;
         }
@@ -609,7 +609,7 @@
         .stat-value {
             font-size: 1.4rem;
             font-weight: 800;
-            color: #1E3A8A;
+            color: #B97886;
         }
 
         .stat-unit {
@@ -647,7 +647,7 @@
         .risk-score-val {
             font-size: 2.2rem;
             font-weight: 800;
-            color: #1E3A8A;
+            color: #B97886;
             display: block;
             line-height: 1;
         }
@@ -711,7 +711,7 @@
         .factor-count {
             font-size: 1rem;
             font-weight: 800;
-            color: #1E3A8A;
+            color: #B97886;
             flex-shrink: 0;
         }
 
@@ -841,9 +841,9 @@
         }
 
         .lab-pill.active {
-            background: #1E3A8A;
+            background: #B97886;
             color: white;
-            border-color: #1E3A8A;
+            border-color: #B97886;
             box-shadow: 0 4px 12px rgba(30, 58, 138, 0.2);
         }
 
@@ -919,17 +919,17 @@
 
         .trend-up {
             background: #fee2e2;
-            color: #ef4444;
+            color: #C96B55;
         }
 
         .trend-down {
             background: #f0fdf4;
-            color: #10b981;
+            color: #91AA8A;
         }
 
         .trend-stable {
             background: #f1f5f9;
-            color: #64748b;
+            color: #756D70;
         }
 
         .chart-container {
@@ -1331,7 +1331,7 @@
         .report-icon {
             width: 48px;
             height: 48px;
-            background: #EFF6FF;
+            background: #E8F0E5;
             border-radius: 12px;
             display: flex;
             align-items: center;
@@ -1412,7 +1412,7 @@
         }
 
         .clinical-preview-box {
-            background: #F8FAFC;
+            background: #FFF9F2;
             border-radius: 16px;
             padding: 24px;
             border: 1px solid var(--border-light);
@@ -1460,7 +1460,7 @@
         }
 
         .btn-danger {
-            background-color: #ef4444;
+            background-color: #C96B55;
             color: white;
         }
 
@@ -1558,7 +1558,7 @@
         .rec-main-title {
             font-size: 1.25rem;
             font-weight: 800;
-            color: #1E3A8A;
+            color: #B97886;
             line-height: 1.2;
         }
 
@@ -1638,7 +1638,7 @@
         }
 
         .btn-resolve {
-            background: #1E3A8A;
+            background: #B97886;
             color: white;
             border: none;
             padding: 10px 20px;
@@ -1830,7 +1830,7 @@
                                         <div
                                             style="font-size:0.75rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">
                                             HEALTH SIGNALS</div>
-                                        <h2 style="font-size:1.4rem; font-weight:800; color:#1E3A8A; margin:0;">Vitals &
+                                        <h2 style="font-size:1.4rem; font-weight:800; color:#B97886; margin:0;">Vitals &
                                             Sensor Status</h2>
                                     </div>
                                     <div style="display:flex; align-items:center; gap:12px;">
@@ -1993,7 +1993,7 @@
                         <div
                             style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
                             <div>
-                                <h2 style="font-size:1.4rem; font-weight:800; color:#1E3A8A; margin:0;">Clinical Lab
+                                <h2 style="font-size:1.4rem; font-weight:800; color:#B97886; margin:0;">Clinical Lab
                                     Analytics</h2>
                                 <p style="color:var(--text-muted); margin:2px 0 0; font-size:0.9rem; font-weight:500;">
                                     Temporal trend mapping for metabolic markers</p>
@@ -2017,7 +2017,7 @@
                 <!-- TAB: MEDICATIONS -->
                 <div id="tab-medications" class="tab-pane">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
-                        <h2 style="font-size:1.5rem; font-weight:800; color:#1E3A8A; margin:0;"><i
+                        <h2 style="font-size:1.5rem; font-weight:800; color:#B97886; margin:0;"><i
                                 class="fas fa-pills"></i> Medication Management</h2>
                         <div style="display:flex; gap:12px;">
                             <button class="btn btn-sm btn-outline" onclick="showHistory('medications')"><i
@@ -2036,7 +2036,7 @@
                         <div class="col-12">
                             <div
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
-                                <h2 style="font-size:1.5rem; font-weight:800; color:#1E3A8A; margin:0;"><i
+                                <h2 style="font-size:1.5rem; font-weight:800; color:#B97886; margin:0;"><i
                                         class="fas fa-stethoscope"></i> Clinical Conditions</h2>
                                 <button class="btn btn-sm" onclick="showAddModal('condition')"
                                     style="background:var(--normal); color:white; border:none;"><i
@@ -2048,7 +2048,7 @@
                         <div class="col-12" style="margin-top:40px;">
                             <div
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
-                                <h2 style="font-size:1.5rem; font-weight:800; color:#1E3A8A; margin:0;"><i
+                                <h2 style="font-size:1.5rem; font-weight:800; color:#B97886; margin:0;"><i
                                         class="fas fa-allergies"></i> Allergies & Sensitivities</h2>
                                 <button class="btn btn-sm" onclick="showAddModal('allergy')"
                                     style="background:var(--normal); color:white; border:none;"><i
@@ -2064,7 +2064,7 @@
                     <div
                         style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px;">
                         <div>
-                            <h2 style="font-size: 1.8rem; font-weight: 800; color: #1E3A8A; margin: 0;">Clinical
+                            <h2 style="font-size: 1.8rem; font-weight: 800; color: #B97886; margin: 0;">Clinical
                                 Intelligence Hub</h2>
                             <p style="color: var(--text-muted); font-weight: 500; margin-top: 4px;">Grouped by health
                                 domains for clarity</p>
@@ -2082,14 +2082,14 @@
                         <div class="col-8">
                             <!-- Zone 1: Today's High-Focus Actions -->
                             <div class="rec-zone">
-                                <div class="rec-zone-title"><i class="fas fa-bolt" style="color: #f59e0b;"></i> Today's
+                                <div class="rec-zone-title"><i class="fas fa-bolt" style="color: #E8B89A;"></i> Today's
                                     Focus</div>
                                 <div id="zone-urgent-recs"></div>
                             </div>
 
                             <!-- Zone 2: Deep Context & Health Monitoring -->
                             <div class="rec-zone">
-                                <div class="rec-zone-title"><i class="fas fa-microscope" style="color: #3b82f6;"></i>
+                                <div class="rec-zone-title"><i class="fas fa-microscope" style="color: #B97886;"></i>
                                     Deep Context & Monitoring</div>
                                 <div id="zone-monitoring-recs"></div>
                             </div>
@@ -2131,7 +2131,7 @@
                                     <div
                                         style="font-size:0.75rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">
                                         DOCUMENT INGESTION</div>
-                                    <h2 style="font-size:1.4rem; font-weight:800; color:#1E3A8A; margin:0;">Upload
+                                    <h2 style="font-size:1.4rem; font-weight:800; color:#B97886; margin:0;">Upload
                                         Medical Report</h2>
                                 </div>
 
@@ -2224,7 +2224,7 @@
                                     style="width: 50px; height: 50px; background: rgba(74, 144, 226, 0.1); border-radius: 12px; display: grid; place-items: center; margin: 0 auto 16px; color: var(--accent); font-size: 1.2rem;">
                                     <i class="fas fa-video"></i>
                                 </div>
-                                <h2 style="font-size: 1.4rem; font-weight: 800; color: #1E3A8A; margin-bottom: 8px;">
+                                <h2 style="font-size: 1.4rem; font-weight: 800; color: #B97886; margin-bottom: 8px;">
                                     Care Recipient Video Monitoring</h2>
                                 <p
                                     style="color: var(--text-muted); max-width: 550px; margin: 0 auto 20px; font-size: 0.95rem; line-height: 1.5;">
@@ -2573,12 +2573,12 @@
         // ============================================
         const CHART_THEME = {
             colors: {
-                primary: '#3B82F6',   // Blue
-                secondary: '#F59E0B', // Orange
+                primary: '#B97886',   // Blue
+                secondary: '#E8B89A', // Orange
                 tertiary: '#8B5CF6',  // Purple
                 quaternary: '#14B8A6', // Teal
-                critical: '#EF4444',
-                success: '#10B981',
+                critical: '#C96B55',
+                success: '#91AA8A',
                 bg: 'rgba(248, 250, 252, 0.5)'
             },
             getGradient(ctx, color) {
@@ -2668,9 +2668,9 @@
         }
 
         function getVitalColor(type, value) {
-            const green = '#10B981';
-            const red = '#EF4444';
-            const yellow = '#F59E0B';
+            const green = '#91AA8A';
+            const red = '#C96B55';
+            const yellow = '#E8B89A';
             if (value === null || value === undefined) return '#F1F5F9';
 
             switch (type) {
@@ -3100,14 +3100,14 @@
                     <div class="risk-factors-list">
                         <div class="factor-item">
                             <div class="factor-info">
-                                <div class="factor-icon" style="background:#EFF6FF; color:#3B82F6;"><i class="fas fa-band-aid"></i></div>
+                                <div class="factor-icon" style="background:#E8F0E5; color:#B97886;"><i class="fas fa-band-aid"></i></div>
                                 <span class="factor-label">Active Conditions</span>
                             </div>
                             <span class="factor-count">${String(activeCount).padStart(2, '0')}</span>
                         </div>
                         <div class="factor-item">
                             <div class="factor-info">
-                                <div class="factor-icon" style="background:#FFF1F1; color:#EF4444;"><i class="fas fa-exclamation-triangle"></i></div>
+                                <div class="factor-icon" style="background:#FFF1F1; color:#C96B55;"><i class="fas fa-exclamation-triangle"></i></div>
                                 <span class="factor-label">Uncontrolled State</span>
                             </div>
                             <span class="factor-count">${String(uncontrolledCount).padStart(2, '0')}</span>
@@ -3155,7 +3155,7 @@
             (profileData.medications || []).filter(m => m.status === 'active').slice(0, 5).forEach(m => {
                 tags.push(`
                     <span class="chip" style="background:white; border:1px solid #DBEAFE; color:#475569; padding:10px 20px; border-radius:14px; display:flex; align-items:center; gap:10px; font-weight:600;">
-                        <i class="fas fa-pills" style="color:#3B82F6;"></i> ${m.medicine_name}
+                        <i class="fas fa-pills" style="color:#B97886;"></i> ${m.medicine_name}
                     </span>
                 `);
             });
@@ -3301,8 +3301,8 @@
             }
 
             container.innerHTML = allAlerts.map(a => {
-                const colors = a.severity === 'critical' ? { bg: '#FEF2F2', text: '#EF4444' } :
-                    a.severity === 'warning' ? { bg: '#FFFBEB', text: '#F59E0B' } :
+                const colors = a.severity === 'critical' ? { bg: '#FEF2F2', text: '#C96B55' } :
+                    a.severity === 'warning' ? { bg: '#FFFBEB', text: '#E8B89A' } :
                         { bg: '#F0F9FF', text: '#0EA5E9' };
 
                 return `
@@ -3389,7 +3389,7 @@
                     finishDate.setDate(finishDate.getDate() + totalDays);
 
                     const lowStock = totalDays <= 3;
-                    stockWarning = `<div style="margin-top:5px; font-size:11px; color:${lowStock ? '#ef4444' : '#64748b'}; font-weight:${lowStock ? '700' : '400'};">
+                    stockWarning = `<div style="margin-top:5px; font-size:11px; color:${lowStock ? '#C96B55' : '#756D70'}; font-weight:${lowStock ? '700' : '400'};">
                         📦 Stock: ${m.current_stock} units (${totalDays} days left) 
                         ${lowStock ? ' — <a href="order_medicines.html?recipient_id=' + recipientId + '" style="color:#4A90E2;text-decoration:underline;">Order Now</a>' : ''}
                     </div>`;
@@ -3903,7 +3903,7 @@
                             text: `Recent Trend: ${trendLabel}`,
                             align: 'start',
                             font: { size: 12, weight: '700' },
-                            color: trend === 'up' ? '#ef4444' : '#10b981',
+                            color: trend === 'up' ? '#C96B55' : '#91AA8A',
                             padding: { bottom: 10 }
                         }
                     }
@@ -3925,7 +3925,7 @@
 
             const metrics = Object.keys(grouped).sort();
 
-            const colors = ['#1E3A8A', '#3B82F6', '#10B981', '#F59E0B'];
+            const colors = ['#B97886', '#B97886', '#91AA8A', '#E8B89A'];
 
             selector.innerHTML = metrics.map((m, idx) => `
                 <div class="lab-pill" data-metric="${m}" onclick="toggleMetric('${m}')">
@@ -3975,12 +3975,12 @@
 
             // Calculate trend for primary (first) selected metric
             let trendLabel = '→ Stable';
-            let trendColor = '#10b981';
+            let trendColor = '#91AA8A';
             if (selected.length > 0) {
                 const primaryData = (grouped[selected[0]] || []).map(d => d.test_value);
                 const trend = calculateTrend(primaryData);
                 trendLabel = trend === 'up' ? '↑ Increasing' : (trend === 'down' ? '↓ Decreasing' : '→ Stable');
-                trendColor = trend === 'up' ? '#ef4444' : '#10b981';
+                trendColor = trend === 'up' ? '#C96B55' : '#91AA8A';
             }
 
             const allDates = [...new Set(selected.flatMap(m => grouped[m].map(d => new Date(d.test_date).toISOString().split('T')[0])))]
@@ -4089,7 +4089,7 @@
                 let html = '';
 
                 aiInsights.forEach(insight => {
-                    const sevColor = insight.risk_level === 'critical' ? '#EF4444' : (insight.risk_level === 'high' ? '#F97316' : (insight.risk_level === 'moderate' ? '#F59E0B' : '#10B981'));
+                    const sevColor = insight.risk_level === 'critical' ? '#C96B55' : (insight.risk_level === 'high' ? '#F97316' : (insight.risk_level === 'moderate' ? '#E8B89A' : '#91AA8A'));
                     const sevBg = insight.risk_level === 'critical' ? '#FEF2F2' : (insight.risk_level === 'high' ? '#FFF7ED' : (insight.risk_level === 'moderate' ? '#FFFBEB' : '#ECFDF5'));
 
                     html += `
@@ -4114,7 +4114,7 @@
                 if (!html) {
                     html = `
                         <div class="insight-card" style="background:#F1F5F9;">
-                            <div class="insight-icon-wrap" style="color:#10B981;">
+                            <div class="insight-icon-wrap" style="color:#91AA8A;">
                                 <i class="fas fa-check-circle"></i>
                             </div>
                             <div class="insight-text-wrap">

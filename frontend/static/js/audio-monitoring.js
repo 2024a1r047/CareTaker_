@@ -142,11 +142,11 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Change color based on level
         if (level > 0.7) {
-            audioLevelMeter.style.backgroundColor = '#ef4444'; // Red for loud sounds
+            audioLevelMeter.style.backgroundColor = '#C96B55'; // Red for loud sounds
         } else if (level > 0.4) {
-            audioLevelMeter.style.backgroundColor = '#f59e0b'; // Orange for medium sounds
+            audioLevelMeter.style.backgroundColor = '#E8B89A'; // Orange for medium sounds
         } else {
-            audioLevelMeter.style.backgroundColor = '#10b981'; // Green for quiet sounds
+            audioLevelMeter.style.backgroundColor = '#91AA8A'; // Green for quiet sounds
         }
     }
     
@@ -397,11 +397,11 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Set color based on threshold
             if (value >= DETECTION_THRESHOLD) {
-                meter.style.backgroundColor = '#ef4444'; // Red for detection
+                meter.style.backgroundColor = '#C96B55'; // Red for detection
             } else if (value >= (DETECTION_THRESHOLD * 0.7)) {
-                meter.style.backgroundColor = '#f59e0b'; // Orange for near detection
+                meter.style.backgroundColor = '#E8B89A'; // Orange for near detection
             } else {
-                meter.style.backgroundColor = '#10b981'; // Green for normal
+                meter.style.backgroundColor = '#91AA8A'; // Green for normal
             }
         }
     }

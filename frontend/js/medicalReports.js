@@ -21,8 +21,8 @@
 
     // Status badge colors/icons
     const STATUS_COLORS = {
-        active: '#ef4444', worsening: '#dc2626', improving: '#22c55e',
-        controlled: '#3b82f6', resolved: '#6b7280', chronic_stable: '#8b5cf6',
+        active: '#C96B55', worsening: '#A94F3D', improving: '#91AA8A',
+        controlled: '#B8A9C9', resolved: '#6b7280', chronic_stable: '#8b5cf6',
     };
     const STATUS_ICONS = {
         active: '\u26a0\ufe0f', worsening: '\ud83d\udd34', improving: '\u2705',
@@ -398,7 +398,7 @@
         const pct = Math.min(risk.risk_score / 100, 1);
         const end = Math.PI + pct * Math.PI;
         const grad = ctx.createLinearGradient(cx - r, cy, cx + r, cy);
-        grad.addColorStop(0, '#22c55e'); grad.addColorStop(0.5, '#eab308'); grad.addColorStop(1, '#ef4444');
+        grad.addColorStop(0, '#91AA8A'); grad.addColorStop(0.5, '#E8B89A'); grad.addColorStop(1, '#C96B55');
         ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, end, false);
         ctx.lineWidth = 18; ctx.strokeStyle = grad; ctx.lineCap = 'round'; ctx.stroke();
 
@@ -409,7 +409,7 @@
         ctx.fillText('/ 100', cx, cy);
 
         // Category & trajectory
-        const catColors = { Low: '#22c55e', Moderate: '#eab308', High: '#f97316', Critical: '#ef4444' };
+        const catColors = { Low: '#91AA8A', Moderate: '#E8B89A', High: '#E8B89A', Critical: '#C96B55' };
         $('riskCategory').innerHTML = `<span style="color:${catColors[risk.risk_category] || '#6b7280'}">${risk.risk_category}</span>`;
         const trajMap = { increasing: '\u2191 Increasing', stable: '\u2192 Stable', improving: '\u2193 Improving' };
         $('riskTrajectory').textContent = trajMap[risk.risk_trajectory] || '';
@@ -468,7 +468,7 @@
 
         if (alerts.length) {
             list.style.display = 'block';
-            const sevColors = { low: '#22c55e', medium: '#eab308', high: '#f97316', critical: '#ef4444' };
+            const sevColors = { low: '#91AA8A', medium: '#E8B89A', high: '#E8B89A', critical: '#C96B55' };
             list.innerHTML = `<p style="font-size:0.75rem; font-weight:700; color:var(--muted); margin-bottom:8px;">Recent Alerts</p>` +
                 alerts.slice(0, 5).map(a => `<div style="padding:8px 12px; margin-bottom:6px; border-radius:10px; background:${sevColors[a.severity] || '#e5e7eb'}08; border:1px solid ${sevColors[a.severity] || '#e5e7eb'}30; font-size:0.82rem;">
                     ${a.message}
@@ -494,7 +494,7 @@
         if (!metric) return;
         const badges = $('trendBadges');
         const trendIcons = { increasing: '↑', decreasing: '↓', stable: '→', fluctuating: '↕' };
-        const trendColors = { increasing: '#ef4444', decreasing: '#22c55e', stable: '#6b7280', fluctuating: '#eab308' };
+        const trendColors = { increasing: '#C96B55', decreasing: '#91AA8A', stable: '#6b7280', fluctuating: '#E8B89A' };
         const last = metric.data_points?.[metric.data_points.length - 1];
         const pPrev = last?.pct_change_from_previous;
 
@@ -509,9 +509,9 @@
 
         // ── Confidence-based point colour ────────────────────────────────────
         // regex=0.95 → strong blue  |  fuzzy=0.82 → teal  |  llm=0.65 → orange
-        const CONF_COLORS = { regex: '#4A90E2', template: '#2563eb', fuzzy: '#06b6d4', llm: '#f97316' };
+        const CONF_COLORS = { regex: '#4A90E2', template: '#2563eb', fuzzy: '#06b6d4', llm: '#E8B89A' };
         const ptColors = filteredPoints.map(d => {
-            if (d.is_abnormal) return '#ef4444';
+            if (d.is_abnormal) return '#C96B55';
             return CONF_COLORS[d.extraction_source] || '#4A90E2';
         });
         const ptSizes = filteredPoints.map(d =>
@@ -522,7 +522,7 @@
             <span style="background:${trendColors[metric.trend_direction]}15; color:${trendColors[metric.trend_direction]}; padding:3px 12px; border-radius:20px; font-size:0.75rem; font-weight:700;">${trendIcons[metric.trend_direction] || ''} ${metric.trend_direction}</span>
             <span style="background:rgba(0,0,0,0.04); padding:3px 12px; border-radius:20px; font-size:0.75rem;">Volatility: ${metric.volatility_label || 'Low'}</span>
             ${pPrev != null ? `<span style="background:rgba(0,0,0,0.04); padding:3px 12px; border-radius:20px; font-size:0.75rem;">${pPrev > 0 ? '↑' : '↓'} ${Math.abs(pPrev).toFixed(1)}% from last</span>` : ''}
-            ${lowConfCount > 0 ? `<span style="background:rgba(249,115,22,0.12); color:#f97316; padding:3px 12px; border-radius:20px; font-size:0.75rem; font-weight:700;" title="${lowConfCount} point(s) extracted by AI (lower confidence)">⚠ ${lowConfCount} AI-extracted</span>` : '<span style="background:rgba(34,197,94,0.12); color:#22c55e; padding:3px 12px; border-radius:20px; font-size:0.75rem; font-weight:700;">✓ Rule-verified</span>'}
+            ${lowConfCount > 0 ? `<span style="background:rgba(249,115,22,0.12); color:#E8B89A; padding:3px 12px; border-radius:20px; font-size:0.75rem; font-weight:700;" title="${lowConfCount} point(s) extracted by AI (lower confidence)">⚠ ${lowConfCount} AI-extracted</span>` : '<span style="background:rgba(34,197,94,0.12); color:#91AA8A; padding:3px 12px; border-radius:20px; font-size:0.75rem; font-weight:700;">✓ Rule-verified</span>'}
         `;
 
         if (trendChart) trendChart.destroy();
@@ -533,7 +533,7 @@
             label: metric.metric_name, data: values, borderColor: '#4A90E2', backgroundColor: 'rgba(74,144,226,0.08)',
             fill: true, tension: 0.3, pointBackgroundColor: ptColors, pointRadius: ptSizes, pointHoverRadius: 8,
             pointBorderColor: filteredPoints.map(d =>
-                d.confidence_score != null && d.confidence_score < 0.8 ? '#f97316' : 'transparent'
+                d.confidence_score != null && d.confidence_score < 0.8 ? '#E8B89A' : 'transparent'
             ),
             pointBorderWidth: 2,
         }];
@@ -548,7 +548,7 @@
         if (metric.baseline_value) {
             datasets.push({
                 label: 'Baseline', data: new Array(labels.length).fill(metric.baseline_value),
-                borderColor: '#f97316', borderDash: [6, 4], borderWidth: 2, pointRadius: 0, fill: false,
+                borderColor: '#E8B89A', borderDash: [6, 4], borderWidth: 2, pointRadius: 0, fill: false,
             });
         }
 
@@ -670,7 +670,7 @@
                 datasets: [{
                     label: 'Severity Level',
                     data,
-                    borderColor: '#f97316',
+                    borderColor: '#E8B89A',
                     backgroundColor: 'rgba(249,115,22,0.1)',
                     fill: true,
                     stepped: true,
@@ -722,7 +722,7 @@
         if (!hasData) return;
 
         // Quick stats
-        const catColors = { Low: 'var(--success)', Moderate: 'var(--warning)', High: '#f97316', Critical: 'var(--danger)' };
+        const catColors = { Low: 'var(--success)', Moderate: 'var(--warning)', High: '#E8B89A', Critical: 'var(--danger)' };
         $('sumRiskLevel').innerHTML = state.risk_score ? `<span style="color:${catColors[state.risk_score.risk_category] || 'inherit'}">${state.risk_score.risk_category} (${Math.round(state.risk_score.risk_score)})</span>` : '\u2014';
         $('sumConditionCount').textContent = (state.active_conditions?.length || 0);
         $('sumAlertCount').textContent = alertsData?.unread_count || 0;
@@ -750,7 +750,7 @@
                 const abnormal = l.is_abnormal;
                 return `<div style="background:${abnormal ? 'rgba(239,68,68,0.06)' : 'rgba(74,144,226,0.04)'}; padding:10px 12px; border-radius:12px; border:1px solid ${abnormal ? 'rgba(239,68,68,0.15)' : 'rgba(74,144,226,0.1)'};">
                             <div style="font-size:0.72rem; font-weight:700; color:var(--muted); text-transform:uppercase; margin-bottom:4px;">${l.metric_name}</div>
-                            <div style="font-size:1.1rem; font-weight:800; color:${abnormal ? '#ef4444' : 'var(--text)'};">${l.value} <span style="font-size:0.7rem; font-weight:400;">${l.unit || ''}</span></div>
+                            <div style="font-size:1.1rem; font-weight:800; color:${abnormal ? '#C96B55' : 'var(--text)'};">${l.value} <span style="font-size:0.7rem; font-weight:400;">${l.unit || ''}</span></div>
                         </div>`;
             }).join('')}
                 </div>
@@ -861,9 +861,9 @@
 
         let html = `<div class="panel-header" style="margin-bottom: 16px;"><h2 class="panel-title"><i class="fas fa-user-md" style="color:var(--accent);"></i> Actionable Recommendations</h2></div><div style="display:flex; flex-direction:column; gap:12px;">`;
 
-        const colors = { critical: '#fef2f2', high: '#fffbeb', medium: '#f0fdf4', suggestion: '#f8fafc', low: '#f8fafc' };
-        const borders = { critical: '#ef4444', high: '#f59e0b', medium: '#22c55e', suggestion: '#3b82f6', low: '#94a3b8' };
-        const iconColors = { critical: '#ef4444', high: '#f59e0b', medium: '#22c55e', suggestion: '#3b82f6', low: '#94a3b8' };
+        const colors = { critical: '#fef2f2', high: '#fffbeb', medium: '#f0fdf4', suggestion: '#FFF9F2', low: '#FFF9F2' };
+        const borders = { critical: '#C96B55', high: '#E8B89A', medium: '#91AA8A', suggestion: '#B8A9C9', low: '#756D70' };
+        const iconColors = { critical: '#C96B55', high: '#E8B89A', medium: '#91AA8A', suggestion: '#B8A9C9', low: '#756D70' };
         const icons = { critical: 'fa-exclamation-triangle', high: 'fa-bolt', medium: 'fa-info-circle', suggestion: 'fa-lightbulb', low: 'fa-info-circle' };
         
         // Render groups in priority order

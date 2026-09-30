@@ -18,17 +18,17 @@
             --card: rgba(255, 255, 255, 0.65);
             --card-hover: rgba(255, 255, 255, 0.9);
             --border: rgba(13, 148, 136, 0.2);
-            --border-light: rgba(255, 255, 255, 0.8);
-            --text: #0F172A;
+            --border-light: rgba(232, 225, 219, 0.8);
+            --text: #443744;
             --muted: #475569;
-            --accent: #0D9488;
+            --accent: #B8A9C9;
             --accent-light: #14B8A6;
             --accent-glow: rgba(13, 148, 136, 0.15);
-            --danger: #EF4444;
+            --danger: #C96B55;
             --danger-bg: rgba(239, 68, 68, 0.08);
-            --warning: #F59E0B;
+            --warning: #E8B89A;
             --warning-bg: rgba(245, 158, 11, 0.08);
-            --success: #10B981;
+            --success: #91AA8A;
             --success-bg: rgba(16, 185, 129, 0.08);
             --info-bg: rgba(13, 148, 136, 0.06);
             --shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
@@ -2012,10 +2012,10 @@
             }
 
             const cards = [
-                { icon: '💓', label: 'Heart Rate', value: latest.heart_rate, unit: 'bpm', color: '#EF4444', status: vitalStatus(latest.heart_rate, 60, 100) },
+                { icon: '💓', label: 'Heart Rate', value: latest.heart_rate, unit: 'bpm', color: '#C96B55', status: vitalStatus(latest.heart_rate, 60, 100) },
                 { icon: '🩸', label: 'Blood Pressure', value: latest.systolic_bp && latest.diastolic_bp ? `${latest.systolic_bp}/${latest.diastolic_bp}` : null, unit: 'mmHg', color: '#8B5CF6', status: bpStatus(latest.systolic_bp, latest.diastolic_bp) },
-                { icon: '🫁', label: 'SpO2', value: latest.oxygen_saturation, unit: '%', color: '#3B82F6', status: vitalStatus(latest.oxygen_saturation, 95, 100) },
-                { icon: '🌡️', label: 'Temperature', value: latest.temperature, unit: '°F', color: '#F59E0B', status: vitalStatus(latest.temperature, 97, 99.5) },
+                { icon: '🫁', label: 'SpO2', value: latest.oxygen_saturation, unit: '%', color: '#B97886', status: vitalStatus(latest.oxygen_saturation, 95, 100) },
+                { icon: '🌡️', label: 'Temperature', value: latest.temperature, unit: '°F', color: '#E8B89A', status: vitalStatus(latest.temperature, 97, 99.5) },
                 { icon: '😴', label: 'Sleep Score', value: latest.sleep_score, unit: '/100', color: '#6366F1', status: null },
             ];
 
@@ -2337,7 +2337,7 @@
                         {
                             label: 'Heart Rate (bpm)',
                             data: vitals.map(v => v.heart_rate),
-                            borderColor: '#EF4444',
+                            borderColor: '#C96B55',
                             backgroundColor: 'rgba(239, 68, 68, 0.08)',
                             tension: 0.4,
                             fill: true,
@@ -2346,7 +2346,7 @@
                         {
                             label: 'SpO2 (%)',
                             data: vitals.map(v => v.oxygen_saturation),
-                            borderColor: '#3B82F6',
+                            borderColor: '#B97886',
                             backgroundColor: 'rgba(59, 130, 246, 0.08)',
                             tension: 0.4,
                             fill: true,
@@ -2388,8 +2388,8 @@
         }
 
         function getAvatarColor(risk) {
-            if (risk >= 70) return 'linear-gradient(135deg, #EF4444, #DC2626)';
-            if (risk >= 40) return 'linear-gradient(135deg, #F59E0B, #D97706)';
+            if (risk >= 70) return 'linear-gradient(135deg, #C96B55, #DC2626)';
+            if (risk >= 40) return 'linear-gradient(135deg, #E8B89A, #D97706)';
             return 'linear-gradient(135deg, #0D9488, #14B8A6)';
         }
 
