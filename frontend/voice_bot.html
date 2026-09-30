@@ -7,35 +7,88 @@
     <title>CareTaker Voice Assistant</title>
     <link rel="icon" href="data:,">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            50: '#FFF9F2',   // Background
+                            100: '#E8F0E5',  // Soft sage (cards/hover)
+                            200: '#E8B89A',  // Soft peach (borders/accents)
+                            300: '#d1c7bc',  // borders
+                            400: '#756D70',  // Secondary text
+                            500: '#756D70',  // Secondary text
+                            600: '#756D70',  // Secondary text
+                            700: '#443744',  // Main text
+                            800: '#443744',  // Main text
+                            900: '#443744',  // Main text
+                        },
+                        blue: {
+                            50: '#Fdfaf7',   
+                            100: '#E8F0E5',  // soft sage
+                            200: '#E8B89A',  // soft peach
+                            300: '#B8A9C9',  // secondary accent
+                            400: '#B97886',  // primary accent
+                            500: '#B97886',  // primary accent
+                            600: '#a36472',  // primary accent dark
+                            700: '#a36472',
+                            800: '#8f5360',
+                            900: '#8f5360',
+                        },
+                        indigo: {
+                            50: '#E8F0E5',
+                            100: '#E8F0E5',
+                            200: '#B8A9C9',
+                            500: '#B8A9C9',
+                            600: '#9a8ab0',
+                        },
+                        emerald: {
+                            50: '#eef4ed',
+                            100: '#eef4ed',
+                            400: '#91AA8A',
+                            500: '#91AA8A',
+                            600: '#7e9677',
+                        },
+                        red: {
+                            50: '#fae6e9',
+                            100: '#fae6e9',
+                            400: '#B97886',
+                            500: '#B97886',
+                            600: '#a36472',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         :root {
-            --bg: #FDFBF7;
-            --pastel-mint: #B2F7EF;
-            --pastel-peach: #FFDAC1;
-            --pastel-lavender: #E2D1F9;
-            --primary: #4A90E2;
-            --primary-dark: #357abd;
-            --card-shadow: 0 1px 4px rgba(0,0,0,0.05), 0 6px 20px rgba(0,0,0,0.04);
-            --card-shadow-hover: 0 4px 16px rgba(74,144,226,0.12), 0 8px 28px rgba(0,0,0,0.07);
+            --bg: #FFF9F2;
+            --pastel-mint: #E8F0E5;
+            --pastel-peach: #E8B89A;
+            --pastel-lavender: #B8A9C9;
+            --primary: #B97886;
+            --primary-dark: #a36472;
+            --card-shadow: 0 4px 12px rgba(68, 55, 68, 0.04), 0 1px 3px rgba(68, 55, 68, 0.02);
+            --card-shadow-hover: 0 6px 16px rgba(68, 55, 68, 0.08), 0 2px 6px rgba(68, 55, 68, 0.04);
         }
 
         body#body {
             background-color: var(--bg);
-            background-image:
-                radial-gradient(at 20% 30%, var(--pastel-mint) 0px, transparent 55%),
-                radial-gradient(at 80% 10%, var(--pastel-peach) 0px, transparent 50%),
-                radial-gradient(at 40% 80%, var(--pastel-lavender) 0px, transparent 50%),
-                radial-gradient(at 90% 90%, var(--pastel-mint) 0px, transparent 40%);
+            /* Subtle botanical leaf pattern background */
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M25,25 C35,15 45,25 45,35 C35,45 25,35 25,25 Z' fill='%23E8F0E5' opacity='0.4'/%3E%3Cpath d='M75,75 C85,65 95,75 95,85 C85,95 75,85 75,75 Z' fill='%23E8F0E5' opacity='0.3'/%3E%3C/svg%3E");
             background-attachment: fixed;
-            background-size: 120% 120%;
+            background-size: 150px 150px;
+            color: #443744;
         }
 
         /* Scrollbars */
         .chat-scroll::-webkit-scrollbar { width: 5px; }
         .chat-scroll::-webkit-scrollbar-track { background: transparent; }
-        .chat-scroll::-webkit-scrollbar-thumb { background-color: #e2e8f0; border-radius: 20px; }
-        .chat-scroll::-webkit-scrollbar-thumb:hover { background-color: #cbd5e1; }
+        .chat-scroll::-webkit-scrollbar-thumb { background-color: #E8F0E5; border-radius: 20px; }
+        .chat-scroll::-webkit-scrollbar-thumb:hover { background-color: #d1c7bc; }
 
         /* Cards */
         .v-card {
@@ -51,7 +104,7 @@
         .section-label {
             font-size: 0.7rem; font-weight: 700;
             text-transform: uppercase; letter-spacing: 0.08em;
-            color: #94a3b8;
+            color: #B8A9C9;
             display: flex; align-items: center; gap: 6px;
         }
         .label-icon {
@@ -73,7 +126,7 @@
         }
         .eq-bar {
             display: inline-block; width: 3px; margin: 0 1px;
-            background: #4A90E2; border-radius: 2px;
+            background: #B97886; border-radius: 2px;
             animation: eq-bar 0.8s ease-in-out infinite;
         }
         .eq-bar:nth-child(2) { animation-delay: 0.2s; }
@@ -105,41 +158,41 @@
             display: inline-flex; align-items: center;
             padding: 7px 14px; border-radius: 999px;
             font-size: 0.75rem; font-weight: 500;
-            background: white; border: 1.5px solid #e2e8f0;
-            color: #475569; cursor: pointer;
+            background: white; border: 1.5px solid #E8F0E5;
+            color: #443744; cursor: pointer;
             transition: all 0.15s ease; white-space: nowrap;
             box-shadow: 0 1px 3px rgba(0,0,0,0.04);
         }
-        .chip:hover { border-color: #4A90E2; color: #4A90E2; background: #f0f7ff; transform: translateY(-1px); }
+        .chip:hover { border-color: #B97886; color: #B97886; background: #Fdfaf7; transform: translateY(-1px); }
 
         /* Form inputs */
         .v-input {
             width: 100%; padding: 9px 12px;
-            border: 1.5px solid #e8eef4; border-radius: 10px;
-            font-size: 0.85rem; outline: none; background: #f8fafc;
+            border: 1.5px solid #d1c7bc; border-radius: 10px;
+            font-size: 0.85rem; outline: none; background: #FFF9F2;
             transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
-            color: #334155;
+            color: #443744;
         }
         .v-input:focus {
-            border-color: #4A90E2; background: white;
-            box-shadow: 0 0 0 3px rgba(74,144,226,0.12);
+            border-color: #B97886; background: white;
+            box-shadow: 0 0 0 3px rgba(185,120,134,0.12);
         }
         .v-input::placeholder { color: #b0bec5; }
 
         /* Chat input wrapper */
         .chat-input-wrap {
             display: flex; align-items: center; gap: 10px;
-            background: #f8fafc; border: 1.5px solid #e8eef4;
+            background: #FFF9F2; border: 1.5px solid #d1c7bc;
             border-radius: 16px; padding: 6px 6px 6px 16px;
             transition: border-color 0.2s, box-shadow 0.2s;
         }
         .chat-input-wrap:focus-within {
-            border-color: #4A90E2; background: white;
+            border-color: #B97886; background: white;
             box-shadow: 0 0 0 3px rgba(74,144,226,0.10);
         }
         .chat-input-bare {
             flex: 1; background: transparent; border: none; outline: none;
-            font-size: 0.9rem; color: #334155; min-width: 0;
+            font-size: 0.9rem; color: #443744; min-width: 0;
         }
         .chat-input-bare::placeholder { color: #b0bec5; }
 
@@ -176,7 +229,7 @@
             50%     { transform: scale(1.03); filter: drop-shadow(0 0 6px rgba(96, 207, 255, 0.4)); }
         }
         @keyframes rr-pulse {
-            0%,100% { box-shadow: 0 0 0 0   rgba(74,144,226,0.6); }
+            0%,100% { box-shadow: 0 0 0 0   rgba(185,120,134,0.6); }
             50%     { box-shadow: 0 0 0 8px  rgba(74,144,226,0);   }
         }
         @keyframes rl-pulse {
@@ -186,14 +239,14 @@
 
         #avatar-image-wrap { animation: rf-idle 4.2s ease-in-out infinite; }
         #avatar-strip.listening #avatar-image-wrap { animation: rf-listen 2s ease-in-out infinite; }
-        #avatar-strip.listening #avatar-ring   { border-color:rgba(99,200,255,0.8); animation:rl-pulse 1s ease-out infinite; }
+        #avatar-strip.listening #avatar-ring   { border-color:rgba(232,240,229,0.8); animation:rl-pulse 1s ease-out infinite; }
         #avatar-strip.thinking #avatar-image-wrap { animation: rf-think 1.8s ease-in-out infinite; }
         #avatar-strip.talking  #avatar-image-wrap { animation: rf-talk 1.1s ease-in-out infinite; }
-        #avatar-strip.talking  #avatar-ring     { border-color:rgba(74,144,226,0.8); animation:rr-pulse 1.2s ease-out infinite; }
+        #avatar-strip.talking  #avatar-ring     { border-color:rgba(185,120,134,0.8); animation:rr-pulse 1.2s ease-out infinite; }
 
         #avatar-ring {
             position:absolute; inset:-6px; border-radius:50%;
-            border:2px solid rgba(74,144,226,0.18);
+            border:2px solid rgba(185,120,134,0.18);
             pointer-events:none; transition: border-color 0.3s ease;
         }
 
@@ -206,14 +259,14 @@
         }
         .chat-empty-icon {
             width: 72px; height: 72px; border-radius: 22px;
-            background: linear-gradient(135deg, #ebf5ff, #f0f0ff);
+            background: #E8F0E5;
             display: flex; align-items: center; justify-content: center;
-            margin-bottom: 16px; box-shadow: 0 4px 16px rgba(74,144,226,0.15);
+            margin-bottom: 16px; box-shadow: 0 4px 16px rgba(185,120,134,0.15);
         }
         .chips-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 16px; }
 
         /* Mood bar */
-        .mood-bar-track { flex: 1; height: 5px; background: #f1f5f9; border-radius: 999px; overflow: hidden; }
+        .mood-bar-track { flex: 1; height: 5px; background: #E8F0E5; border-radius: 999px; overflow: hidden; }
         .mood-bar-fill  { height: 100%; border-radius: 999px; transition: width 0.6s ease; }
 
         /* Typing indicator */
@@ -221,7 +274,7 @@
             0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
             40%            { transform: translateY(-5px); opacity: 1; }
         }
-        .typing-dot { width: 7px; height: 7px; border-radius: 50%; background: #94a3b8; display: inline-block; animation: dot-bounce 1.2s infinite; }
+        .typing-dot { width: 7px; height: 7px; border-radius: 50%; background: #B8A9C9; display: inline-block; animation: dot-bounce 1.2s infinite; }
         .typing-dot:nth-child(2) { animation-delay: 0.2s; }
         .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
@@ -237,7 +290,7 @@
 <body id="body" class="bg-slate-50 min-h-screen font-sans transition-colors duration-500 relative">
 
     <!-- Header -->
-    <header id="header" class="bg-[#4A90E2] text-white p-4 shadow-lg transition-colors duration-500 sticky top-0 z-10">
+    <header id="header" class="bg-[#B97886] text-white p-4 shadow-lg transition-colors duration-500 sticky top-0 z-10">
         <div class="max-w-6xl mx-auto flex justify-between items-center">
             <div class="flex items-center space-x-4">
                 <a href="dashboard.html" class="flex items-center text-white hover:text-blue-200 transition-colors" title="Back to Dashboard">
@@ -300,7 +353,7 @@
             <!-- Music Player Widget -->
             <div id="music-widget" class="hidden v-card p-4">
                 <div class="flex items-center justify-between mb-2">
-                    <h3 class="text-sm font-bold text-[#2c5282] flex items-center gap-2">
+                    <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
                         <span class="label-icon bg-blue-50"><i data-lucide="music" class="h-3.5 w-3.5 text-blue-500"></i></span>
                         <span id="music-widget-title">Now Playing</span>
                         <span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span>
@@ -405,8 +458,7 @@
             </div>
 
             <!-- Saathi Human Avatar Strip -->
-            <div id="avatar-strip" class="flex items-center gap-4 px-4 py-3 border-b border-slate-100 flex-shrink-0"
-                 style="background:linear-gradient(135deg,#eef5ff 0%,#e4effe 55%,#ede8ff 100%)">
+            <div id="avatar-strip" class="flex items-center gap-4 px-4 py-3 border-b border-slate-100 flex-shrink-0 bg-white">
                 <div id="avatar-image-wrap">
                     <div id="avatar-ring"></div>
                     <img src="assets/ai_companion.jpg" alt="Saathi Avatar" class="w-full h-full object-cover rounded-full shadow-md border-4 border-white" />
@@ -420,10 +472,10 @@
                     </div>
                     <p id="avatar-status-text" class="text-xs text-slate-500 mt-0.5">Ready to help you 💙</p>
                     <div id="avatar-eq" class="hidden mt-1 flex items-end gap-0.5 h-4">
-                        <span class="eq-bar" style="background:#4A90E2"></span>
-                        <span class="eq-bar" style="background:#4A90E2;animation-delay:0.15s"></span>
-                        <span class="eq-bar" style="background:#4A90E2;animation-delay:0.3s"></span>
-                        <span class="eq-bar" style="background:#4A90E2;animation-delay:0.45s"></span>
+                        <span class="eq-bar" style="background:#B97886"></span>
+                        <span class="eq-bar" style="background:#B97886;animation-delay:0.15s"></span>
+                        <span class="eq-bar" style="background:#B97886;animation-delay:0.3s"></span>
+                        <span class="eq-bar" style="background:#B97886;animation-delay:0.45s"></span>
                     </div>
                 </div>
             </div>
@@ -439,7 +491,7 @@
             <!-- Input Area -->
             <div class="p-4 bg-white border-t border-slate-100 relative">
                 <div id="listening-indicator"
-                    class="hidden absolute bottom-24 left-1/2 transform -translate-x-1/2 bg-[#4A90E2] text-white px-6 py-2 rounded-full text-sm font-medium shadow-lg flex items-center gap-2 z-10">
+                    class="hidden absolute bottom-24 left-1/2 transform -translate-x-1/2 bg-[#B97886] text-white px-6 py-2 rounded-full text-sm font-medium shadow-lg flex items-center gap-2 z-10">
                     <i data-lucide="mic" class="h-4 w-4 animate-pulse"></i> Listening... / सुन रहा हूं...
                 </div>
                 <div class="flex items-center gap-2.5">
@@ -1228,7 +1280,7 @@
 
         const moodBarColors = {
             happy: '#fbbf24', sad: '#60a5fa', anxious: '#fb923c',
-            angry: '#f87171', neutral: '#94a3b8', distressed: '#f87171',
+            angry: '#f87171', neutral: '#B8A9C9', distressed: '#f87171',
             lonely: '#c084fc', bored: '#9ca3af', relaxed: '#4ade80', spiritual: '#818cf8'
         };
 
@@ -1246,7 +1298,7 @@
                         ${moodEmojis[mood] || '•'} ${mood}
                     </span>
                     <div class="mood-bar-track flex-1">
-                        <div class="mood-bar-fill" style="width:${Math.max(Math.round(count/maxCount*100), 8)}%; background:${moodBarColors[mood] || '#4A90E2'}"></div>
+                        <div class="mood-bar-fill" style="width:${Math.max(Math.round(count/maxCount*100), 8)}%; background:${moodBarColors[mood] || '#B97886'}"></div>
                     </div>
                     <span class="text-xs text-slate-400 w-6 text-right flex-shrink-0">${count}x</span>
                 </div>`).join('');
@@ -3214,11 +3266,11 @@
             const header = document.getElementById('header');
             const badge = document.getElementById('emergency-badge');
             if (active) {
-                header.classList.remove('bg-[#4A90E2]');
+                header.classList.remove('bg-[#B97886]');
                 header.classList.add('bg-red-600');
                 badge.classList.remove('hidden');
             } else {
-                header.classList.add('bg-[#4A90E2]');
+                header.classList.add('bg-[#B97886]');
                 header.classList.remove('bg-red-600');
                 badge.classList.add('hidden');
             }
