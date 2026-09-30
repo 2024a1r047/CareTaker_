@@ -114,6 +114,7 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
 
                         await websocket.send_json({
                             "type": "bot_response",
+                            "message_id": payload.get("message_id"),
                             "reply": reply_text,
                             "intent": intent,
                             "search_query": "",
@@ -196,6 +197,7 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
 
                     await websocket.send_json({
                         "type": "bot_response",
+                        "message_id": payload.get("message_id"),
                         "reply": reply_text,
                         "intent": intent,
                         "search_query": search_query,
@@ -214,6 +216,7 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
                     fallback = "माफ़ कीजिए, अभी मुझे कुछ दिक्कत आ रही है। थोड़ी देर बाद फिर से कोशिश करें।"
                     await websocket.send_json({
                         "type": "bot_response",
+                        "message_id": payload.get("message_id"),
                         "reply": fallback,
                         "intent": "chat",
                         "search_query": "",

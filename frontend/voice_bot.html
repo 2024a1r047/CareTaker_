@@ -727,7 +727,9 @@
             wsReconnecting: false,
             isTyping: false,
             cinemaMode: false,
-            proactiveSent: false   // guards the greeting so it fires once per page load
+            proactiveSent: false,  // guards the greeting so it fires once per page load
+            currentAudio: null,
+            currentWsMessageId: 0
         };
 
         // ── FONT SIZE ──
@@ -1192,9 +1194,10 @@
             // 1. If we already have base64 audio (from chat response), play it immediately
             if (base64Audio && base64Audio.length > 100) {
                 try {
-                    const audio = new Audio("data:audio/mp3;base64," + base64Audio);
-                    audio.onended = _onSpeakEnd;
-                    await audio.play();
+                    if (state.currentAudio) state.currentAudio.pause();
+                    state.currentAudio = new Audio("data:audio/mp3;base64," + base64Audio);
+                    state.currentAudio.onended = () => { state.currentAudio = null; _onSpeakEnd(); };
+                    await state.currentAudio.play();
                     return;
                 } catch (e) {
                     console.error("Base64 playback failed, falling back to browser TTS", e);
@@ -1212,9 +1215,10 @@
                     });
                     const data = await res.json();
                     if (data.code === 200 && data.result.audio_base64) {
-                        const audio = new Audio("data:audio/mp3;base64," + data.result.audio_base64);
-                        audio.onended = _onSpeakEnd;
-                        await audio.play();
+                        if (state.currentAudio) state.currentAudio.pause();
+                        state.currentAudio = new Audio("data:audio/mp3;base64," + data.result.audio_base64);
+                        state.currentAudio.onended = () => { state.currentAudio = null; _onSpeakEnd(); };
+                        await state.currentAudio.play();
                         return;
                     }
                 }
@@ -2896,10 +2900,12 @@
                 }
 
                 showTyping();
+                state.currentWsMessageId++;
                 state.ws.send(JSON.stringify({
                     type: "chat", token, text,
                     recipient_id: parseInt(rid),
-                    session_id: sessionId, language: lang
+                    session_id: sessionId, language: lang,
+                    message_id: state.currentWsMessageId
                 }));
                 return;
             } catch (e) {
@@ -3428,9 +3434,18 @@
                 let average = sum / dataArray.length;
 
                 // Threshold for "clear word" barge-in (~25-30 is typical for speech)
-                if (average > 50 && (synth.speaking || state.musicPlaying)) {
+                if (average > 50 && (synth.speaking || state.currentAudio || state.musicPlaying)) {
                     console.log("[Saathi] Barge-in detected (volume: " + average.toFixed(1) + "). Stopping bot...");
                     if (synth.speaking) synth.cancel();
+                    if (state.currentAudio) {
+                        state.currentAudio.pause();
+                        state.currentAudio = null;
+                        setAvatarState('idle');
+                    }
+                    if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+                        state.currentWsMessageId++;
+                        state.ws.send(JSON.stringify({ type: "interrupt", message_id: state.currentWsMessageId }));
+                    }
                     // Optional: pause music on barge-in if it's too loud
                 }
             }, 100);
@@ -3490,12 +3505,14 @@
                     state.proactiveSent = true;
                     console.log("[Saathi] Initiating conversation...");
                     showTyping();
+                    state.currentWsMessageId++;
                     state.ws.send(JSON.stringify({
                         type: "proactive_init",   // token inside → backend auths + responds
                         token,
                         recipient_id: parseInt(rid),
                         session_id: sessionId,
-                        language: state.userLanguage || "hi"
+                        language: state.userLanguage || "hi",
+                        message_id: state.currentWsMessageId
                     }));
                 } else {
                     // ── RECONNECT: just re-authenticate (no greeting repeat) ──────────
@@ -3507,10 +3524,12 @@
                     const { text, lang, rid: pendingRid } = state._pendingWsMsg;
                     state._pendingWsMsg = null;
                     showTyping();
+                    state.currentWsMessageId++;
                     state.ws.send(JSON.stringify({
                         type: "chat", token, text,
                         recipient_id: parseInt(pendingRid || rid),
-                        session_id: sessionId, language: lang
+                        session_id: sessionId, language: lang,
+                        message_id: state.currentWsMessageId
                     }));
                 }
             };
@@ -3519,6 +3538,11 @@
                 let resData;
                 try { resData = JSON.parse(event.data); } catch(e) { return; }
                 if (resData.error) { console.error("[WS] Server error:", resData.error); hideTyping(); return; }
+
+                if (resData.message_id && resData.message_id !== state.currentWsMessageId) {
+                    console.log("[WS] Dropping stale response", resData.message_id);
+                    return;
+                }
 
                 if (resData.type === 'bot_response' && resData.reply) {
                     hideTyping();
