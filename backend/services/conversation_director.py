@@ -186,13 +186,10 @@ def format_proactive_instruction(ctx):
         lines.append(f"TODAY'S OCCASION: {occ['emoji']} {occ['name_hi']} / {occ['name_en']} - acknowledge warmly.")
 
     if ctx.get("is_new"):
-        lines.append("Gap: First conversation with the user. Give a warm time-appropriate greeting.")
-    elif gap == 0:
-        lines.append("Gap: User spoke earlier today. Continue the conversation warmly.")
+        lines.append("Give a warm time-appropriate greeting.")
     else:
-        lines.append("Gap: Over 24 hours of silence. Start by naturally checking on them.")
-        lines.append("Instruction: Do NOT say 'mujhe aapki yaad aayi' (AI shouldn't claim personal feelings).")
-        lines.append("Say something like: 'Kal aap kahan the? Sab theek tha na? Kisi ki yaad aa rahi thi kya?'")
+        lines.append("Start by naturally checking on them. Ask about their health and meals.")
+        lines.append("Instruction: Do NOT mention how long it has been since the last conversation.")
         if ctx.get("last_snippet"):
             lines.append(f"Last topic to follow up: \"{ctx['last_snippet'][:120]}\"")
 

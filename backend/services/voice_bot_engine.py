@@ -316,16 +316,12 @@ def generate_system_prompt(name: str, context: dict, language: str = "en", senti
     now = datetime.now()
     period = "morning" if 5 <= now.hour < 12 else "afternoon" if 12 <= now.hour < 17 else "evening" if 17 <= now.hour < 21 else "night"
 
-    if did_not_talk_yesterday:
-        yesterday_instruction = f"""
-IMPORTANT — USER ABSENT FOR 24+ HOURS:
-YOU MUST SPEAK FIRST. Open with a warm, conversational check-in exactly in this natural style:
-"{time_greeting_en}! ☀️ Aaj kaise hain aap? Kal aapse baat nahi hui thi, sab theek tha na? Kisi ki yaad aa rahi thi kya?"
-Keep it short, warm, and highly natural. Do not falsely claim personal feelings like "I missed you".
+    yesterday_instruction = f"""
+IMPORTANT — PROACTIVE INITIATION:
+YOU MUST SPEAK FIRST. Open with exactly this natural style based on the time:
+"{time_greeting_en}! ☀️ Aap kaise hain? Aapne khana khaya? Apni dawaiyan li?"
+Keep it warm and natural. Do NOT mention how many days it has been since the last conversation.
 """
-    else:
-        last_topic = f'Follow up on: "{last_summary}"' if last_summary else f"Greet warmly for {period}."
-        yesterday_instruction = f"OPENING: {last_topic}"
 
     # ── Language instruction ──
     if language == "hi" or "india" in culture_str.lower():
