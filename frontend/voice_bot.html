@@ -150,62 +150,30 @@
         }
         .mic-listening { animation: mic-pulse 1.4s infinite; }
 
-        /* ── SAATHI ROBOT AVATAR — OPTIMISED ── */
-        /* GPU acceleration hints */
-        #avatar-svg-wrap, #robot-arm-wave, #robot-eye-l, #robot-eye-r,
-        #robot-mouth-open, #robot-antenna-dot {
+        /* ── SAATHI AVATAR ── */
+        #avatar-image-wrap {
             will-change: transform;
+            position: relative;
+            flex-shrink: 0;
+            width: 88px;
+            height: 88px;
         }
 
-        /* ── Keyframes ── */
         @keyframes rf-idle {
-            0%,100% { transform: translateY(0)   rotate(0deg);   }
-            40%     { transform: translateY(-8px) rotate(-1.2deg); }
-            70%     { transform: translateY(-4px) rotate(0.8deg);  }
+            0%,100% { transform: translateY(0); }
+            50%     { transform: translateY(-4px); }
         }
         @keyframes rf-listen {
-            0%,100% { transform: translateY(0) rotate(0deg);    }
-            50%     { transform: translateY(-3px) rotate(2.5deg); }
+            0%,100% { transform: scale(1); }
+            50%     { transform: scale(1.05); }
         }
         @keyframes rf-think {
-            0%,100% { transform: translateY(0)    rotate(0deg);   }
-            30%     { transform: translateY(-2px)  rotate(-3deg);  }
-            60%     { transform: translateY(-1px)  rotate(2deg);   }
+            0%,100% { transform: translateY(0); }
+            50%     { transform: translateY(-2px); opacity: 0.8; }
         }
         @keyframes rf-talk {
-            0%,100% { transform: translateY(0);  }
-            35%     { transform: translateY(-2px); }
-            70%     { transform: translateY(2px);  }
-        }
-        @keyframes re-blink {
-            0%,87%,100% { transform: scaleY(1);    }
-            92%         { transform: scaleY(0.05);  }
-        }
-        @keyframes re-listen {
-            0%,100% { transform: scaleY(1.2) scaleX(1.08); }
-            50%     { transform: scaleY(1)   scaleX(1);     }
-        }
-        @keyframes re-think {
-            0%,100% { opacity:1;   transform: scaleX(1);    }
-            50%     { opacity:0.4; transform: scaleX(0.6);  }
-        }
-        @keyframes re-talk-glow {
-            0%,100% { filter: brightness(1)   drop-shadow(0 0 2px #60cfff); }
-            50%     { filter: brightness(1.7) drop-shadow(0 0 6px #60cfff); }
-        }
-        @keyframes rm-open {
-            0%,100% { transform: scaleY(0.2); }
-            30%     { transform: scaleY(0.85); }
-            60%     { transform: scaleY(0.45); }
-            80%     { transform: scaleY(0.7);  }
-        }
-        @keyframes ra-wave {
-            0%   { transform: rotate(0deg);   }
-            15%  { transform: rotate(-42deg); }
-            35%  { transform: rotate(14deg);  }
-            55%  { transform: rotate(-36deg); }
-            75%  { transform: rotate(10deg);  }
-            100% { transform: rotate(0deg);   }
+            0%,100% { transform: scale(1); }
+            50%     { transform: scale(1.03); filter: drop-shadow(0 0 6px rgba(96, 207, 255, 0.4)); }
         }
         @keyframes rr-pulse {
             0%,100% { box-shadow: 0 0 0 0   rgba(74,144,226,0.6); }
@@ -215,72 +183,14 @@
             0%,100% { box-shadow: 0 0 0 0   rgba(99,200,255,0.7); }
             50%     { box-shadow: 0 0 0 8px  rgba(99,200,255,0);   }
         }
-        @keyframes ant-blink {
-            0%,78%,100% { opacity:1;   transform:scale(1);   }
-            85%         { opacity:0.2; transform:scale(0.6); }
-        }
-        @keyframes think-pop {
-            0%,100% { opacity:0; transform:scale(0.4); }
-            50%     { opacity:1; transform:scale(1);   }
-        }
 
-        /* ── DEFAULT (idle) ── */
-        #avatar-svg-wrap { animation: rf-idle 4.2s cubic-bezier(0.45,0,0.55,1) infinite; }
-
-        /* ── LISTENING ── */
-        #avatar-strip.listening #avatar-svg-wrap { animation: rf-listen 2s cubic-bezier(0.4,0,0.6,1) infinite; }
-        #avatar-strip.listening #robot-eye-l,
-        #avatar-strip.listening #robot-eye-r   { animation: re-listen 1.6s ease-in-out infinite; }
+        #avatar-image-wrap { animation: rf-idle 4.2s ease-in-out infinite; }
+        #avatar-strip.listening #avatar-image-wrap { animation: rf-listen 2s ease-in-out infinite; }
         #avatar-strip.listening #avatar-ring   { border-color:rgba(99,200,255,0.8); animation:rl-pulse 1s ease-out infinite; }
-
-        /* ── THINKING ── */
-        #avatar-strip.thinking #avatar-svg-wrap { animation: rf-think 1.8s cubic-bezier(0.4,0,0.6,1) infinite; }
-        #avatar-strip.thinking #robot-eye-l,
-        #avatar-strip.thinking #robot-eye-r    { animation: re-think 1.1s ease-in-out infinite; }
-        #avatar-strip.thinking #think-dot1     { display:block; animation: think-pop 0.9s ease-in-out infinite; }
-        #avatar-strip.thinking #think-dot2     { display:block; animation: think-pop 0.9s ease-in-out 0.3s infinite; }
-        #avatar-strip.thinking #think-dot3     { display:block; animation: think-pop 0.9s ease-in-out 0.6s infinite; }
-
-        /* ── TALKING ── */
-        #avatar-strip.talking  #avatar-svg-wrap { animation: rf-talk 1.1s ease-in-out infinite; }
-        #avatar-strip.talking  #robot-eye-l,
-        #avatar-strip.talking  #robot-eye-r    { animation: re-talk-glow 1.4s ease-in-out infinite; }
-        #avatar-strip.talking  #robot-mouth-idle { display:none; }
-        #avatar-strip.talking  #robot-mouth-open { display:block; animation: rm-open 0.55s ease-in-out infinite; }
+        #avatar-strip.thinking #avatar-image-wrap { animation: rf-think 1.8s ease-in-out infinite; }
+        #avatar-strip.talking  #avatar-image-wrap { animation: rf-talk 1.1s ease-in-out infinite; }
         #avatar-strip.talking  #avatar-ring     { border-color:rgba(74,144,226,0.8); animation:rr-pulse 1.2s ease-out infinite; }
 
-        /* ── HAPPY ── */
-        #avatar-strip.happy #brow-happy-l,
-        #avatar-strip.happy #brow-happy-r { display:block; }
-
-        /* ── CONCERNED ── */
-        #avatar-strip.concerned #brow-concern-l,
-        #avatar-strip.concerned #brow-concern-r { display:block; }
-        #avatar-strip.concerned #robot-mouth-idle { stroke:#7aa8e8; }
-
-        /* ── SHARED element rules ── */
-        #robot-eye-l, #robot-eye-r {
-            transform-box:fill-box; transform-origin:center;
-            animation: re-blink 5.5s ease-in-out infinite;
-        }
-        #robot-eye-r { animation-delay: 0.1s; }
-
-        #robot-mouth-open {
-            display:none; transform-box:fill-box; transform-origin:center top;
-        }
-        #robot-mouth-idle { transition: stroke 0.4s ease; }
-
-        #brow-happy-l, #brow-happy-r,
-        #brow-concern-l, #brow-concern-r { display:none; }
-        #think-dot1, #think-dot2, #think-dot3 { display:none; }
-
-        #robot-arm-wave { transform-box:fill-box; transform-origin:center top; }
-        #robot-arm-wave.waving { animation: ra-wave 1.9s cubic-bezier(0.4,0,0.6,1); }
-
-        #robot-antenna-dot {
-            transform-box:fill-box; transform-origin:center;
-            animation: ant-blink 3.2s ease-in-out infinite;
-        }
         #avatar-ring {
             position:absolute; inset:-6px; border-radius:50%;
             border:2px solid rgba(74,144,226,0.18);
@@ -494,127 +404,13 @@
                 <span id="sentiment-strip-text"></span>
             </div>
 
-            <!-- Saathi Robot Avatar Strip -->
+            <!-- Saathi Human Avatar Strip -->
             <div id="avatar-strip" class="flex items-center gap-4 px-4 py-3 border-b border-slate-100 flex-shrink-0"
                  style="background:linear-gradient(135deg,#eef5ff 0%,#e4effe 55%,#ede8ff 100%)">
-                <div id="avatar-svg-wrap" class="relative flex-shrink-0">
+                <div id="avatar-image-wrap">
                     <div id="avatar-ring"></div>
-                    <svg width="88" height="108" viewBox="0 0 100 122" xmlns="http://www.w3.org/2000/svg">
-                        <defs>
-                            <radialGradient id="c-bg" cx="48%" cy="42%" r="56%">
-                                <stop offset="0%" stop-color="#1e7bff"/>
-                                <stop offset="100%" stop-color="#0a3da8"/>
-                            </radialGradient>
-                            <linearGradient id="c-shell" x1="12%" y1="4%" x2="88%" y2="96%">
-                                <stop offset="0%" stop-color="#f6fbff"/>
-                                <stop offset="100%" stop-color="#d2e8ff"/>
-                            </linearGradient>
-                            <linearGradient id="c-body" x1="8%" y1="0%" x2="92%" y2="100%">
-                                <stop offset="0%" stop-color="#ebf3ff"/>
-                                <stop offset="100%" stop-color="#c4dcff"/>
-                            </linearGradient>
-                            <linearGradient id="c-eye" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stop-color="#7dd8ff"/>
-                                <stop offset="100%" stop-color="#0062e6"/>
-                            </linearGradient>
-                            <filter id="c-glow" x="-40%" y="-40%" width="180%" height="180%">
-                                <feGaussianBlur stdDeviation="2.2" result="b"/>
-                                <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-                            </filter>
-                            <filter id="c-shadow">
-                                <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#2060cc" flood-opacity="0.15"/>
-                            </filter>
-                        </defs>
-
-                        <!-- Blue backdrop circle (like reference image) -->
-                        <circle cx="50" cy="66" r="55" fill="url(#c-bg)"/>
-                        <!-- Subtle shimmer rings -->
-                        <circle cx="50" cy="66" r="50" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
-                        <circle cx="50" cy="66" r="44" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="0.7"/>
-
-                        <!-- ANTENNA -->
-                        <line x1="50" y1="7" x2="50" y2="19" stroke="#80b8ff" stroke-width="2.5" stroke-linecap="round"/>
-                        <circle id="robot-antenna-dot" cx="50" cy="5.5" r="4.5" fill="#4fc3f7" filter="url(#c-glow)"/>
-                        <circle cx="50" cy="5.5" r="2" fill="white" opacity="0.7"/>
-
-                        <!-- HEAD — big & round for cuteness -->
-                        <rect x="14" y="17" width="72" height="54" rx="26" fill="url(#c-shell)" stroke="#bcd8ff" stroke-width="1.5" filter="url(#c-shadow)"/>
-                        <!-- Gloss highlight -->
-                        <ellipse cx="36" cy="26" rx="18" ry="8" fill="white" opacity="0.38"/>
-
-                        <!-- HEADSET BAND -->
-                        <path d="M 16,40 Q 50,14 84,40" stroke="#3d82e8" stroke-width="4.5" fill="none" stroke-linecap="round"/>
-                        <!-- Left ear cup -->
-                        <rect x="5" y="36" width="13" height="20" rx="6.5" fill="#2979ff" stroke="#1758cc" stroke-width="1.2"/>
-                        <rect x="7" y="39" width="9" height="14" rx="4.5" fill="#1045a8" opacity="0.45"/>
-                        <ellipse cx="11.5" cy="46" rx="3" ry="4" fill="rgba(255,255,255,0.12)"/>
-                        <!-- Right ear cup -->
-                        <rect x="82" y="36" width="13" height="20" rx="6.5" fill="#2979ff" stroke="#1758cc" stroke-width="1.2"/>
-                        <rect x="84" y="39" width="9" height="14" rx="4.5" fill="#1045a8" opacity="0.45"/>
-                        <ellipse cx="88.5" cy="46" rx="3" ry="4" fill="rgba(255,255,255,0.12)"/>
-                        <!-- Mic arm -->
-                        <path d="M 95,49 Q 101,55 99,63" stroke="#5590ee" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-                        <circle cx="99" cy="64" r="4" fill="#2979ff" stroke="#1758cc" stroke-width="1" filter="url(#c-glow)"/>
-                        <circle cx="99" cy="64" r="1.8" fill="white" opacity="0.6"/>
-
-                        <!-- Face visor plate -->
-                        <rect x="20" y="23" width="60" height="42" rx="18" fill="#cde4ff" opacity="0.4"/>
-
-                        <!-- EYES — wide, bright, cute -->
-                        <rect id="robot-eye-l" x="21" y="32" width="24" height="13" rx="6.5" fill="url(#c-eye)" filter="url(#c-glow)"/>
-                        <rect id="robot-eye-r" x="55" y="32" width="24" height="13" rx="6.5" fill="url(#c-eye)" filter="url(#c-glow)"/>
-                        <!-- Eye white shine -->
-                        <rect x="22.5" y="33.5" width="10" height="5" rx="2.5" fill="white" opacity="0.82"/>
-                        <rect x="56.5" y="33.5" width="10" height="5" rx="2.5" fill="white" opacity="0.82"/>
-                        <!-- Eye inner pupil -->
-                        <rect x="26" y="35" width="14" height="8" rx="4" fill="#003ca8" opacity="0.4"/>
-                        <rect x="60" y="35" width="14" height="8" rx="4" fill="#003ca8" opacity="0.4"/>
-
-                        <!-- EYEBROWS — happy (arched up, hidden by default) -->
-                        <path id="brow-happy-l"   d="M 22,29 Q 33,22 44,29" stroke="#4a90e2" stroke-width="3" fill="none" stroke-linecap="round" display="none"/>
-                        <path id="brow-happy-r"   d="M 56,29 Q 67,22 78,29" stroke="#4a90e2" stroke-width="3" fill="none" stroke-linecap="round" display="none"/>
-                        <!-- EYEBROWS — concerned (angled inward, hidden by default) -->
-                        <path id="brow-concern-l" d="M 22,25 Q 31,30 44,27" stroke="#7aa8e8" stroke-width="3" fill="none" stroke-linecap="round" display="none"/>
-                        <path id="brow-concern-r" d="M 56,27 Q 69,30 78,25" stroke="#7aa8e8" stroke-width="3" fill="none" stroke-linecap="round" display="none"/>
-
-                        <!-- THINKING DOTS (thought bubble, top-right, hidden by default) -->
-                        <circle id="think-dot1" cx="68" cy="9"  r="2.5" fill="#4fc3f7" opacity="0.9" display="none"/>
-                        <circle id="think-dot2" cx="76" cy="5"  r="3.2" fill="#4fc3f7" opacity="0.9" display="none"/>
-                        <circle id="think-dot3" cx="85" cy="2"  r="4"   fill="#4fc3f7" opacity="0.9" display="none"/>
-
-                        <!-- CHEEK BLUSH — key for cute look! -->
-                        <ellipse cx="18" cy="55" rx="8" ry="5" fill="#ff9ec6" opacity="0.4"/>
-                        <ellipse cx="82" cy="55" rx="8" ry="5" fill="#ff9ec6" opacity="0.4"/>
-
-                        <!-- MOUTH idle — small happy smile -->
-                        <path id="robot-mouth-idle" d="M 38,56 Q 50,65 62,56" stroke="#4a90e2" stroke-width="3" fill="none" stroke-linecap="round"/>
-                        <!-- MOUTH talking — pill shape, animated -->
-                        <ellipse id="robot-mouth-open" cx="50" cy="60" rx="11" ry="6" fill="#2060cc" opacity="0.85"/>
-                        <ellipse cx="50" cy="57" rx="10" ry="2.5" fill="white" opacity="0.3"/>
-
-                        <!-- BODY — smaller, chubby -->
-                        <rect x="22" y="73" width="56" height="38" rx="20" fill="url(#c-body)" stroke="#bcd8ff" stroke-width="1.5" filter="url(#c-shadow)"/>
-                        <ellipse cx="40" cy="81" rx="14" ry="5.5" fill="white" opacity="0.28"/>
-                        <!-- Chest screen -->
-                        <rect x="29" y="79" width="42" height="24" rx="9" fill="#b0d0ff" stroke="#8ab4f8" stroke-width="1"/>
-                        <rect x="33" y="83" width="34" height="4" rx="2" fill="#2979ff" opacity="0.45"/>
-                        <rect x="33" y="90" width="24" height="4" rx="2" fill="#2979ff" opacity="0.3"/>
-                        <rect x="33" y="97" width="29" height="4" rx="2" fill="#2979ff" opacity="0.2"/>
-
-                        <!-- LEFT ARM (waving) -->
-                        <g id="robot-arm-wave">
-                            <rect x="5" y="75" width="17" height="32" rx="8.5" fill="url(#c-body)" stroke="#bcd8ff" stroke-width="1.5"/>
-                            <circle cx="13.5" cy="110" r="8" fill="url(#c-shell)" stroke="#bcd8ff" stroke-width="1.5"/>
-                            <line x1="9"  y1="107" x2="7"  y2="114" stroke="#a0c4f8" stroke-width="2.2" stroke-linecap="round"/>
-                            <line x1="13" y1="108" x2="12" y2="116" stroke="#a0c4f8" stroke-width="2.2" stroke-linecap="round"/>
-                            <line x1="18" y1="107" x2="19" y2="114" stroke="#a0c4f8" stroke-width="2.2" stroke-linecap="round"/>
-                        </g>
-
-                        <!-- RIGHT ARM -->
-                        <rect x="78" y="75" width="17" height="32" rx="8.5" fill="url(#c-body)" stroke="#bcd8ff" stroke-width="1.5"/>
-                        <circle cx="86.5" cy="110" r="8" fill="url(#c-shell)" stroke="#bcd8ff" stroke-width="1.5"/>
-                    </svg>
-                    <div class="absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-white shadow-sm"></div>
+                    <img src="assets/ai_companion.jpg" alt="Saathi Avatar" class="w-full h-full object-cover rounded-full shadow-md border-4 border-white" />
+                    <div class="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-emerald-400 border-2 border-white shadow-sm z-10"></div>
                 </div>
 
                 <div class="min-w-0 flex-1">
@@ -1233,18 +1029,6 @@
                 strip.classList.add('concerned');
             }
         }
-
-        function triggerRobotWave() {
-            const arm = document.getElementById('robot-arm-wave');
-            if (!arm) return;
-            arm.classList.remove('waving');
-            void arm.offsetWidth; // force reflow to restart animation
-            arm.classList.add('waving');
-            arm.addEventListener('animationend', () => arm.classList.remove('waving'), { once: true });
-        }
-        // Wave on first load + every 40 seconds
-        window.addEventListener('DOMContentLoaded', () => setTimeout(triggerRobotWave, 1200));
-        setInterval(triggerRobotWave, 40000);
 
         async function speak(text, base64Audio = null) {
             if (synth.speaking) synth.cancel();

@@ -1901,8 +1901,14 @@
                 <span id="doseConfirmBadge" class="dose-urgent-badge">0 PENDING</span>
             </div>
         </div>
-        <div id="doseConfirmList" class="dose-cards-list"></div>
     </div>
+
+    <!-- Floating Saathi AI Assistant Button -->
+    <a href="voice_bot.html" onclick="event.preventDefault(); window.location.href = 'voice_bot.html' + (selectedRecipientId ? '?recipient_id=' + selectedRecipientId : '');" id="floatingSaathiBtn" title="Talk to Saathi AI Voice Assistant" style="position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; align-items: center; gap: 10px; background: linear-gradient(135deg, #1e3a8a, #3b82f6); color: white; padding: 12px 20px; border-radius: 99px; box-shadow: 0 8px 25px rgba(30, 58, 138, 0.35); text-decoration: none; font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 0.95rem; transition: all 0.3s ease; border: 2px solid rgba(255,255,255,0.3);" onmouseover="this.style.transform='scale(1.06) translateY(-2px)'" onmouseout="this.style.transform='scale(1) translateY(0)'">
+        <span style="font-size: 1.3rem;">🤖</span>
+        <span>Talk to Saathi AI</span>
+        <span style="background: #22c55e; width: 10px; height: 10px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.3);"></span>
+    </a>
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands"></script>
@@ -2156,7 +2162,7 @@
                                     </div>
                                 </div>
                                 <div class="notif-actions" style="margin-top: 12px; display: flex; gap: 8px;">
-                                    <button class="btn btn-primary btn-sm" onclick="window.location.href='featured_profile.html?recipient_id=${n.recipientId}'">Review</button>
+                                    <button class="btn btn-primary btn-sm" onclick="window.location.href='profile.html?recipient_id=${n.recipientId}'">Review</button>
                                     <button class="btn btn-secondary btn-sm" onclick="dismissLocalNotif('${n.id}', ${n.recipientId}, '${n.type}')">Acknowledge</button>
                                 </div>
                             </div>
@@ -2245,7 +2251,7 @@
                                 </div>
                             </div>
                             <div style="grid-column: 1 / 4; display: flex; gap: 10px; margin-top: 16px;">
-                                <button class="btn btn-primary" style="flex: 1;" onclick="location.href='featured_profile.html?recipient_id=${r.id}'">
+                                <button class="btn btn-primary" style="flex: 1;" onclick="location.href='profile.html?recipient_id=${r.id}'">
                                     View Health Record
                                 </button>
                                 <button class="btn btn-secondary" style="flex: 1;" id="gen-report-btn-${r.id}" onclick="generateAndDownloadWeeklyReport(${r.id}, '${r.full_name}', this)" title="Generate & download this week's AI health report">
@@ -2385,7 +2391,7 @@
                         </div>
                         <div class="doctor-info">
                             <h4>AI Health Advisor</h4>
-                            <p><i class="fas fa-robot" style="margin-right:5px;"></i>Gemini-Powered &middot; 24/7 Available</p>
+                            <p><img src="assets/ai_companion.jpg" alt="AI" style="width:1.2em; height:1.2em; border-radius:50%; object-fit:cover; display:inline-block; vertical-align:middle; margin-right:5px;" />Gemini-Powered &middot; 24/7 Available</p>
                         </div>
                         <span class="doctor-stat-badge" style="background:#f3e8ff;color:#7c3aed;">
                             <i class="fas fa-bolt"></i>
@@ -2483,7 +2489,7 @@
 
             if (profileLinkEl) {
                 profileLinkEl.style.display = 'inline-block';
-                profileLinkEl.href = `featured_profile.html?recipient_id=${selectedRecipientId}`;
+                profileLinkEl.href = `profile.html?recipient_id=${selectedRecipientId}`;
             }
             recipientTitleEl.textContent = recipient.full_name || 'Recipient';
             recipientMetaEl.innerHTML = `

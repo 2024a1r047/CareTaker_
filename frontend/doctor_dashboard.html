@@ -1428,7 +1428,7 @@
                         <!-- AI Case Chat -->
                         <div class="panel animate-in delay-4" style="flex: 1; display: flex; flex-direction: column;">
                             <div class="panel-header">
-                                <div class="panel-title"><i class="fas fa-robot"></i> AI Case Chat</div>
+                                <div class="panel-title"><img src="assets/ai_companion.jpg" alt="AI" style="width:1.2em; height:1.2em; border-radius:50%; object-fit:cover; display:inline-block; vertical-align:middle; margin-right:5px;" /> AI Case Chat</div>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <span class="eyebrow">Discuss patient</span>
                                     <button class="chat-btn-expand" onclick="toggleExpandedChat(true)"
@@ -1548,7 +1548,7 @@
                 <div class="panel-header" style="margin-bottom: 24px;">
                     <div>
                         <h2 style="margin:0; font-size: 1.5rem; color: var(--text);">
-                            <i class="fas fa-robot" style="color: var(--accent); margin-right: 10px;"></i>
+                            <img src="assets/ai_companion.jpg" alt="AI" style="width:1.2em; height:1.2em; border-radius:50%; object-fit:cover; display:inline-block; vertical-align:middle; margin-right:5px;" />
                             Clinical Intelligence <span
                                 style="font-weight:400; font-size: 0.9rem; color: var(--muted); margin-left:8px;">Powered
                                 by Gemini 2.5 Flash</span>
@@ -2526,7 +2526,7 @@
 
                 const aiMsgHtml = `
                     <div class="chat-msg ai">
-                        <strong style="color: var(--accent);"><i class="fas fa-robot"></i> AI Assistant:</strong><br/>
+                        <strong style="color: var(--accent);"><img src="assets/ai_companion.jpg" alt="AI" style="width:1.2em; height:1.2em; border-radius:50%; object-fit:cover; display:inline-block; vertical-align:middle; margin-right:5px;" /> AI Assistant:</strong><br/>
                         ${data.reply.replace(/\n/g, '<br/>')}
                     </div>
                 `;

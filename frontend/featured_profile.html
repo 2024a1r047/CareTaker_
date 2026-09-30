@@ -1727,8 +1727,20 @@
                     <i class="fas fa-video"></i> Video Analysis
                 </a>
             </nav>
-            <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid var(--border-light);">
-                <a href="dashboard.html" class="nav-item">
+            <div style="margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border-light); display: flex; flex-direction: column; gap: 12px;">
+                <div class="caretaker-profile-card" style="padding: 14px; background: rgba(74, 144, 226, 0.08); border-radius: 16px; border: 1px solid var(--border-light);">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                        <div style="width: 38px; height: 38px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1rem;" id="caretakerAvatar">C</div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-weight: 700; font-size: 0.85rem; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" id="caretakerName">CareTaker</div>
+                            <div style="font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" id="caretakerEmail">Caregiver Account</div>
+                        </div>
+                    </div>
+                    <a href="settings.html" style="font-size: 0.75rem; font-weight: 700; color: var(--accent); text-decoration: none; display: flex; align-items: center; gap: 6px;">
+                        <i class="fas fa-user-cog"></i> Account Settings
+                    </a>
+                </div>
+                <a href="dashboard.html" class="nav-item" style="padding: 10px 16px;">
                     <i class="fas fa-sign-out-alt"></i> Back to Hub
                 </a>
             </div>
@@ -1757,10 +1769,15 @@
                 </button>
                 <div>
                     <h1 style="margin:0; font-size:1.8rem; font-weight:800;" id="recipientName">Patient Profile</h1>
-                    <p style="margin:4px 0 0; color:var(--text-muted); font-weight:500;">Comprehensive Health
-                        Intelligence</p>
+                    <p style="margin:4px 0 0; color:var(--text-muted); font-weight:500;">Comprehensive Health Intelligence</p>
                 </div>
-                <div class="header-actions-wrap" style="display: flex; align-items: center; gap: 20px;">
+                <div class="header-actions-wrap" style="display: flex; align-items: center; gap: 16px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <label style="font-weight: 700; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Elder:</label>
+                        <select id="caretakerRecipientSelect" onchange="switchRecipient(this.value)" class="btn btn-outline" style="font-weight: 700; border-radius: 14px; padding: 8px 14px; background: white; cursor: pointer;">
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
                     <button id="voiceBotNavBtn" class="btn btn-primary"
                         style="border-radius: 30px; font-weight: 700; flex-shrink: 0;">
                         <i class="fas fa-microphone"></i>
@@ -2539,24 +2556,17 @@
 
     <!-- Scripts Data Layer Configuration -->
     <script>
-        const API_BASE = 'http://127.0.0.1:8000/api';
+        const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+            ? `${window.location.protocol}//${window.location.hostname}:8000/api`
+            : '/api';
         const urlParams = new URLSearchParams(window.location.search);
-        const recipientId = urlParams.get('recipient_id');
+        let recipientId = urlParams.get('recipient_id');
         const token = localStorage.getItem('token');
 
         // State & Charts Configuration 
         let profileData = {};
         const charts = {};
         const vitalCharts = {};
-
-        // Redirect if auth missing
-        if (!token) {
-            window.location.href = 'index.html';
-        }
-
-        if (!recipientId || recipientId === 'null') {
-            window.location.href = 'dashboard.html';
-        }
 
         // ============================================
         //  UNIFIED CHARTING ENGINE (SaaS Standard)
@@ -2941,6 +2951,7 @@
                 document.getElementById('syncTime').innerText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 document.getElementById('recipientName').innerText = profileData.general_info.name;
 
+                renderCaretakerInfo();
                 loadRecipientOverview();
                 updateVitalsPanel();
                 renderCriticalBanner();
@@ -2963,6 +2974,42 @@
                 console.error(error);
                 showError(error.message);
             }
+        }
+
+        function renderCaretakerInfo() {
+            if (profileData.caretaker) {
+                const ct = profileData.caretaker;
+                const ctName = ct.full_name || ct.username || 'CareTaker';
+                const ctEmail = ct.email || 'Caregiver Account';
+                const initial = ctName.charAt(0).toUpperCase();
+
+                const avatarEl = document.getElementById('caretakerAvatar');
+                const nameEl = document.getElementById('caretakerName');
+                const emailEl = document.getElementById('caretakerEmail');
+
+                if (avatarEl) avatarEl.textContent = initial;
+                if (nameEl) nameEl.textContent = ctName;
+                if (emailEl) emailEl.textContent = ctEmail;
+            }
+
+            if (profileData.recipients && Array.isArray(profileData.recipients)) {
+                const selectEl = document.getElementById('caretakerRecipientSelect');
+                if (selectEl) {
+                    selectEl.innerHTML = profileData.recipients.map(r => 
+                        `<option value="${r.id}" ${r.id == recipientId ? 'selected' : ''}>${r.name} (${r.age ? r.age + 'y/o' : 'N/A'})</option>`
+                    ).join('');
+                }
+            }
+        }
+
+        function switchRecipient(newId) {
+            if (!newId || newId == recipientId) return;
+            recipientId = newId;
+            const newUrl = window.location.pathname + `?recipient_id=${recipientId}`;
+            window.history.pushState(null, '', newUrl);
+            document.getElementById('loadingIndicator').style.display = 'block';
+            document.getElementById('profileDashboard').style.display = 'none';
+            fetchProfileData();
         }
 
         // ============================================
@@ -4111,7 +4158,60 @@
             }
         });
 
-        fetchProfileData();
+        async function initializeProfilePage() {
+            if (!token) {
+                showError("Please log in to view the health record workspace.");
+                return;
+            }
+
+            if (!recipientId || recipientId === 'null' || recipientId === 'undefined') {
+                try {
+                    let res = await fetch(`${API_BASE}/recipients`, {
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    });
+                    
+                    if (res.ok) {
+                        const recipients = await res.json();
+                        if (Array.isArray(recipients) && recipients.length > 0) {
+                            recipientId = recipients[0].id;
+                            const newUrl = window.location.pathname + `?recipient_id=${recipientId}`;
+                            window.history.replaceState(null, '', newUrl);
+                        } else {
+                            showError("No care recipients registered under your caretaker account.");
+                            return;
+                        }
+                    } else {
+                        // Fallback: try GET /api/profile
+                        const profRes = await fetch(`${API_BASE}/profile`, {
+                            headers: { 'Authorization': 'Bearer ' + token }
+                        });
+                        if (profRes.ok) {
+                            const profData = await profRes.json();
+                            const recs = profData.care_recipients || [];
+                            if (recs.length > 0) {
+                                recipientId = recs[0].id;
+                                const newUrl = window.location.pathname + `?recipient_id=${recipientId}`;
+                                window.history.replaceState(null, '', newUrl);
+                            } else {
+                                showError("No care recipients registered under your account.");
+                                return;
+                            }
+                        } else {
+                            showError("Unable to fetch care recipients list. Please refresh or try again.");
+                            return;
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error auto-selecting recipient:', err);
+                    showError("Connection error: " + err.message);
+                    return;
+                }
+            }
+
+            fetchProfileData();
+        }
+
+        initializeProfilePage();
 
         // ============================================
         //  IN-PAGE MEDICATION REMINDERS
@@ -4327,7 +4427,7 @@
                                 </button>
                                 ${isAnalyzed ? `
                                     <button class="btn btn-icon" title="View AI Summary" onclick="selectReport(${r.id})">
-                                        <i class="fas fa-robot"></i>
+                                        <img src="assets/ai_companion.jpg" alt="AI" style="width:1.2em; height:1.2em; border-radius:50%; object-fit:cover; display:inline-block; vertical-align:middle; margin-right:5px;" />
                                     </button>
                                 ` : ''}
                                 <button class="btn btn-icon btn-danger" title="Delete" onclick="deleteMedicalReport(${r.id})">
