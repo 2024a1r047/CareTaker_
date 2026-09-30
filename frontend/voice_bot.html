@@ -797,7 +797,8 @@
             isSpecificSongRequest: false,
             wsReconnecting: false,
             isTyping: false,
-            cinemaMode: false
+            cinemaMode: false,
+            proactiveSent: false   // guards the greeting so it fires once per page load
         };
 
         // ── FONT SIZE ──
@@ -3562,17 +3563,40 @@
             state.ws.onopen = () => {
                 console.log("[WS] Connected to Voice Bot engine");
                 const token = getToken();
-                if (token) {
-                    state.ws.send(JSON.stringify({ type: "auth", token: token }));
+                const rid = getRecipientId();
+
+                if (token && rid) {
+                    // Auth first
+                    state.ws.send(JSON.stringify({ type: "auth", token }));
+
+                    // Proactive init — fires ONCE per page load (not on reconnects)
+                    if (!state.proactiveSent) {
+                        state.proactiveSent = true;
+                        setTimeout(() => {
+                            if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+                                showTyping();
+                                state.ws.send(JSON.stringify({
+                                    type: 'proactive_init',
+                                    token,
+                                    recipient_id: parseInt(rid),
+                                    session_id: sessionId,
+                                    language: state.userLanguage || 'hi'
+                                }));
+                            }
+                        }, 400);
+                    }
+                } else if (token) {
+                    state.ws.send(JSON.stringify({ type: "auth", token }));
                 }
-                // Send any message that was queued while WS was connecting
+
+                // Flush any pending message that was queued while WS was connecting
                 if (state._pendingWsMsg) {
-                    const { text, triggerType, lang, rid } = state._pendingWsMsg;
+                    const { text, triggerType, lang, rid: pendingRid } = state._pendingWsMsg;
                     state._pendingWsMsg = null;
                     showTyping();
                     state.ws.send(JSON.stringify({
                         type: "chat", token, text,
-                        recipient_id: parseInt(rid),
+                        recipient_id: parseInt(pendingRid),
                         session_id: sessionId, language: lang
                     }));
                 }
@@ -3662,10 +3686,8 @@
             requestNotificationPermission();
             scheduleReminderChecks();
 
-            // Proactive greeting — Saathi speaks first using full server-side context
-            if (getToken() && getRecipientId() && state.messages.length === 0) {
-                setTimeout(() => sendProactiveInit(), 1200);
-            }
+            // Proactive greeting fires from ws.onopen — no extra call needed here.
+            // (keeping this comment so the init() function is clear)
         }
 
         /**
