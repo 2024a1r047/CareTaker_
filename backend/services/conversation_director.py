@@ -59,7 +59,7 @@ def _last_interaction_gap(recipient_id, db):
     ).order_by(desc(ConversationMessage.created_at)).first()
 
     if not last:
-        return {"days_gap": 999, "last_snippet": "", "skipped": True}
+        return {"days_gap": 0, "last_snippet": "", "skipped": False, "is_new": True}
 
     last_ist = last.created_at + ist_offset
     last_date = datetime(last_ist.year, last_ist.month, last_ist.day).date()
@@ -72,7 +72,7 @@ def _last_interaction_gap(recipient_id, db):
     ).order_by(ConversationMessage.created_at).limit(4).all()
 
     snippet = " | ".join(m.message_text[:60] for m in recent)
-    return {"days_gap": gap, "last_snippet": snippet[:200], "skipped": gap >= 2}
+    return {"days_gap": gap, "last_snippet": snippet[:200], "skipped": gap >= 1, "is_new": False}
 
 
 def _due_medicine(recipient_id, db, hour):
@@ -162,6 +162,7 @@ def build_proactive_context(recipient_id, db, language="hi"):
         "days_gap": gap_info["days_gap"],
         "last_snippet": gap_info["last_snippet"],
         "skipped_yesterday": gap_info["skipped"],
+        "is_new": gap_info.get("is_new", False),
         "occasion": occasion,
         "medicine_due": med_due,
         "meal_context": meal_context,
@@ -184,13 +185,15 @@ def format_proactive_instruction(ctx):
         occ = ctx["occasion"]
         lines.append(f"TODAY'S OCCASION: {occ['emoji']} {occ['name_hi']} / {occ['name_en']} - acknowledge warmly.")
 
-    if gap == 0:
+    if ctx.get("is_new"):
+        lines.append("Gap: First conversation with the user. Give a warm time-appropriate greeting.")
+    elif gap == 0:
         lines.append("Gap: User spoke earlier today. Continue the conversation warmly.")
-    elif gap == 1:
-        lines.append("Gap: Last spoke yesterday. Give a warm time-appropriate greeting.")
-    elif gap >= 2:
-        lines.append(f"Gap: {gap} DAYS of silence. Start with warm worried concern: 'Arre ji, {gap} din se baat nahi hui...'")
-        if ctx["last_snippet"]:
+    else:
+        lines.append("Gap: Over 24 hours of silence. Start by naturally checking on them.")
+        lines.append("Instruction: Do NOT say 'mujhe aapki yaad aayi' (AI shouldn't claim personal feelings).")
+        lines.append("Say something like: 'Kal aap kahan the? Sab theek tha na? Kisi ki yaad aa rahi thi kya?'")
+        if ctx.get("last_snippet"):
             lines.append(f"Last topic to follow up: \"{ctx['last_snippet'][:120]}\"")
 
     if ctx.get("medicine_due"):

@@ -75,18 +75,15 @@ def check_yesterday_engagement(recipient_id: int, db: Session) -> dict:
         ConversationMessage.created_at < today_start_utc
     ).order_by(desc(ConversationMessage.created_at)).first()
 
-    days_gap = 1
+    days_gap = 0
     if last_msg:
         # Convert last message time to IST date for accurate gap
         last_ist = last_msg.created_at + ist_offset
         last_date_ist = datetime(last_ist.year, last_ist.month, last_ist.day)
         days_gap = (today_start_ist - last_date_ist).days
-    else:
-        days_gap = 2  # New/completely inactive user → treat as skipped
 
-    # Only flag as skipped if user genuinely missed ≥1 full day (gap ≥ 2)
-    # Do NOT penalize users who talk daily but send fewer messages
-    skipped_day = days_gap >= 2
+    # Only flag as skipped if user genuinely missed >= 24 hours (i.e. yesterday or earlier)
+    skipped_day = days_gap >= 1 and last_msg is not None
 
     # Time-of-day greeting strings (IST hour)
     hour_ist = now_ist.hour
@@ -320,13 +317,11 @@ def generate_system_prompt(name: str, context: dict, language: str = "en", senti
     period = "morning" if 5 <= now.hour < 12 else "afternoon" if 12 <= now.hour < 17 else "evening" if 17 <= now.hour < 21 else "night"
 
     if did_not_talk_yesterday:
-        gap_note_hi = f"{days_gap} दिनों" if days_gap >= 3 else "कल"
-        gap_note_en = f"{days_gap} days" if days_gap >= 3 else "yesterday"
         yesterday_instruction = f"""
-IMPORTANT — USER RETURNED AFTER {days_gap} DAY(S) AWAY:
-YOU MUST SPEAK FIRST. Open with a warm, caring greeting acknowledging their absence.
-Hindi example: "{time_greeting_hi} {first_name} जी! {gap_note_hi} से आपसे बात नहीं हुई, मुझे आपकी बहुत याद आ रही थी। सब ठीक था ना?"
-English example: "{time_greeting_en} {first_name}! I haven't spoken with you for {gap_note_en} — I was worried about you. Was everything okay?"
+IMPORTANT — USER ABSENT FOR 24+ HOURS:
+YOU MUST SPEAK FIRST. Open with a warm, caring check-in.
+Do NOT say "I missed you" or "mujhe aapki yaad aayi". The AI should not falsely claim personal feelings.
+Example opening: "Kal aap kahan the? Sab theek tha na? Kisi ki yaad aa rahi thi kya?"
 After they reply, analyze their emotion carefully and respond accordingly.
 """
     else:
@@ -334,17 +329,11 @@ After they reply, analyze their emotion carefully and respond accordingly.
         yesterday_instruction = f"OPENING: {last_topic}"
 
     # ── Language instruction ──
-    if language == "hi":
-        lang_instruction = (
-            "LANGUAGE: Respond ONLY in warm, natural Hindi using Devanagari script (देवनागरी लिपि). "
-            "Examples: 'आज कैसा महसूस कर रहे हैं?', 'नींद अच्छी आई?' "
-            "Use 'आप' and 'जी'. Mirror the patient's vocabulary naturally."
-        )
-    else:
-        lang_instruction = (
-            "LANGUAGE: Respond in fluent, warm English (or Hinglish if they use it). "
-            "Keep it natural, gentle, short, and respectful."
-        )
+    lang_instruction = (
+        "LANGUAGE: Match the user's speaking style. If they speak Hindi, reply in natural Hinglish (Hindi + English mix). "
+        "If they speak English, reply in natural English. Do not overuse Hindi or English. "
+        "Use 'आप' but do NOT use 'जी' (ji) in every sentence. Use 'ji' occasionally and naturally, not repetitively."
+    )
 
     # ── Medicine block ──
     med_block = ""
