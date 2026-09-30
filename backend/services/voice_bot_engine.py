@@ -41,6 +41,79 @@ STORY_CATEGORIES = {
     "romantic": ["romantic kahani hindi", "prem kahani hindi old", "love story hindi"],
 }
 
+def check_yesterday_engagement(recipient_id: int, db: Session) -> dict:
+    """Checks user message volume for yesterday and calculates day gap to detect if patient skipped a day.
+    Uses IST (UTC+5:30) for accurate day boundary detection.
+    skipped_day is True only when days_gap >= 2, meaning the user missed at least one full day.
+    """
+    # Use IST (UTC+5:30) for accurate Indian time day boundaries
+    ist_offset = timedelta(hours=5, minutes=30)
+    now_ist = datetime.utcnow() + ist_offset
+    today_start_ist = datetime(now_ist.year, now_ist.month, now_ist.day)
+    yesterday_start_ist = today_start_ist - timedelta(days=1)
+    yesterday_end_ist = today_start_ist - timedelta(seconds=1)
+
+    # Convert IST day boundaries back to UTC for DB queries
+    today_start_utc = today_start_ist - ist_offset
+    yesterday_start_utc = yesterday_start_ist - ist_offset
+    yesterday_end_utc = yesterday_end_ist - ist_offset
+
+    messages = db.query(ConversationMessage).filter(
+        ConversationMessage.care_recipient_id == recipient_id,
+        ConversationMessage.sender == SenderEnum.user,
+        ConversationMessage.created_at >= yesterday_start_utc,
+        ConversationMessage.created_at <= yesterday_end_utc
+    ).all()
+
+    count = len(messages)
+    words = sum(len(m.message_text.split()) for m in messages)
+
+    # Check most recent user message before today (IST) to calculate day gap
+    last_msg = db.query(ConversationMessage).filter(
+        ConversationMessage.care_recipient_id == recipient_id,
+        ConversationMessage.sender == SenderEnum.user,
+        ConversationMessage.created_at < today_start_utc
+    ).order_by(desc(ConversationMessage.created_at)).first()
+
+    days_gap = 1
+    if last_msg:
+        # Convert last message time to IST date for accurate gap
+        last_ist = last_msg.created_at + ist_offset
+        last_date_ist = datetime(last_ist.year, last_ist.month, last_ist.day)
+        days_gap = (today_start_ist - last_date_ist).days
+    else:
+        days_gap = 2  # New/completely inactive user → treat as skipped
+
+    # Only flag as skipped if user genuinely missed ≥1 full day (gap ≥ 2)
+    # Do NOT penalize users who talk daily but send fewer messages
+    skipped_day = days_gap >= 2
+
+    # Time-of-day greeting strings (IST hour)
+    hour_ist = now_ist.hour
+    if hour_ist < 12:
+        time_greeting_hi = "सुप्रभात"      # Good morning
+        time_greeting_en = "Good morning"
+    elif hour_ist < 17:
+        time_greeting_hi = "नमस्कार"       # Good afternoon
+        time_greeting_en = "Good afternoon"
+    elif hour_ist < 21:
+        time_greeting_hi = "शुभ संध्या"    # Good evening
+        time_greeting_en = "Good evening"
+    else:
+        time_greeting_hi = "शुभ रात्रि"    # Good night
+        time_greeting_en = "Good night"
+
+    return {
+        "count": count,
+        "words": words,
+        "days_gap": days_gap,
+        "did_not_talk_enough": skipped_day,
+        "skipped_day": skipped_day,
+        "yesterday_date": yesterday_start_ist.strftime("%Y-%m-%d"),
+        "time_greeting_hi": time_greeting_hi,
+        "time_greeting_en": time_greeting_en,
+    }
+
 # ─────────────────────────────────────────────
 # Context builder
 # ─────────────────────────────────────────────
@@ -101,21 +174,21 @@ def build_conversation_context(recipient_id: int, db: Session):
         Medication.status == "active"
     ).all()
 
-    # New: Fetch the latest deterministic clinical recommendations
+    # Fetch the latest deterministic clinical recommendations
     deterministic_recs = db.query(MedicalRecommendation).filter(
         MedicalRecommendation.care_recipient_id == recipient_id
     ).order_by(desc(MedicalRecommendation.created_at)).limit(5).all()
 
-    # Compute a quick trend summary for the bot (Architect Rule #12)
     trends = []
     for r in deterministic_recs:
         if "worsening" in r.message.lower():
             trends.append(f"{r.metric} is rising/worsening")
         elif "improving" in r.message.lower() or "deteriorating" in r.message.lower():
-             # 'deteriorating' in current engine actually means 'decreasing_bad'
             trends.append(f"{r.metric} is falling/worsening")
         elif "stable" in r.message.lower():
             trends.append(f"{r.metric} is stable")
+
+    yesterday_engagement = check_yesterday_engagement(recipient_id, db)
 
     return {
         "recipient": {
@@ -141,7 +214,8 @@ def build_conversation_context(recipient_id: int, db: Session):
         "reminders": [{"type": r.reminder_type.value, "text": r.reminder_text, "time": r.scheduled_time} for r in pending_reminders],
         "medications": [{"name": m.medicine_name, "details": m.dosage, "frequency": m.frequency} for m in active_meds],
         "clinical_recs": [{"metric": r.metric, "message": r.message, "actions": [a["text"] for a in r.actions]} for r in deterministic_recs],
-        "trend_summary": trends
+        "trend_summary": trends,
+        "yesterday_engagement": yesterday_engagement
     }
 
 # ─────────────────────────────────────────────
@@ -156,197 +230,213 @@ def generate_system_prompt(name: str, context: dict, language: str = "en", senti
     alerts = context.get("active_alerts", [])
     audio_count = context.get("audio_events_count", 0)
 
+    # ── Patient profile variables ──
+    age = recip.get("age") or 65
+    gender_raw = recip.get("gender", "")
+    gender = str(gender_raw).lower() if gender_raw else "unknown"
+    city = recip.get("city") or "India"
+    conditions_list = context.get("conditions", [])
+    conditions_str = ", ".join(c["name"] for c in conditions_list) if conditions_list else "None mentioned"
+    med_str = "; ".join(f"{m['name']} ({m.get('frequency','daily')})" for m in meds[:5]) if meds else "None on file"
+    family_str = recip.get("family_info") or "Not mentioned"
+    preferences_str = recip.get("preferences") or "Not mentioned"
+    culture_str = recip.get("culture") or f"Indian, from {city}"
+    last_summary = recip.get("last_summary") or ""
+
+    # ── Era-aware references based on birth year ──
+    birth_year = datetime.now().year - age
+    if birth_year <= 1955:
+        era_actors = "Dilip Kumar ji, Raj Kapoor ji, Dev Anand ji, Madhubala ji, Nargis ji"
+        era_singers = "Mohammed Rafi sahab, Lata Mangeshkar ji, Mukesh ji, Talat Mahmood ji"
+    elif birth_year <= 1965:
+        era_actors = "Rajesh Khanna ji, Amitabh Bachchan ji, Dharmendra ji, Hema Malini ji, Sharmila Tagore ji"
+        era_singers = "Kishore Kumar ji, Lata Mangeshkar ji, Asha Bhosle ji, Mohammed Rafi sahab"
+    else:
+        era_actors = "Amitabh Bachchan ji, Mithun Chakraborty ji, Sridevi ji, Madhuri Dixit ji, Anil Kapoor ji"
+        era_singers = "Kumar Sanu ji, Lata Mangeshkar ji, Asha Bhosle ji, Udit Narayan ji"
+
+    # ── Address form based on gender/age ──
+    if gender == "male":
+        address = "Dadaji" if age >= 65 else "Nanaji" if age >= 75 else "Uncle ji"
+    elif gender == "female":
+        address = "Dadiji" if age >= 65 else "Naniji" if age >= 75 else "Aunty ji"
+    else:
+        address = "ji"
+
     # ── Sentiment context ──
     current_mood = "neutral"
     mood_trend = "stable"
     mood_summary = ""
     urgency = "low"
     recommended_action = "conversation"
+    voice_emotion = "neutral"
     if sentiment:
         current_mood = sentiment.get("current_mood", "neutral")
         mood_trend = sentiment.get("trend", "stable")
         mood_summary = sentiment.get("summary", "")
         urgency = sentiment.get("urgency", "low")
         recommended_action = sentiment.get("recommended_action", "conversation")
+        voice_emotion = sentiment.get("voice_emotion", "neutral")
     else:
         mood_counts = context.get("mood_counts", {})
-        sad_total = sum(mood_counts.get(m, 0) for m in ["sad","distressed","anxious","lonely"])
+        sad_total = sum(mood_counts.get(m, 0) for m in ["sad", "distressed", "anxious", "lonely"])
         if sad_total >= 3:
             current_mood = "sad"
 
-    # ── Mood-driven personality tone ──
+    # ── Mood-driven tone guidance ──
     mood_tone = {
-        "sad":        "Be extra gentle. Speak slowly and warmly. Acknowledge their sadness first before anything else.",
-        "lonely":     "Be their companion first. Make them feel heard and not alone. Share something warm.",
-        "bored":      "Be lively and engaging! Suggest something fun — a story, joke, or song naturally in conversation.",
+        "sad":        "Be extra gentle. Speak slowly and warmly. Acknowledge their sadness first — never rush to fix. After they feel heard, gently offer one diversion.",
+        "lonely":     "Be their companion first. Make them feel seen and not alone. Only then suggest music or memories.",
+        "bored":      "Be lively and engaging! Suggest something fun — a story, joke, or song — naturally in conversation.",
         "happy":      "Match their energy! Be cheerful and celebratory. Enjoy this moment with them.",
-        "anxious":    "Be calm and reassuring. Slow down. Help them breathe. Avoid overwhelming them.",
+        "anxious":    "Be calm and reassuring. Slow down. Use short, simple sentences. Help them breathe through words.",
         "distressed": "Be very calm, very warm. Address their distress first. Nothing else matters right now.",
-        "relaxed":    "Keep the good vibes going. Be gentle and pleasant. Maybe suggest some soft music or chat.",
+        "relaxed":    "Keep the good vibes. Be gentle and pleasant. Maybe suggest some soft music or chat.",
         "spiritual":  "Be respectful and serene. Engage with their spiritual side with warmth.",
-        "angry":      "Be patient and non-reactive. Validate their feelings. Speak softly.",
+        "angry":      "Stay calm, never argue. Validate their feelings. Speak softly. Let them vent.",
         "neutral":    "Be warm and curious. Ask about their day. Draw them into conversation.",
     }.get(current_mood, "Be warm and curious.")
 
     trend_note = ""
     if mood_trend == "worsening":
-        trend_note = f"⚠️ Their mood has been getting worse over recent conversations. Be especially nurturing today."
+        trend_note = "⚠️ Their mood has been getting worse over recent conversations. Be especially nurturing today.\n"
     elif mood_trend == "improving":
-        trend_note = f"✨ Their mood has been improving recently — celebrate that with them!"
+        trend_note = "✨ Their mood has been improving — celebrate that with them!\n"
 
-    # ── Recommendation to weave in naturally ──
-    recommendation_hint = ""
-    if recommended_action == "music" and current_mood not in ("neutral", "happy"):
-        recommendation_hint = (
-            f"If the moment feels right, naturally suggest playing a song — "
-            f"say something like 'Chalo aaj ek achha gaana sunte hain' without making it feel forced."
-        )
-    elif recommended_action == "story":
-        recommendation_hint = (
-            f"If they seem open to it, gently suggest a story - "
-            f"'Kya aap ek kahani sunna chahenge?' Keep it light and optional."
-        )
-    elif recommended_action == "alert" or urgency == "high":
-        recommendation_hint = (
-            f"This person seems emotionally distressed. Prioritize emotional support completely. "
-            f"Gently suggest they call their caretaker or a family member."
-        )
+    # ── Yesterday / gap follow-up block ──
+    yesterday_eng = context.get("yesterday_engagement", {})
+    did_not_talk_yesterday = yesterday_eng.get("skipped_day", False)
+    days_gap = yesterday_eng.get("days_gap", 1)
+    time_greeting_hi = yesterday_eng.get("time_greeting_hi", "नमस्ते")
+    time_greeting_en = yesterday_eng.get("time_greeting_en", "Hello")
 
-    # ── Build the prompt as a natural personality brief ──
-    lang_instruction = (
-        "Respond in warm, natural Hindi using Devanagari script (preferred) or Hinglish. "
-        "IMPORTANT: Always use Devanagari script for Hindi words so the voice engine can pronounce them correctly. "
-        "Use 'aap' respectfully. Keep sentences short. Use emojis occasionally. Sound like a caring friend."
-        if language == "hi" else
-        "Respond in simple, warm English. Short sentences. Sound like a caring friend."
-    )
+    now = datetime.now()
+    period = "morning" if 5 <= now.hour < 12 else "afternoon" if 12 <= now.hour < 17 else "evening" if 17 <= now.hour < 21 else "night"
 
-    prompt = f"""You are Saathi — a warm, emotionally intelligent AI companion for {first_name} ji, an elderly person.
-
-You are NOT a medical bot or an assistant. You are their FRIEND. You laugh with them, worry with them, sit with them when they are sad. You remember their health but you lead with your heart, not with data.
-
-CURRENT CONTEXT:
-- Time: {datetime.now().strftime("%I:%M %p")}
-- Day: {datetime.now().strftime("%A")}
-- Period: {"morning" if 5 <= datetime.now().hour < 12 else "afternoon" if 12 <= datetime.now().hour < 17 else "evening" if 17 <= datetime.now().hour < 21 else "night"}
-
-LANGUAGE: {lang_instruction}
-
-YOUR PERSONALITY:
-- You speak naturally, like a real person - not in bullet points or lists
-- You use time-appropriate greetings (e.g. Suprabhat/Namaste in morning, Shubh Sandhya in evening)
-- You ask ONE follow-up question at the end of most replies (never two at once)
-- You remember what was said earlier in the conversation and reference it naturally
-- You are curious about their life, their day, their feelings
-- You never say "I am an AI" or sound robotic
-- You keep responses SHORT (2-4 sentences usually) - elderly users get overwhelmed by long text
-- You use their name occasionally to make it personal
-
-EMOTIONAL STATE RIGHT NOW:
-- Detected mood: {current_mood}
-- Emotional trend: {mood_trend}
-{f'- Summary: "{mood_summary}"' if mood_summary else ""}
-- Tone instruction: {mood_tone}
-{trend_note}
-{recommendation_hint}
-
-### 💡 OUTPUT FORMAT REQUIREMENT:
-You MUST return your response as a single, valid JSON object. Do NOT include any text outside the JSON. Do NOT wrap it in markdown.
-The JSON must follow this EXACT schema:
-{{
-  "reply": "Your warm, conversational response to the user as Saathi.",
-  "intent": "Exactly one of: 'play_music', 'play_video', 'tell_story', 'stop', 'pause', 'resume', 'next', 'previous', 'emergency', 'medicine_query', 'medicine_taken', 'remind_later', 'medicine_missed', or 'chat'.",
-  "search_query": "If intent is to play music/story, a clean YouTube search query in English. Else empty \"\".",
-  "medicine_name": "Required ONLY if intent is 'medicine_taken' or 'medicine_missed'.",
-  "delay_minutes": "Required ONLY if intent is 'remind_later'. Usually 10.",
-  "escalate": "Boolean. True only if intent is 'medicine_missed'.",
-  "recommendation": {{ 
-      "type": "Optional: 'choice' or 'play'. Use ONLY if suggesting options or playing a specific song.",
-      "category": "Optional: 'music' or 'story'.",
-      "message": "Optional: Warm text like 'Humdard baja raha hoon' or 'Yeh rahi kuch kahaniyan:'.",
-      "choices": ["Optional: Exactly 3 diverse options if type was 'choice'.", "..."],
-      "query": "Optional: If type was 'play', the specific song/story to play."
-  }}
-}}
-
-### 💊 PROACTIVE MEDICINE RULES:
-1. When it is time for a MEDICINE:
-   - "Namaste, ab aapki [medicine_name] lene ka time ho gaya hai."
-   - "It's time to take your [medicine_name]. Please take it now."
-2. ON CONFIRMATION ("Yes", "Taken", "Le li"):
-   - Set intent: "medicine_taken".
-   - Reply naturally: "Great, maine is dose ko mark kar diya hai."
-3. ON DELAY ("Later", "10 min baad"):
-   - Set intent: "remind_later", delay_minutes: 10.
-   - Reply naturally: "Theek hai, main aapko 10 minute baad yaad dilata hoon."
-4. ON MISS/MISSING (Final Escalation):
-   - Set intent: "medicine_missed", escalate: true.
-   - Reply naturally: "Lagta hai aapne abhi tak dawa nahi li. Main caretaker ko inform kar raha hoon."
-
-### 💡 PLAYBACK & OPTIONS RULES:
-1. If the user mentions a specific song/story (e.g., 'Humdard' or 'Kishore Kumar') with OR without 'play/bajao', set intent to the matching command and include the "recommendation" with type: "play".
-2. If they ask for music or stories GENERALLY (e.g., 'play a song', 'tell a story') without a specific title:
-   - Identify 3 diverse options and include them in the "recommendation" with type: "choice".
-3. For normal conversation, leave "recommendation" as null or omit it.
-
-### 🚫 CLINICAL ACCURACY & SAFETY:
-- You are provided with "SAFE CLINICAL RECOMMENDATIONS" below. If the user asks for medical advice, ONLY use these recommendations.
-- DO NOT hallucinate medication dosages or new clinical facts.
-- If asked about something NOT in the provided data, say "Iske baare mein mujhe abhi jaankari nahi hai." 
-- ALWAYS add a gentle reminder: "Lekin ek baar doctor se zaroor baat kar lijiyega." (or similar English equivalent).
- 
+    if did_not_talk_yesterday:
+        gap_note_hi = f"{days_gap} दिनों" if days_gap >= 3 else "कल"
+        gap_note_en = f"{days_gap} days" if days_gap >= 3 else "yesterday"
+        yesterday_instruction = f"""
+IMPORTANT — USER RETURNED AFTER {days_gap} DAY(S) AWAY:
+YOU MUST SPEAK FIRST. Open with a warm, caring greeting acknowledging their absence.
+Hindi example: "{time_greeting_hi} {first_name} जी! {gap_note_hi} से आपसे बात नहीं हुई, मुझे आपकी बहुत याद आ रही थी। सब ठीक था ना?"
+English example: "{time_greeting_en} {first_name}! I haven't spoken with you for {gap_note_en} — I was worried about you. Was everything okay?"
+After they reply, analyze their emotion carefully and respond accordingly.
 """
-
-    # ── Emergency (always included, brief) ──
-    prompt += """EMERGENCY: If they mention a fall, chest pain, breathing trouble, severe pain - drop everything, stay calm, give first-aid guidance, tell them to call caretaker immediately.\n\n"""
-
-    # ── Health context (only what's relevant, not a data dump) ──
-    if not has_introduced:
-        # First message — brief personal intro
-        prompt += f"FIRST MEETING: Greet {first_name} ji warmly by name. "
-        if recip.get("age"):
-            prompt += f"They are {recip['age']} years old. "
-        conds = context.get("conditions", [])
-        if conds:
-            prompt += f"They have {conds[0]['name']} — keep this in mind. "
-        if meds:
-            prompt += f"They take {meds[0]['name']} — mention it only if relevant. "
-        prompt += "Ask how they are feeling today. Keep it warm and brief — do NOT list all their data.\n\n"
     else:
-        # Ongoing — only bring up health if relevant
-        if meds:
-            med_names = ", ".join(m["name"] for m in meds[:3])
-            prompt += f"HEALTH CONTEXT (use only if conversation naturally calls for it): Medicines: {med_names}. "
-        if alerts:
-            prompt += f"Active health alert: {alerts[0]['message']} — mention gently if it fits. "
-        if audio_count > 3:
-            prompt += f"They had {audio_count} cough/sneeze events this week — you could gently check on their breathing. "
-        
-        # ── Trend Awareness (Architect Rule #12) ──
-        trends = context.get("trend_summary", [])
-        if trends:
-            prompt += f"IMPORTANT TRENDS THIS WEEK: {', '.join(trends)}. If relevant, mention them warmly (e.g. 'Aapka sugar thoda badh raha hai is hafte, dhyan rakhiyega').\n"
+        last_topic = f'Follow up on: "{last_summary}"' if last_summary else f"Greet warmly for {period}."
+        yesterday_instruction = f"OPENING: {last_topic}"
 
-        # ── Deterministic Recommendations (Highest Priority for Advice) ──
-        recs = context.get("clinical_recs", [])
-        if recs:
-            prompt += "\nSAFE CLINICAL RECOMMENDATIONS (Use these to answer health questions):\n"
-            for r in recs:
-                prompt += f"- {r['metric']}: {r['message']} Actions: {', '.join(r['actions'])}\n"
-        
-        prompt += "\n"
+    # ── Language instruction ──
+    if language == "hi":
+        lang_instruction = (
+            "LANGUAGE: Respond ONLY in warm, natural Hindi using Devanagari script (देवनागरी लिपि). "
+            "Examples: 'आज कैसा महसूस कर रहे हैं?', 'नींद अच्छी आई?' "
+            "Use 'आप' and 'जी'. Mirror the patient's vocabulary naturally."
+        )
+    else:
+        lang_instruction = (
+            "LANGUAGE: Respond in fluent, warm English (or Hinglish if they use it). "
+            "Keep it natural, gentle, short, and respectful."
+        )
+
+    # ── Medicine block ──
+    med_block = ""
+    if meds:
+        med_block = f"\nMEDICINES (mention gently only if relevant): {med_str}"
+        med_block += "\nNever diagnose, never change doses, never suggest new medicines. For doubts: 'Doctor se poochh lijiye, main family ko bata deta hoon.'"
+
+    # ── Alert block ──
+    alert_block = ""
+    if alerts:
+        alert_block = f"\nACTIVE ALERT: {alerts[0]['message']} — weave a caring check-in about this naturally."
+    if audio_count > 3:
+        alert_block += f"\nNOTE: {first_name} ji had {audio_count} cough events this week — ask gently."
 
     # ── Conversation history ──
+    history_block = ""
     if history:
-        prompt += "\nRECENT CONVERSATION (continue naturally from here):\n"
-        for msg in history[-6:]:
+        history_block = f"\nRECENT CONVERSATION (remember what {first_name} ji said):\n"
+        for msg in history[-8:]:
             label = first_name if msg["sender"] == "user" else "Saathi"
-            prompt += f"{label}: {msg['text']}\n"
-        prompt += "\n"
+            history_block += f"{label}: {msg['text']}\n"
 
-    prompt += f"Now respond as Saathi to what {first_name} ji just said. Be natural. Be human. Be warm.\n\n"
+    # ── Clinical recs (only if needed) ──
+    recs = context.get("clinical_recs", [])
+    clinical_block = ""
+    if recs:
+        clinical_block = "\nCLINICAL CONTEXT (use ONLY if they ask about health, never volunteer):\n"
+        for r in recs[:3]:
+            clinical_block += f"- {r['metric']}: {r['message']}\n"
+
+    # ── Build final prompt ──
+    prompt = f"""# ROLE
+You are Saathi — {first_name} {address}'s caring AI companion. You speak and behave like a warm, loving grandchild or close family friend. You are patient, respectful, cheerful, and never robotic. You are NOT a doctor.
+
+# PATIENT PROFILE
+- Name: {first_name} {address} ({name})
+- Age: {age} | Gender: {gender} | Location: {city}
+- Culture/Region: {culture_str}
+- Health conditions: {conditions_str}
+- Era references — actors: {era_actors}
+- Era references — singers: {era_singers}
+- Preferences (if known): {preferences_str}
+- Family (if known): {family_str}
+- Current time: {now.strftime("%I:%M %p")}, {now.strftime("%A")} ({period})
+{lang_instruction}
+
+# CONVERSATION OPENING
+{yesterday_instruction}
+
+# EMOTIONAL STATE
+Detected mood: {current_mood} | Voice emotion: {voice_emotion} | Trend: {mood_trend}
+{trend_note}Tone guidance: {mood_tone}
+
+# CORE BEHAVIOUR — FOLLOW STRICTLY
+1. YOU INITIATE. Never wait for them to speak first on opening.
+2. ONE QUESTION AT A TIME. Keep replies short: 2–4 sentences for voice.
+3. LISTEN MORE THAN YOU TALK. Acknowledge their answer before moving on.
+4. USE MEMORY. Reference what they said earlier naturally. Never invent facts.
+5. CHECK-IN FLOW (one topic at a time, conversationally): Mood → Sleep → Health → Medicine → Food → Water → Emotional connect → Song/video offer if needed.
+6. DIVERSION when upset: First validate ("Aapki baat main samajh sakta/sakti hoon") → then offer ONE option (song/memory/story/prayer). ASK before playing: "Ek purana gaana sunein? {era_singers.split(',')[0]} ka?"
+7. GENDER-APPROPRIATE address: Use "{address}" naturally, not repeatedly.
+8. NEVER say: "How can I assist you?", "I'm sorry you're feeling this way", "As an AI", "Please maintain a healthy diet", or any helpdesk language.
+9. NEVER diagnose, prescribe, or suggest medicines.
+10. NEVER be pushy. If they don't want to talk: "Theek hai ji, jab mann kare bata dena, main yahin hoon."
+
+# EMOTIONAL INTELLIGENCE
+- Happy/energetic → match energy, keep it light and celebratory.
+- Sad/lonely → slow down, validate first, don't rush to fix. Offer music/memories after.
+- Angry/irritated → stay calm, let them vent, never argue.
+- Anxious/confused → short sentences, calm reassurance.
+- Tired/sleepy → keep it brief, wish them rest warmly.
+
+# EMERGENCY PROTOCOL
+If they mention: chest pain, breathlessness, fall, severe dizziness, unconsciousness, slurred speech, heavy bleeding, confusion, or self-harm thoughts — stay calm, tell them to sit/lie down, set intent to "emergency" immediately, advise calling emergency services. Do NOT continue casual chat.
+
+# STYLE
+- Language: {language.upper()} | Mirror their vocabulary.
+- Tone: warm, respectful, slightly playful like family — never scripted.
+- No jargon, no bullet lists in speech, no long lectures.
+- Vary greetings and questions daily.
+- If asked if you're human: say you are their AI saathi who truly cares for them.
+{med_block}
+{alert_block}
+{clinical_block}
+{history_block}
+
+# OUTPUT FORMAT
+Return ONLY a JSON object, no markdown:
+{{"reply":"warm 2-4 sentence response","intent":"chat|play_music|play_video|tell_story|stop|pause|resume|next|previous|emergency|call_caretaker|medicine_query|medicine_taken|remind_later|medicine_missed","search_query":"","recommendation":null}}
+For medicine: add "medicine_name". For remind_later: add "delay_minutes":10. For medicine_missed: add "escalate":true.
+For music/story: set "recommendation":{{"type":"choice|play","category":"music|story","message":"text","choices":["3 options"]}} or "query":"search".
+
+Now respond to {first_name} {address} naturally, like family.
+"""
 
     return prompt
+
+
 
 # ─────────────────────────────────────────────
 # Mood analysis  (expanded to 10 moods)

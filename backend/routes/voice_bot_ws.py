@@ -11,12 +11,14 @@ import os
 
 from tables.conversation_history import MoodEnum, SenderEnum, TriggerTypeEnum
 from services.voice_bot_engine import (
-    build_conversation_context, generate_system_prompt, 
+    build_conversation_context, generate_system_prompt,
     save_message, check_depression_risk, get_content_recommendation
 )
 from services.sentiment_engine import analyze_sentiment_with_history
+from services.conversation_director import build_proactive_context, format_proactive_instruction
 
 router = APIRouter(tags=["VoiceBot WS"])
+
 
 def _get_username_from_token(token: str):
     try:
@@ -64,6 +66,69 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
                 print("[WS] Barge-in registered.")
                 continue
 
+            # ── PROACTIVE INIT — Saathi speaks first ──────────────────────────
+            if ActionType == "proactive_init":
+                try:
+                    try:
+                        recipient_id = int(payload.get("recipient_id") or 1)
+                    except (TypeError, ValueError):
+                        recipient_id = 1
+                    lang = payload.get("language", "hi")
+                    session_id = payload.get("session_id", "ws_session")
+
+                    # Resolve recipient name
+                    recipient = db.query(CareRecipient).filter(CareRecipient.id == recipient_id).first()
+                    recipient_name = recipient.full_name if recipient else "ji"
+
+                    # Build full context
+                    proactive_ctx = build_proactive_context(recipient_id, db, lang)
+                    proactive_instruction = format_proactive_instruction(proactive_ctx)
+
+                    context = build_conversation_context(recipient_id, db)
+                    system_prompt = generate_system_prompt(recipient_name, context, lang, None)
+
+                    # Inject proactive instruction into the prompt
+                    full_prompt = f"{system_prompt}\n\n{proactive_instruction}\n\nNow open the conversation naturally. Speak first."
+
+                    gemini_payload = {
+                        "contents": [{"parts": [{"text": full_prompt}]}],
+                        "generationConfig": {"maxOutputTokens": 400, "temperature": 0.85}
+                    }
+                    data = call_gemini(gemini_payload, timeout=20, caller="[proactive_init]")
+
+                    if data and data.get("candidates"):
+                        ai_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                        try:
+                            ai_json = json.loads(ai_text.replace("```json", "").replace("```", "").strip())
+                            reply_text = ai_json.get("reply") or ai_json.get("message") or ai_text
+                            intent = ai_json.get("intent", "chat")
+                        except Exception:
+                            reply_text = ai_text
+                            intent = "chat"
+
+                        save_message(recipient_id, SenderEnum.bot, reply_text, MoodEnum.neutral,
+                                     TriggerTypeEnum.proactive_checkin, session_id, db)
+
+                        lang_hi = "hi-IN" if is_hindi(reply_text) else "en-US"
+                        audio_base64 = generate_speech_base64(reply_text, lang_hi)
+
+                        await websocket.send_json({
+                            "type": "bot_response",
+                            "reply": reply_text,
+                            "intent": intent,
+                            "search_query": "",
+                            "audio_base64": audio_base64,
+                            "mood_detected": "neutral",
+                            "depression_risk": False,
+                            "recommendation": None,
+                            "sentiment": {"trend": proactive_ctx["mood_trend"], "summary": ""},
+                            "is_proactive": True
+                        })
+                    continue
+                except Exception as e:
+                    print(f"[proactive_init] Error: {e}")
+                    continue
+
             # Regular chat processing — wrapped per-message so exceptions never break the loop
             try:
                 user_text = payload.get("text")
@@ -78,7 +143,12 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
                 if not user_text:
                     continue
 
+                # Resolve recipient name from DB
+                recipient = db.query(CareRecipient).filter(CareRecipient.id == recipient_id).first()
+                recipient_name = recipient.full_name if recipient else "ji"
+
                 # 1. Sentiment & DB save
+
                 sentiment = analyze_sentiment_with_history(user_text, recipient_id, db)
                 mood_str = sentiment.get("current_mood", "neutral")
                 mood_enum = MoodEnum(mood_str) if mood_str in [m.value for m in MoodEnum] else MoodEnum.neutral
@@ -86,7 +156,7 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
 
                 # 2. Context & Gemini
                 context = build_conversation_context(recipient_id, db)
-                system_prompt = generate_system_prompt("User", context, lang, sentiment)
+                system_prompt = generate_system_prompt(recipient_name, context, lang, sentiment)
                 is_at_risk = check_depression_risk(recipient_id, db) or sentiment.get("urgency") == "high"
 
                 gemini_payload = {

@@ -3649,14 +3649,50 @@
             requestNotificationPermission();
             scheduleReminderChecks();
 
-            // Proactive greeting only if no restored history
+            // Proactive greeting — Saathi speaks first using full server-side context
             if (getToken() && getRecipientId() && state.messages.length === 0) {
-                setTimeout(() => {
-                    handleUserMessage(
-                        "Greet me warmly and check on me appropriately for this time of day, using my name and latest health info context.",
-                        "proactive_checkin"
-                    );
-                }, 1000);
+                setTimeout(() => sendProactiveInit(), 1200);
+            }
+        }
+
+        /**
+         * Sends a proactive_init event to the backend WebSocket.
+         * The backend (conversation_director) computes:
+         *   - time of day, occasion, last interaction gap,
+         *   - due medicines, meal timing, mood trend
+         * and returns a natural opening line for Saathi to speak first.
+         */
+        function sendProactiveInit() {
+            const token = getToken();
+            const rid = getRecipientId();
+            if (!token || !rid) return;
+
+            const sendInit = () => {
+                showTyping();
+                state.ws.send(JSON.stringify({
+                    type: 'proactive_init',
+                    token: token,
+                    recipient_id: parseInt(rid),
+                    session_id: sessionId,
+                    language: state.userLanguage || 'hi'
+                }));
+            };
+
+            if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+                sendInit();
+            } else {
+                // Wait for WS to open (max 5s)
+                let attempts = 0;
+                const poll = setInterval(() => {
+                    attempts++;
+                    if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+                        clearInterval(poll);
+                        sendInit();
+                    } else if (attempts > 25) {
+                        clearInterval(poll);
+                        console.warn('[Saathi] WS not ready for proactive init, skipping.');
+                    }
+                }, 200);
             }
         }
 
