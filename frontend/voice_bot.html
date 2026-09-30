@@ -3563,29 +3563,28 @@
             state.ws.onopen = () => {
                 console.log("[WS] Connected to Voice Bot engine");
                 const token = getToken();
-                const rid   = getRecipientId() || "1";   // fallback so it never silently skips
+                const rid   = getRecipientId() || "1";
 
                 if (!token) { console.warn("[WS] No token — cannot auth"); return; }
 
-                // ── Step 1: Authenticate ─────────────────────────────────────────────
-                state.ws.send(JSON.stringify({ type: "auth", token }));
-
-                // ── Step 2: Proactive greeting (once per page load, not on reconnects) ─
                 if (!state.proactiveSent) {
+                    // ── FIRST OPEN: auth + proactive greeting in ONE message ──────────
                     state.proactiveSent = true;
-                    console.log("[Saathi] Sending proactive_init...");
-                    // proactive_init includes token so backend auth+init in one pass
+                    console.log("[Saathi] Initiating conversation...");
+                    showTyping();
                     state.ws.send(JSON.stringify({
-                        type: "proactive_init",
+                        type: "proactive_init",   // token inside → backend auths + responds
                         token,
                         recipient_id: parseInt(rid),
                         session_id: sessionId,
                         language: state.userLanguage || "hi"
                     }));
-                    showTyping();
+                } else {
+                    // ── RECONNECT: just re-authenticate (no greeting repeat) ──────────
+                    state.ws.send(JSON.stringify({ type: "auth", token }));
                 }
 
-                // ── Step 3: Flush any pending queued message ──────────────────────────
+                // Flush any pending message queued while WS was connecting
                 if (state._pendingWsMsg) {
                     const { text, lang, rid: pendingRid } = state._pendingWsMsg;
                     state._pendingWsMsg = null;
