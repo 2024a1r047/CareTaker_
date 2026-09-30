@@ -174,12 +174,12 @@ def build_proactive_context(recipient_id, db, language="hi"):
 
 def format_proactive_instruction(ctx):
     lines = []
-    name = ctx["first_name"]
-    period = ctx["time_period"]
-    gap = ctx["days_gap"]
-
+    name = ctx.get("first_name", "")
+    period = ctx.get("time_period", "")
+    inactive_24h = ctx.get("inactive_24h", False)
+    
     lines.append("=== PROACTIVE OPENING CONTEXT ===")
-    lines.append(f"Time: {ctx['current_time_str']}, {ctx['day_name']} ({period})")
+    lines.append(f"Time: {ctx.get('current_time_str', '')}, {ctx.get('day_name', '')} ({period})")
 
     if ctx.get("occasion"):
         occ = ctx["occasion"]

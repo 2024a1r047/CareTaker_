@@ -75,15 +75,14 @@ def check_yesterday_engagement(recipient_id: int, db: Session) -> dict:
         ConversationMessage.created_at < today_start_utc
     ).order_by(desc(ConversationMessage.created_at)).first()
 
-    days_gap = 0
+    inactive_24h = False
+    last_interaction_available = False
+    
     if last_msg:
-        # Convert last message time to IST date for accurate gap
         last_ist = last_msg.created_at + ist_offset
-        last_date_ist = datetime(last_ist.year, last_ist.month, last_ist.day)
-        days_gap = (today_start_ist - last_date_ist).days
-
-    # Only flag as skipped if user genuinely missed >= 24 hours (i.e. yesterday or earlier)
-    skipped_day = days_gap >= 1 and last_msg is not None
+        elapsed_hours = (now_ist - last_ist).total_seconds() / 3600
+        inactive_24h = elapsed_hours >= 24
+        last_interaction_available = True
 
     # Time-of-day greeting strings (IST hour)
     hour_ist = now_ist.hour
@@ -103,9 +102,8 @@ def check_yesterday_engagement(recipient_id: int, db: Session) -> dict:
     return {
         "count": count,
         "words": words,
-        "days_gap": days_gap,
-        "did_not_talk_enough": skipped_day,
-        "skipped_day": skipped_day,
+        "inactive_24h": inactive_24h,
+        "last_interaction_available": last_interaction_available,
         "yesterday_date": yesterday_start_ist.strftime("%Y-%m-%d"),
         "time_greeting_hi": time_greeting_hi,
         "time_greeting_en": time_greeting_en,
@@ -307,10 +305,11 @@ def generate_system_prompt(name: str, context: dict, language: str = "en", senti
         trend_note = "✨ Their mood has been improving — celebrate that with them!\n"
 
     # ── Yesterday / gap follow-up block ──
-    inactive_24h = context.get("inactive_24h", False)
-    last_interaction_available = context.get("last_interaction_available", True)
-    time_greeting_hi = context.get("time_greeting_hi", "नमस्ते")
-    time_greeting_en = context.get("time_greeting_en", "Hello")
+    yesterday_eng = context.get("yesterday_engagement", {})
+    inactive_24h = yesterday_eng.get("inactive_24h", False)
+    last_interaction_available = yesterday_eng.get("last_interaction_available", True)
+    time_greeting_hi = yesterday_eng.get("time_greeting_hi", "नमस्ते")
+    time_greeting_en = yesterday_eng.get("time_greeting_en", "Hello")
 
     now = datetime.now()
     period = "morning" if 5 <= now.hour < 12 else "afternoon" if 12 <= now.hour < 17 else "evening" if 17 <= now.hour < 21 else "night"
