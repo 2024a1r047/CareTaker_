@@ -307,16 +307,23 @@ def generate_system_prompt(name: str, context: dict, language: str = "en", senti
         trend_note = "✨ Their mood has been improving — celebrate that with them!\n"
 
     # ── Yesterday / gap follow-up block ──
-    yesterday_eng = context.get("yesterday_engagement", {})
-    did_not_talk_yesterday = yesterday_eng.get("skipped_day", False)
-    days_gap = yesterday_eng.get("days_gap", 1)
-    time_greeting_hi = yesterday_eng.get("time_greeting_hi", "नमस्ते")
-    time_greeting_en = yesterday_eng.get("time_greeting_en", "Hello")
+    inactive_24h = context.get("inactive_24h", False)
+    last_interaction_available = context.get("last_interaction_available", True)
+    time_greeting_hi = context.get("time_greeting_hi", "नमस्ते")
+    time_greeting_en = context.get("time_greeting_en", "Hello")
 
     now = datetime.now()
     period = "morning" if 5 <= now.hour < 12 else "afternoon" if 12 <= now.hour < 17 else "evening" if 17 <= now.hour < 21 else "night"
 
-    yesterday_instruction = f"""
+    if inactive_24h and last_interaction_available:
+        yesterday_instruction = f"""
+IMPORTANT — PROACTIVE INITIATION:
+YOU MUST SPEAK FIRST. Open with exactly this natural style based on the time:
+"Kal aapse baat nahi hui thi. Sab theek tha na?"
+Keep it warm and natural. Do NOT mention how many days it has been since the last conversation.
+"""
+    else:
+        yesterday_instruction = f"""
 IMPORTANT — PROACTIVE INITIATION:
 YOU MUST SPEAK FIRST. Open with exactly this natural style based on the time:
 "{time_greeting_en}! ☀️ Aap kaise hain? Aapne khana khaya? Apni dawaiyan li?"
@@ -365,7 +372,7 @@ You are Saathi — {first_name} {address}'s caring AI companion. You speak and b
 11. DO NOT OVER-EMPATHIZE: Don't make every response highly emotional. Keep casual things casual.
 12. NATURAL INTERRUPTIONS / HUMAN RHYTHM: Use occasional natural starters ("Hmm...", "Achha...", "Ohh..."). Do not start every response with them.
 13. DO NOT REPEAT THE SAME RESPONSE PATTERN: Vary sentence structure naturally. Avoid repetitive "Kaise hain aap?".
-14. PROACTIVE CONVERSATION: Initiate conversation naturally. Wait for the answer. Do NOT falsely claim personal feelings like "Mujhe aapki yaad aa rahi thi". NEVER show incorrect inactivity durations like "999 days". If they have been away, just assume 24 hours.
+14. PROACTIVE CONVERSATION: Initiate conversation naturally. Wait for the answer. Do NOT falsely claim personal feelings like "Mujhe aapki yaad aa rahi thi".
 15. TIME-AWARE GREETINGS: Use current local time naturally (e.g., "Good morning! Aaj kaise hain?"). Vary the greetings daily.
 16. SPEAKING STYLE (VOICE AI): Write exactly as a person would SPEAK. Avoid complicated sentences, unnecessary punctuation, or long lists.
 17. FINAL RESPONSE RULE: Before generating, silently consider: What did they just say? What emotion? What was discussed? What would a caring human say next? Then generate ONLY the conversational response.

@@ -59,11 +59,11 @@ def _last_interaction_gap(recipient_id, db):
     ).order_by(desc(ConversationMessage.created_at)).first()
 
     if not last:
-        return {"days_gap": 0, "last_snippet": "", "skipped": False, "is_new": True}
+        return {"inactive_24h": False, "last_interaction_available": False, "last_snippet": "", "is_new": True}
 
     last_ist = last.created_at + ist_offset
-    last_date = datetime(last_ist.year, last_ist.month, last_ist.day).date()
-    gap = (today_ist.date() - last_date).days
+    elapsed_hours = (now_ist - last_ist).total_seconds() / 3600
+    inactive_24h = elapsed_hours >= 24
 
     recent = db.query(ConversationMessage).filter(
         ConversationMessage.care_recipient_id == recipient_id,
@@ -72,7 +72,7 @@ def _last_interaction_gap(recipient_id, db):
     ).order_by(ConversationMessage.created_at).limit(4).all()
 
     snippet = " | ".join(m.message_text[:60] for m in recent)
-    return {"days_gap": gap, "last_snippet": snippet[:200], "skipped": gap >= 1, "is_new": False}
+    return {"inactive_24h": inactive_24h, "last_interaction_available": True, "last_snippet": snippet[:200], "is_new": False}
 
 
 def _due_medicine(recipient_id, db, hour):
@@ -159,9 +159,9 @@ def build_proactive_context(recipient_id, db, language="hi"):
         "current_time_str": now.strftime("%I:%M %p"),
         "day_name": now.strftime("%A"),
         "first_name": first_name,
-        "days_gap": gap_info["days_gap"],
+        "inactive_24h": gap_info["inactive_24h"],
+        "last_interaction_available": gap_info["last_interaction_available"],
         "last_snippet": gap_info["last_snippet"],
-        "skipped_yesterday": gap_info["skipped"],
         "is_new": gap_info.get("is_new", False),
         "occasion": occasion,
         "medicine_due": med_due,
