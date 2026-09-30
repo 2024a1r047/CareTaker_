@@ -329,11 +329,17 @@ After they reply, analyze their emotion carefully and respond accordingly.
         yesterday_instruction = f"OPENING: {last_topic}"
 
     # ── Language instruction ──
-    lang_instruction = (
-        "LANGUAGE: Match the user's speaking style. If they speak Hindi, reply in natural Hinglish (Hindi + English mix). "
-        "If they speak English, reply in natural English. Do not overuse Hindi or English. "
-        "Use 'आप' but do NOT use 'जी' (ji) in every sentence. Use 'ji' occasionally and naturally, not repetitively."
-    )
+    if language == "hi" or "india" in culture_str.lower():
+        lang_instruction = (
+            "LANGUAGE: The user is Indian and prefers Hindi. You MUST reply in warm, natural Hindi (using Devanagari script). "
+            "Use natural Hinglish (Hindi + English mix) where it feels conversational, but the primary language must be Hindi. "
+            "Use 'आप', but do NOT use 'जी' (ji) in every sentence. Use 'ji' occasionally. You have a female voice, so use feminine grammar (e.g. 'मैं समझ सकती हूँ')."
+        )
+    else:
+        lang_instruction = (
+            "LANGUAGE: Match the user's speaking style in natural English. "
+            "Use 'आप' but do NOT use 'जी' (ji) in every sentence. Use 'ji' occasionally and naturally, not repetitively."
+        )
 
     # ── Medicine block ──
     med_block = ""

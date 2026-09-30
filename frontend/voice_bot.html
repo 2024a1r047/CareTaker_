@@ -1195,10 +1195,11 @@
 
         function getBestHindiVoice() {
             const v = synth.getVoices();
-            return v.find(x => x.lang === 'hi-IN' || x.lang.startsWith('hi'))
-                || v.find(x => x.name.includes('Heera'))
-                || v.find(x => x.name.includes('Kalpana'))
-                || v.find(x => x.name.toLowerCase().includes('hindi'))
+            return v.find(x => x.name.includes('Google हिन्दी')) // Android/Chrome female
+                || v.find(x => x.name.includes('Kalpana'))       // Windows female
+                || v.find(x => x.name.includes('Lekha'))         // macOS female
+                || v.find(x => x.lang === 'hi-IN' && x.name.toLowerCase().includes('female'))
+                || v.find(x => x.lang === 'hi-IN' || x.lang.startsWith('hi'))
                 || null;
         }
 
