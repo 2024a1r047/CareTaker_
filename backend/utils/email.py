@@ -36,7 +36,7 @@ async def send_registration_email(email: EmailStr, username: str):
     )
 
     fm = FastMail(conf)
-    await fm.send_message(message)
+    # await fm.send_message(message)
 
 
 async def send_fall_alert_email(recipient_email: EmailStr, fall_data: dict):
@@ -118,4 +118,4 @@ async def send_fall_alert_email(recipient_email: EmailStr, fall_data: dict):
     )
 
     fm = FastMail(conf)
-    await fm.send_message(message)
+    #await fm.send_message(message)

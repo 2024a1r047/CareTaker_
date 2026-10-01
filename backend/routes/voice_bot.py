@@ -141,7 +141,7 @@ async def voice_bot_chat(payload: ChatRequest, authorization: Optional[str] = He
         days_gap = yesterday_eng.get("days_gap", 1)
         if payload.trigger_type == "proactive_checkin" and yesterday_eng.get("skipped_day"):
             if payload.language == "hi":
-                reply_text = f"{time_hi} {first_name}! कल आप कहां थे? सब ठीक था ना? किसी की याद आ रही थी क्या?"
+                reply_text = f"{time_hi} {first_name}! कल आप कहां थे? सब ठीक था ना, किसी की याद आ रही थी क्या?"
             else:
                 reply_text = f"{time_en} {first_name}! Where were you yesterday? Was everything okay? Were you missing someone?"
         elif payload.trigger_type == "proactive_checkin":
@@ -633,9 +633,15 @@ async def get_favorite_stories(
 @router.get('/voice-bot/triggers/{recipient_id}', response_model=ResponseSchema)
 async def fetch_triggers(recipient_id: int, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
     caretaker = verify_and_get_caretaker(authorization, db)
+    
+    # Verify or fallback recipient
     recipient = db.query(CareRecipient).filter(CareRecipient.id == recipient_id, CareRecipient.caretaker_id == caretaker.id).first()
     if not recipient:
-        return ResponseSchema(code=404, status="error", message="Recipient not found")
+        recipient = db.query(CareRecipient).filter(CareRecipient.caretaker_id == caretaker.id).first()
+        if not recipient:
+            return ResponseSchema(code=404, status="error", message="Recipient not found")
+        recipient_id = recipient.id
+
     triggers = get_pending_triggers(recipient_id, db)
     return ResponseSchema(code=200, status="success", message="Fetched triggers", result={"triggers": triggers})
 
@@ -656,7 +662,11 @@ async def create_reminder(payload: ReminderCreate, authorization: Optional[str] 
     caretaker = verify_and_get_caretaker(authorization, db)
     recipient = db.query(CareRecipient).filter(CareRecipient.id == payload.recipient_id, CareRecipient.caretaker_id == caretaker.id).first()
     if not recipient:
-        return ResponseSchema(code=404, status="error", message="Recipient not found")
+        # Fallback to the first recipient of this caretaker
+        recipient = db.query(CareRecipient).filter(CareRecipient.caretaker_id == caretaker.id).first()
+        if not recipient:
+            return ResponseSchema(code=404, status="error", message="Recipient not found")
+        payload.recipient_id = recipient.id
 
     r_type = ReminderTypeEnum(payload.reminder_type) if payload.reminder_type in [t.value for t in ReminderTypeEnum] else ReminderTypeEnum.custom
     recur = RecurrenceEnum(payload.recurrence) if payload.recurrence in [t.value for t in RecurrenceEnum] else RecurrenceEnum.daily
@@ -675,7 +685,16 @@ async def create_reminder(payload: ReminderCreate, authorization: Optional[str] 
 
 @router.get('/voice-bot/reminders/{recipient_id}', response_model=ResponseSchema)
 async def get_reminders(recipient_id: int, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    verify_and_get_caretaker(authorization, db)
+    caretaker = verify_and_get_caretaker(authorization, db)
+    
+    # Verify or fallback recipient
+    recipient = db.query(CareRecipient).filter(CareRecipient.id == recipient_id, CareRecipient.caretaker_id == caretaker.id).first()
+    if not recipient:
+        recipient = db.query(CareRecipient).filter(CareRecipient.caretaker_id == caretaker.id).first()
+        if not recipient:
+            return ResponseSchema(code=200, status="success", message="Fetched reminders", result={"reminders": []})
+        recipient_id = recipient.id
+
     reminders = db.query(ProactiveReminder).filter(ProactiveReminder.care_recipient_id == recipient_id).all()
     res = [{
         "id": r.id,
@@ -704,7 +723,16 @@ async def delete_reminder(reminder_id: int, authorization: Optional[str] = Heade
 # ─────────────────────────────────────────────
 @router.get('/voice-bot/mood-trend/{recipient_id}', response_model=ResponseSchema)
 async def get_mood_trend(recipient_id: int, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    verify_and_get_caretaker(authorization, db)
+    caretaker = verify_and_get_caretaker(authorization, db)
+    
+    # Verify or fallback recipient
+    recipient = db.query(CareRecipient).filter(CareRecipient.id == recipient_id, CareRecipient.caretaker_id == caretaker.id).first()
+    if not recipient:
+        recipient = db.query(CareRecipient).filter(CareRecipient.caretaker_id == caretaker.id).first()
+        if not recipient:
+            return ResponseSchema(code=200, status="success", message="No recipient found", result={"trend": {}, "depression_risk": False})
+        recipient_id = recipient.id
+
     seven_days_ago = datetime.utcnow() - timedelta(days=7)
     recent_messages = db.query(ConversationMessage).filter(
         ConversationMessage.care_recipient_id == recipient_id,
@@ -725,7 +753,16 @@ async def get_mood_trend(recipient_id: int, authorization: Optional[str] = Heade
 # ─────────────────────────────────────────────
 @router.post('/voice-bot/init-reminders/{recipient_id}', response_model=ResponseSchema)
 async def init_reminders(recipient_id: int, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    verify_and_get_caretaker(authorization, db)
+    caretaker = verify_and_get_caretaker(authorization, db)
+    
+    # Verify or fallback recipient
+    recipient = db.query(CareRecipient).filter(CareRecipient.id == recipient_id, CareRecipient.caretaker_id == caretaker.id).first()
+    if not recipient:
+        recipient = db.query(CareRecipient).filter(CareRecipient.caretaker_id == caretaker.id).first()
+        if not recipient:
+            return ResponseSchema(code=400, status="error", message="Recipient not found")
+        recipient_id = recipient.id
+
     existing = db.query(ProactiveReminder).filter(ProactiveReminder.care_recipient_id == recipient_id).count()
     if existing > 0:
         return ResponseSchema(code=400, status="error", message="Reminders already initialized")

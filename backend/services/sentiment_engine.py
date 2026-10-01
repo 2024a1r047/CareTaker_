@@ -180,16 +180,52 @@ def analyze_sentiment_with_history(
     stability = _compute_stability(stored_moods)
     dominant = _dominant_mood(stored_moods)
 
-    # 3. Gemini deep analysis — sends history + current message
-    api_key = os.environ.get('GEMINI_API_KEY')
+    # 3. FAST PATH: Try local keyword-based mood detection first
+    local_mood = "neutral"
+    local_confidence = 0.3
+    text_lower = current_text.lower()
+    
+    if any(kw in text_lower for kw in ["sad", "udaas", "dukhi", "cry", "rona", "dard", "hurt", "pain", "takleef", "pareshan"]):
+        local_mood = "sad"
+        local_confidence = 0.8
+    elif any(kw in text_lower for kw in ["khush", "happy", "badhiya", "mast", "great", "mazza", "good mood"]):
+        local_mood = "happy"
+        local_confidence = 0.8
+    elif any(kw in text_lower for kw in ["akela", "lonely", "yaad", "miss", "alone"]):
+        local_mood = "lonely"
+        local_confidence = 0.8
+    elif any(kw in text_lower for kw in ["bore", "boring", "kya karun", "time pass"]):
+        local_mood = "bored"
+        local_confidence = 0.8
+    elif any(kw in text_lower for kw in ["ghabra", "anxious", "nervous", "dar", "tension", "scared", "worry"]):
+        local_mood = "anxious"
+        local_confidence = 0.8
+    elif any(kw in text_lower for kw in ["gussa", "angry", "naraz", "irritat", "annoyed", "frustrated"]):
+        local_mood = "angry"
+        local_confidence = 0.8
 
     gemini_result = None
-    if api_key and (history_snippets or current_text) and _sentiment_gemini_allowed():
-        history_text = "\n".join(
-            [f"  [{i+1}] (mood={h['mood']}) \"{h['text']}\"" for i, h in enumerate(history_snippets)]
-        ) or "  (no prior messages)"
+    if local_confidence >= 0.7:
+        gemini_result = {
+            "current_mood": local_mood,
+            "dominant_mood": dominant,
+            "trend": trend,
+            "stability_score": float(stability),
+            "recommended_action": _recommend_action(local_mood, trend, "low"),
+            "urgency": "low",
+            "summary": "",
+            "confidence": local_confidence
+        }
+    else:
+        # 4. Gemini deep analysis — sends history + current message
+        api_key = os.environ.get('GEMINI_API_KEY')
 
-        prompt = f"""You are analyzing the emotional state of an elderly user for a care assistant.
+        if api_key and (history_snippets or current_text) and _sentiment_gemini_allowed():
+            history_text = "\n".join(
+                [f"  [{i+1}] (mood={h['mood']}) \"{h['text']}\"" for i, h in enumerate(history_snippets)]
+            ) or "  (no prior messages)"
+
+            prompt = f"""You are analyzing the emotional state of an elderly user for a care assistant.
 
 Recent conversation history (chronological, user messages only):
 {history_text}
@@ -201,23 +237,23 @@ Respond with EXACTLY ONE JSON object and NO OTHER TEXT. No markdown, no code fen
 {{"current_mood":"happy|sad|anxious|angry|neutral|distressed|lonely|bored|relaxed|spiritual","dominant_mood":"same options","trend":"improving|worsening|stable","stability_score":0.0,"recommended_action":"music|story|conversation|reminder|alert","urgency":"low|medium|high","summary":"Short Hinglish summary max 10 words","confidence":0.0}}
 """
 
-        try:
-            data = call_gemini(
-                {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.1, "maxOutputTokens": 200}},
-                timeout=10, caller="[sentiment_engine]"
-            )
-            if data and data.get("candidates"):
-                raw = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-                gemini_result = safe_json_parse(raw)
-                if not gemini_result:
-                    gemini_result = _partial_json_extract(raw)
-                if not gemini_result:
-                    print(f"[sentiment_engine] JSON parse failed: {raw[:100]}")
-            else:
+            try:
+                data = call_gemini(
+                    {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.1, "maxOutputTokens": 200}},
+                    timeout=10, caller="[sentiment_engine]"
+                )
+                if data and data.get("candidates"):
+                    raw = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                    gemini_result = safe_json_parse(raw)
+                    if not gemini_result:
+                        gemini_result = _partial_json_extract(raw)
+                    if not gemini_result:
+                        print(f"[sentiment_engine] JSON parse failed: {raw[:100]}")
+                else:
+                    _sentiment_gemini_fail()
+            except Exception as e:
+                print(f"[sentiment_engine] Gemini error: {e}")
                 _sentiment_gemini_fail()
-        except Exception as e:
-            print(f"[sentiment_engine] Gemini error: {e}")
-            _sentiment_gemini_fail()
 
     # 4. Merge Gemini result with local computation
     if gemini_result:

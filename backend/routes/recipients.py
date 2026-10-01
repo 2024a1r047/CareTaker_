@@ -753,9 +753,26 @@ async def get_patient_insights(
         raise HTTPException(status_code=500, detail=f"Insights generation failed: {str(e)}")
 
 
-# ═══════════════════════════════════════════════════════════════════════
-#  CARE-RECIPIENT FULL PROFILE (v3)
-# ═══════════════════════════════════════════════════════════════════════
+@router.get("/recipients")
+@router.get("/care-recipients")
+async def list_care_recipients(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    username = _get_username_from_auth(authorization)
+    if not username:
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+    caretaker = UsersRepo.find_by_username(db, CareTaker, username)
+    if not caretaker:
+        raise HTTPException(status_code=404, detail="User not found")
+    recipients = db.query(CareRecipient).filter(CareRecipient.caretaker_id == caretaker.id).all()
+    return [
+        {
+            "id": r.id,
+            "full_name": r.full_name,
+            "name": r.full_name,
+            "age": r.age,
+            "gender": r.gender.value if r.gender else None,
+            "risk_score": r.risk_score
+        } for r in recipients
+    ]
 
 @router.get("/care-recipients/{recipient_id}/profile")
 async def get_care_recipient_profile(
@@ -962,8 +979,30 @@ async def get_care_recipient_profile(
         } for a in alerts_raw
     ]
 
+    # Caretaker Account Info
+    caretaker_info = {
+        "id": caretaker.id,
+        "full_name": caretaker.full_name or caretaker.username,
+        "username": caretaker.username,
+        "email": caretaker.email or "",
+        "phone_number": caretaker.phone_number or ""
+    }
+
+    # All assigned recipients for switching
+    all_recipients_raw = db.query(CareRecipient).filter(CareRecipient.caretaker_id == caretaker.id).all()
+    all_recipients = [
+        {
+            "id": r.id,
+            "name": r.full_name,
+            "age": r.age,
+            "gender": r.gender.value if r.gender else None
+        } for r in all_recipients_raw
+    ]
+
     return {
         "status": "success",
+        "caretaker": caretaker_info,
+        "recipients": all_recipients,
         "general_info": general_info,
         "conditions": active_conditions,
         "medical_history": medical_history,

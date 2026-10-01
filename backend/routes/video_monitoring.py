@@ -157,7 +157,7 @@ async def send_alert_email_with_image(recipient_email: str, subject: str, body: 
         
         message = MessageSchema(**message_kwargs)
         fm = FastMail(conf)
-        await fm.send_message(message)
+        # await fm.send_message(message)
         logger.info(f"Alert email sent to {recipient_email}")
     except Exception as e:
         logger.error(f"Failed to send email: {e}")

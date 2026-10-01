@@ -10,9 +10,16 @@ Input shape : (batch, 64, 101, 1)   — 64 mel bands × ~101 time frames
 Output shape: (batch, 4)            — softmax over [Cough, Sneeze, Talking, Noise]
 """
 
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
+try:
+    import tensorflow as tf
+    from tensorflow import keras
+    from tensorflow.keras import layers
+    HAS_TF = True
+except ImportError:
+    HAS_TF = False
+    tf = None
+    keras = None
+    layers = None
 
 
 def _conv_block(x, filters, kernel=(3, 3), pool=(2, 2)):
@@ -42,27 +49,8 @@ def _residual_block(x, filters):
 
 
 def build_model(input_shape=(64, 101, 1), num_classes=4):
-    """
-    Build a CRNN (CNN + RNN) classifier optimised for speed and accuracy.
-
-    Key design choices:
-    - SeparableConv2D: 6-9× faster than standard Conv2D, same accuracy
-    - Residual connections: better gradient flow, converges faster
-    - Bidirectional GRU: captures forward+backward temporal patterns
-      (cough onset, sneeze "hiss" → burst)
-    - Compact head: minimal fully-connected layers to keep latency low
-
-    Parameters
-    ----------
-    input_shape : tuple
-        Shape of one spectrogram frame (mel_bands, time_steps, channels).
-    num_classes : int
-        Number of output classes (default 4).
-
-    Returns
-    -------
-    keras.Model
-    """
+    if not HAS_TF:
+        raise RuntimeError("TensorFlow is not installed. CRNN model is disabled.")
     inp = layers.Input(shape=input_shape, name="mel_input")
 
     # ── CNN Feature Extractor ───────────────────────────────────────

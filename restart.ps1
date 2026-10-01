@@ -9,12 +9,20 @@ if ($connections) {
     Write-Host "No processes found on ports 8000 or 3000." -ForegroundColor Gray
 }
 
+$projectRoot = $PSScriptRoot
+if (-not $projectRoot) { $projectRoot = Get-Location }
+
 # 2. Start Backend
 Write-Host "Starting Backend..." -ForegroundColor Cyan
-Start-Process cmd -ArgumentList '/k cd /d "C:\Users\ARYAN ANGRAL\Desktop\caretakerai\backend" && "venv\Scripts\activate.bat" && python main.py'
+Start-Process cmd -ArgumentList "/k cd /d ""$projectRoot\backend"" && python main.py"
 
 # 3. Start Frontend
 Write-Host "Starting Frontend..." -ForegroundColor Cyan
-Start-Process cmd -ArgumentList '/k cd /d "C:\Users\ARYAN ANGRAL\Desktop\caretakerai\frontend" && npm run dev'
+if (Get-Command npm -ErrorAction SilentlyContinue) {
+    Start-Process cmd -ArgumentList "/k cd /d ""$projectRoot\frontend"" && npm run dev"
+} else {
+    Start-Process cmd -ArgumentList "/k cd /d ""$projectRoot\frontend"" && python -m http.server 3000"
+}
 
 Write-Host "Project is restarting! Check the new windows for logs." -ForegroundColor Green
+

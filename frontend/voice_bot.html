@@ -1396,7 +1396,7 @@
 
         async function fetchReminders() {
             const token = getToken();
-            const rid = getRecipientId();
+            const rid = getRecipientId() || '1';
             if (!token || !rid) return;
             try {
                 const res = await fetch(`http://127.0.0.1:8000/api/voice-bot/reminders/${rid}`, {
@@ -1412,7 +1412,7 @@
 
         async function initDefaultReminders() {
             const token = getToken();
-            const rid = getRecipientId();
+            const rid = getRecipientId() || '1';
             if (!token || !rid || rid === 'null') return;
             await fetch(`http://127.0.0.1:8000/api/voice-bot/init-reminders/${rid}`, {
                 method: 'POST', headers: { 'Authorization': 'Bearer ' + token }
@@ -1422,10 +1422,20 @@
 
         async function addReminder(e) {
             e.preventDefault();
+            
+            // Initialize AudioContext to bypass autoplay restrictions for alarms
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                } else if (audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+            } catch (err) {}
+
             const text = document.getElementById('rem-text').value;
             const time = document.getElementById('rem-time').value;
             const token = getToken();
-            const rid = getRecipientId();
+            const rid = getRecipientId() || '1';
             await fetch(`http://127.0.0.1:8000/api/voice-bot/reminders`, {
                 method: 'POST',
                 headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
@@ -1453,27 +1463,81 @@
             }
         }
 
+        let reminderInterval = null;
+        let lastTriggeredTime = null; // Store string "HH:MM"
+
         function scheduleReminderChecks() {
-            setInterval(() => {
+            if (reminderInterval) clearInterval(reminderInterval);
+            reminderInterval = setInterval(() => {
                 const now = new Date();
                 const nowHH = String(now.getHours()).padStart(2, '0');
                 const nowMM = String(now.getMinutes()).padStart(2, '0');
                 const nowTime = `${nowHH}:${nowMM}`;
+                
+                if (nowTime === lastTriggeredTime) return; // Prevent triggering multiple times in the same minute
+                
+                let triggered = false;
                 state.reminders.forEach(r => {
+                    if (!r.is_active) return;
                     const rTime = (r.time || '').substring(0, 5);
                     if (rTime === nowTime) {
                         fireReminderAlert(r);
+                        triggered = true;
                     }
                 });
-            }, 60000);
+                
+                if (triggered) {
+                    lastTriggeredTime = nowTime;
+                }
+            }, 10000); // Check every 10 seconds
+        }
+
+        function playBeep() {
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+                const osc = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                osc.connect(gain);
+                gain.connect(audioContext.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, audioContext.currentTime);
+                gain.gain.setValueAtTime(0.1, audioContext.currentTime);
+                osc.start();
+                gain.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.5);
+                osc.stop(audioContext.currentTime + 0.5);
+            } catch (e) {
+                console.error("Audio beep failed:", e);
+            }
         }
 
         function fireReminderAlert(r) {
+            // Play alarm sound
+            playBeep();
+            setTimeout(playBeep, 600);
+            setTimeout(playBeep, 1200);
+
+            // Format spoken message based on reminder text
+            let spokenMsg = r.text;
+            const lowerText = r.text.toLowerCase();
+            if (lowerText.includes("drink water") || lowerText.includes("pani")) {
+                spokenMsg = "It's time to drink water. Please have some water.";
+            } else if (lowerText.includes("medicine") || lowerText.includes("dawai")) {
+                spokenMsg = "It's time to take your medicine. Please take your medicine now.";
+            } else {
+                spokenMsg = r.text + ". Your reminder time has arrived.";
+            }
+
             const msg = state.userLanguage === 'hi'
                 ? `🔔 याद दिलाना: ${r.text}`
                 : `🔔 Reminder: ${r.text}`;
             addUIMessage('bot', msg);
-            speak(msg);
+            speak(spokenMsg);
+            
             if ('Notification' in window && Notification.permission === 'granted') {
                 new Notification('CareTaker Reminder', {
                     body: r.text,

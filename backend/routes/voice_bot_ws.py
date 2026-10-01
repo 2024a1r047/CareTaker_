@@ -5,7 +5,7 @@ from config import get_db
 from models.users import ResponseSchema
 from tables.users import CareRecipient, CareTaker
 from repository.users import UsersRepo
-from utils.gemini_client import call_gemini
+from utils.gemini_client import call_gemini, safe_json_parse
 from utils.tts_handler import generate_speech_base64, is_hindi
 import os
 
@@ -78,10 +78,12 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
 
                     # Resolve recipient name
                     recipient = db.query(CareRecipient).filter(CareRecipient.id == recipient_id).first()
-                    recipient_name = recipient.full_name if recipient else "ji"
+                    recipient_name = recipient.full_name if recipient else ""
+                    name_part = f"{recipient_name} ji" if recipient_name else "ji"
 
                     # Build full context
                     proactive_ctx = build_proactive_context(recipient_id, db, lang)
+                    
                     proactive_instruction = format_proactive_instruction(proactive_ctx)
 
                     context = build_conversation_context(recipient_id, db)
@@ -96,35 +98,36 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
                     }
                     data = call_gemini(gemini_payload, timeout=20, caller="[proactive_init]")
 
+                    reply_text = f"Namaste {name_part}! Aaj kaise hain aap?"
+                    intent = "chat"
                     if data and data.get("candidates"):
                         ai_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
                         try:
-                            ai_json = json.loads(ai_text.replace("```json", "").replace("```", "").strip())
-                            reply_text = ai_json.get("reply") or ai_json.get("message") or ai_text
+                            ai_json = safe_json_parse(ai_text)
+                            reply_text = ai_json.get("reply") or ai_json.get("message") or reply_text
                             intent = ai_json.get("intent", "chat")
                         except Exception:
                             reply_text = ai_text
-                            intent = "chat"
 
-                        save_message(recipient_id, SenderEnum.bot, reply_text, MoodEnum.neutral,
-                                     TriggerTypeEnum.proactive_checkin, session_id, db)
+                    save_message(recipient_id, SenderEnum.bot, reply_text, MoodEnum.neutral,
+                                 TriggerTypeEnum.proactive_checkin, session_id, db)
 
-                        lang_hi = "hi-IN" if is_hindi(reply_text) else "en-US"
-                        audio_base64 = generate_speech_base64(reply_text, lang_hi)
+                    lang_hi = "hi-IN" if is_hindi(reply_text) else "en-US"
+                    audio_base64 = generate_speech_base64(reply_text, lang_hi)
 
-                        await websocket.send_json({
-                            "type": "bot_response",
-                            "message_id": payload.get("message_id"),
-                            "reply": reply_text,
-                            "intent": intent,
-                            "search_query": "",
-                            "audio_base64": audio_base64,
-                            "mood_detected": "neutral",
-                            "depression_risk": False,
-                            "recommendation": None,
-                            "sentiment": {"trend": proactive_ctx["mood_trend"], "summary": ""},
-                            "is_proactive": True
-                        })
+                    await websocket.send_json({
+                        "type": "bot_response",
+                        "message_id": payload.get("message_id"),
+                        "reply": reply_text,
+                        "intent": intent,
+                        "search_query": "",
+                        "audio_base64": audio_base64,
+                        "mood_detected": "neutral",
+                        "depression_risk": False,
+                        "recommendation": None,
+                        "sentiment": {"trend": proactive_ctx["mood_trend"], "summary": ""},
+                        "is_proactive": True
+                    })
                     continue
                 except Exception as e:
                     print(f"[proactive_init] Error: {e}")
@@ -163,7 +166,7 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
                 gemini_payload = {
                     "contents": [{"parts": [{"text": f"{system_prompt}\n\nUser says: {user_text}"}]}],
                     "generationConfig": {
-                        "maxOutputTokens": 1500,
+                        "maxOutputTokens": 200,
                         "temperature": 0.7
                     }
                 }
@@ -180,6 +183,36 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
                         search_query = ai_json.get("search_query", "")
                         action_param = ai_json.get("action_param")
                         recommendation = ai_json.get("recommendation")
+                        
+                        if intent == "set_reminder":
+                            r_time = ai_json.get("reminder_time")
+                            r_text = ai_json.get("reminder_text")
+                            if r_time and r_text:
+                                try:
+                                    from tables.medications import ProactiveReminder, ReminderTypeEnum, RecurrenceEnum
+                                    
+                                    # Verify or fallback recipient
+                                    actual_recipient = db.query(CareRecipient).filter(CareRecipient.id == recipient_id, CareRecipient.caretaker_id == caretaker.id).first()
+                                    if not actual_recipient:
+                                        actual_recipient = db.query(CareRecipient).filter(CareRecipient.caretaker_id == caretaker.id).first()
+                                        
+                                    if actual_recipient:
+                                        new_rem = ProactiveReminder(
+                                            care_recipient_id=actual_recipient.id,
+                                            reminder_type=ReminderTypeEnum.custom,
+                                            reminder_text=r_text,
+                                            scheduled_time=r_time,
+                                            recurrence=RecurrenceEnum.daily
+                                        )
+                                        db.add(new_rem)
+                                        db.commit()
+                                        intent = "show_reminders" # Force frontend to refresh reminders UI
+                                    else:
+                                        print("Failed to save voice reminder: No valid recipient found for caretaker")
+                                except Exception as e:
+                                    print(f"Error saving voice reminder: {e}")
+                                    db.rollback()
+
                     except Exception:
                         reply_text = ai_text
                         intent = "chat"

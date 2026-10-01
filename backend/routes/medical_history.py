@@ -260,7 +260,7 @@ def list_weekly_reports(
     }
 
 
-@router.get("/{recipient_id}/weekly-reports/latest")
+@router.get("/{recipient_id}/weekly-reports/latest_json")
 def get_latest_weekly_report(
     recipient_id: int,
     db: Session = Depends(get_db)
@@ -286,7 +286,7 @@ def get_latest_weekly_report(
     }
 
 
-@router.post("/{recipient_id}/weekly-reports/generate")
+@router.post("/{recipient_id}/weekly-reports/generate_json")
 def generate_report_on_demand(
     recipient_id: int,
     db: Session = Depends(get_db)
