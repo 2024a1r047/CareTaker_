@@ -20,11 +20,12 @@ from tables.conversation_history import (
 )
 from services.voice_bot_engine import (
     build_conversation_context, generate_system_prompt, analyze_mood,
-    save_message, check_depression_risk, get_content_recommendation, get_story_queries
+    save_message, check_depression_risk, get_content_recommendation, get_story_queries,
+    intelligent_saathi_dialogue
 )
 from services.sentiment_engine import analyze_sentiment_with_history
 from services.proactive_triggers import get_pending_triggers, create_default_reminders
-from utils.tts_handler import generate_speech_base64, is_hindi
+from utils.tts_handler import generate_speech_base64, generate_speech_base64_async, is_hindi
 
 load_dotenv()
 
@@ -155,7 +156,12 @@ async def voice_bot_chat(payload: ChatRequest, authorization: Optional[str] = He
             else:
                 reply_text = "I'm having trouble connecting to my brain right now, please try again later."
 
-        save_message(payload.recipient_id, SenderEnum.bot, reply_text, MoodEnum.neutral, trigger_enum, payload.session_id, db)
+        save_message(payload.recipient_id, SenderEnum.bot, reply_text, MoodEnum.neutral, trigger_enum, payload.session_id, db, intent="greeting" if payload.trigger_type == "proactive_checkin" else "chat")
+
+        audio_base64 = ""
+        if payload.use_tts:
+            lang_code = "hi-IN" if is_hindi(reply_text) else payload.language
+            audio_base64 = await generate_speech_base64_async(reply_text, lang_code)
 
         return ResponseSchema(
             code=200, status="success", message="Fallback AI response generated",
@@ -164,7 +170,7 @@ async def voice_bot_chat(payload: ChatRequest, authorization: Optional[str] = He
                 "intent": "chat",
                 "search_query": "",
                 "action_param": None,
-                "audio_base64": "",
+                "audio_base64": audio_base64,
                 "mood_detected": mood_str,
                 "depression_risk": is_at_risk,
                 "recommendation": None,
@@ -292,7 +298,7 @@ async def voice_bot_chat(payload: ChatRequest, authorization: Optional[str] = He
                     action_param = None
                     thought = ""
 
-                save_message(payload.recipient_id, SenderEnum.bot, reply_text, MoodEnum.neutral, trigger_enum, payload.session_id, db)
+                save_message(payload.recipient_id, SenderEnum.bot, reply_text, MoodEnum.neutral, trigger_enum, payload.session_id, db, intent=intent)
  
                 # Attach content recommendation (prioritize AI's merged recommendation field)
                 recommendation = ai_json.get("recommendation")
@@ -305,12 +311,8 @@ async def voice_bot_chat(payload: ChatRequest, authorization: Optional[str] = He
                 if recommendation and recommendation.get("message"):
                     reply_text = recommendation.get("message", reply_text)
 
-                # ── ADD TTS GENERATION ──
+                # Secondary audio disabled: Only ElevenLabs Asha voice is permitted
                 audio_base64 = ""
-                if payload.use_tts:
-                    # Detect if response is Hindi for correct voice selection
-                    lang_hi = "hi-IN" if is_hindi(reply_text) else "en-US"
-                    audio_base64 = generate_speech_base64(reply_text, lang_hi)
 
                 return ResponseSchema(
                     code=200, status="success", message="AI response generated",
@@ -333,7 +335,35 @@ async def voice_bot_chat(payload: ChatRequest, authorization: Optional[str] = He
                         }
                     }
                 )
-        return ResponseSchema(code=500, status="error", message="Gemini API failed or quota exceeded")
+        # Intelligent companionship fallback — handles jokes, empathy, songs, YouTube videos, and reminders
+        dialogue_res = intelligent_saathi_dialogue(user_text, payload.recipient_id, db, payload.language)
+        fallback_reply = dialogue_res.get("reply")
+        intent = dialogue_res.get("intent", "chat")
+        search_query = dialogue_res.get("search_query", "")
+        fallback_mood = dialogue_res.get("mood_detected", mood_str)
+
+        lang_hi = "hi-IN" if is_hindi(fallback_reply) else payload.language
+        fallback_audio = ""
+
+        save_message(payload.recipient_id, SenderEnum.bot, fallback_reply, MoodEnum.neutral, trigger_enum, payload.session_id, db, intent=intent)
+
+        return ResponseSchema(
+            code=200, status="success", message="Intelligent caring response generated",
+            result={
+                "reply": fallback_reply,
+                "intent": intent,
+                "search_query": search_query,
+                "action_param": None,
+                "audio_base64": fallback_audio,
+                "mood_detected": fallback_mood,
+                "depression_risk": is_at_risk,
+                "recommendation": None,
+                "sentiment": {
+                    "trend": sentiment.get("trend", "stable"),
+                    "summary": sentiment.get("summary", "")
+                }
+            }
+        )
     except Exception as e:
         print(f"[voice_bot/chat] Error: {e}")
         return ResponseSchema(code=500, status="error", message=f"Chat error: {str(e)}")
@@ -794,7 +824,7 @@ async def trigger_emergency(
 
     save_message(
         payload.recipient_id, SenderEnum.user, payload.message,
-        MoodEnum.distressed, TriggerTypeEnum.user_initiated, "emergency", db
+        MoodEnum.distressed, TriggerTypeEnum.user_initiated, "emergency", db, intent="emergency"
     )
 
     alert_sent = False
@@ -826,13 +856,13 @@ class TTSRequest(BaseModel):
 
 @router.post('/voice-bot/tts', response_model=ResponseSchema)
 async def get_standalone_tts(payload: TTSRequest):
-    """Generates audio for given text using Google Cloud TTS Neural2."""
+    """Generates audio for given text using soft-spoken neural female TTS."""
     if not payload.text:
         return ResponseSchema(code=400, status="error", message="No text provided")
     
-    audio_b64 = generate_speech_base64(payload.text, payload.language_code)
+    audio_b64 = await generate_speech_base64_async(payload.text, payload.language_code)
     if not audio_b64:
-        return ResponseSchema(code=500, status="error", message="TTS generation failed. Check credentials/quota.")
+        return ResponseSchema(code=500, status="error", message="TTS generation failed.")
     
     return ResponseSchema(
         code=200, status="success", message="TTS generated",

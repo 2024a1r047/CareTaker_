@@ -6,13 +6,14 @@ from models.users import ResponseSchema
 from tables.users import CareRecipient, CareTaker
 from repository.users import UsersRepo
 from utils.gemini_client import call_gemini, safe_json_parse
-from utils.tts_handler import generate_speech_base64, is_hindi
+from utils.tts_handler import generate_speech_base64, generate_speech_base64_async, is_hindi
 import os
 
 from tables.conversation_history import MoodEnum, SenderEnum, TriggerTypeEnum
 from services.voice_bot_engine import (
     build_conversation_context, generate_system_prompt,
-    save_message, check_depression_risk, get_content_recommendation
+    save_message, check_depression_risk, get_content_recommendation,
+    intelligent_saathi_dialogue
 )
 from services.sentiment_engine import analyze_sentiment_with_history
 from services.conversation_director import build_proactive_context, format_proactive_instruction
@@ -98,22 +99,15 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
                     }
                     data = call_gemini(gemini_payload, timeout=20, caller="[proactive_init]")
 
-                    reply_text = f"Namaste {name_part}! Aaj kaise hain aap?"
-                    intent = "chat"
-                    if data and data.get("candidates"):
-                        ai_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-                        try:
-                            ai_json = safe_json_parse(ai_text)
-                            reply_text = ai_json.get("reply") or ai_json.get("message") or reply_text
-                            intent = ai_json.get("intent", "chat")
-                        except Exception:
-                            reply_text = ai_text
+                    first_name = (recipient_name.split()[0] if recipient_name else "Maa")
+                    # Specification: Exact opening greeting with natural pauses
+                    reply_text = f"Namaste {first_name} ji... aaj aap kaisa feel kar rahe hain? ... Jo bhi aapke mann mein hai, mujhe batayiye. Main sun rahi hoon."
+                    intent = "greeting"
 
                     save_message(recipient_id, SenderEnum.bot, reply_text, MoodEnum.neutral,
-                                 TriggerTypeEnum.proactive_checkin, session_id, db)
+                                 TriggerTypeEnum.proactive_checkin, session_id, db, intent=intent)
 
-                    lang_hi = "hi-IN" if is_hindi(reply_text) else "en-US"
-                    audio_base64 = generate_speech_base64(reply_text, lang_hi)
+                    audio_base64 = None  # Only ElevenLabs Asha voice is permitted
 
                     await websocket.send_json({
                         "type": "bot_response",
@@ -220,13 +214,12 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
                         action_param = None
                         recommendation = None
 
-                    save_message(recipient_id, SenderEnum.bot, reply_text, MoodEnum.neutral, trigger_type, session_id, db)
+                    save_message(recipient_id, SenderEnum.bot, reply_text, MoodEnum.neutral, trigger_type, session_id, db, intent=intent)
 
                     if not recommendation and mood_str not in ("neutral",):
                         recommendation = get_content_recommendation(mood_str)
 
-                    lang_hi = "hi-IN" if is_hindi(reply_text) else "en-US"
-                    audio_base64 = generate_speech_base64(reply_text, lang_hi)
+                    audio_base64 = None  # Only ElevenLabs Asha voice is permitted
 
                     await websocket.send_json({
                         "type": "bot_response",
@@ -245,16 +238,24 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
                         }
                     })
                 else:
-                    # Graceful fallback — send a friendly message instead of a bare error
-                    fallback = "माफ़ कीजिए, अभी मुझे कुछ दिक्कत आ रही है। थोड़ी देर बाद फिर से कोशिश करें।"
+                    # Intelligent companionship fallback — handles jokes, empathy, songs, YouTube videos, and reminders
+                    dialogue_res = intelligent_saathi_dialogue(user_text, recipient_id, db, lang)
+                    reply_text = dialogue_res.get("reply")
+                    intent = dialogue_res.get("intent", "chat")
+                    search_query = dialogue_res.get("search_query", "")
+                    fallback_mood = dialogue_res.get("mood_detected", mood_str)
+
+                    save_message(recipient_id, SenderEnum.bot, reply_text, MoodEnum.neutral, trigger_type, session_id, db, intent=intent)
+                    fallback_audio = None  # Only ElevenLabs Asha voice is permitted
                     await websocket.send_json({
                         "type": "bot_response",
                         "message_id": payload.get("message_id"),
-                        "reply": fallback,
-                        "intent": "chat",
-                        "search_query": "",
-                        "audio_base64": "",
-                        "mood_detected": mood_str,
+                        "reply": reply_text,
+                        "intent": intent,
+                        "search_query": search_query,
+                        "action_param": None,
+                        "audio_base64": fallback_audio,
+                        "mood_detected": fallback_mood,
                         "depression_risk": False,
                         "recommendation": None,
                         "sentiment": {"trend": "stable", "summary": ""}

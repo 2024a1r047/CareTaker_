@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse
 # Database configuration
 # Database configuration
 # Use engine and SessionLocal from config to ensure we point to the correct DB (PostgreSQL) defined in .env
-from config import engine, SessionLocal, get_db
+from config import engine, SessionLocal, get_db, saathi_engine, SaathiSessionLocal, get_saathi_db
 
 # Import database models and tables
 import tables.users as user_tables
@@ -36,6 +36,7 @@ import tables.audio_events as audio_events_tables
 import tables.medical_conditions as medical_conditions_tables
 import tables.disease_dictionary as disease_dictionary_tables
 import tables.conversation_history as conversation_history_tables
+import tables.saathi_history as saathi_tables
 import tables.environment as environment_tables
 import tables.medications as medications_tables
 import tables.medication_dose_logs as medication_dose_logs_tables
@@ -51,7 +52,7 @@ import routes.recipients as recipients_routes
 import routes.emergency as emergency_routes
 from routes import elderly, voice_bot
 
-# Create database tables
+# Create database tables for core caretaker DB
 user_tables.Base.metadata.create_all(bind=engine)
 recordings_tables.Base.metadata.create_all(bind=engine)
 med_reports_tables.Base.metadata.create_all(bind=engine)
@@ -68,6 +69,14 @@ medication_dose_logs_tables.Base.metadata.create_all(bind=engine)
 allergies_tables.Base.metadata.create_all(bind=engine)
 admin_tables.Base.metadata.create_all(bind=engine)
 thresholds_tables.Base.metadata.create_all(bind=engine)
+
+# Create database tables for Saathi companion DB
+if saathi_engine:
+    try:
+        saathi_tables.SaathiBase.metadata.create_all(bind=saathi_engine)
+        print("[Saathi DB] Synchronized conversation and companion tables in Saathi DB.")
+    except Exception as _e:
+        print(f"[Saathi DB] Connection/Table creation notice: {_e}")
 
 @asynccontextmanager
 async def lifespan(_app):
@@ -223,6 +232,9 @@ app.include_router(admin_routes.router)
 
 from routes import medications as medications_routes
 app.include_router(medications_routes.router, prefix="/api")
+
+from routes import elevenlabs_agent
+app.include_router(elevenlabs_agent.router, prefix="/api")
 
 # Debug: Print all registered routes
 print("\n=== Registered Routes ===")

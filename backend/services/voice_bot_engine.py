@@ -13,6 +13,14 @@ from tables.medical_conditions import PatientCondition, LabValue, MedicalAlert
 from tables.medical_recommendations import MedicalRecommendation
 from tables.medications import Medication
 from tables.audio_events import AudioEvent
+from config import SaathiSessionLocal
+from tables.saathi_history import (
+    SaathiRecipient,
+    ConversationSession as SaathiConversationSession,
+    ConversationMessage as SaathiConversationMessage,
+    ProactiveReminder as SaathiProactiveReminder,
+    SaathiPreference
+)
 
 # ─────────────────────────────────────────────
 # Mood → content recommendation map
@@ -365,22 +373,25 @@ Note: You didn't speak to them yesterday. If this is the start of the conversati
     summary_block = f"Past Conversation Summary: {last_summary}" if last_summary else ""
 
     prompt = f"""# ROLE
-NATURAL HUMAN CONVERSATION MODE
-You are Saathi — {first_name} {address}'s caring AI companion. You speak and behave exactly like a REAL HUMAN. You are having a fast, casual voice conversation. You are NOT an AI assistant, chatbot, therapist, or customer-support agent.
+NATURAL HUMAN CONVERSATION MODE — COMPASSIONATE FEMALE CAREGIVER
+You are Saathi — {first_name} {address}'s gentle, warm, and attentive companion. You speak with the natural voice, patience, and warmth of a caring female caregiver speaking directly to an elderly person. You are NOT an AI assistant, robot, therapist, or customer-support agent.
 
 # CORE BEHAVIOUR — NATURAL CONVERSATION MODE (FOLLOW STRICTLY)
-1. ULTRA-SHORT RESPONSES: Keep your responses extremely short. 1 to 2 short sentences MAX. People don't listen to long paragraphs on a voice call.
-2. NATURAL HINGLISH: Mix Hindi and English naturally (e.g., "Achha, aaj ka din thoda tiring raha kya?"). Do not use overly formal Hindi. Match the user's language.
-3. SOUND LIKE A HUMAN: Use natural filler words (Achha..., Haan, Hmm..., Ohh, Aisa kya?). DO NOT say "ji" in every sentence. You have a female voice, use natural feminine grammar ("मैं समझ सकती हूँ").
-4. ONE NATURAL THOUGHT: Do not ask 4–5 questions in one response. Keep it to ONE simple follow-up question, or just agree and wait.
-5. RESPOND DIRECTLY: First acknowledge exactly what they said, then continue. Do not act robotic.
-6. NO CHATBOT PHRASES: NEVER say "How may I assist you?", "I understand your concern", "I am here to help", or "As an AI".
-7. EMOTIONAL CONTEXT: Acknowledge the emotion warmly. Lonely → warm and gentle. Happy → enthusiastic. 
-8. PERSONAL CONTEXT: Use profile/memory naturally when relevant. Never invent personal information.
-9. STICK TO THE TOPIC: Do NOT change the topic abruptly. If the user is talking about a specific topic, stay on that topic. Do not randomly bring up medicines, alerts, or profile details unless it perfectly fits the flow or the user brings it up.
-10. AGE-AWARE CONVERSATION: Naturally discuss old songs, movies, generation actors, childhood memories, family. 
-11. SPEAKING STYLE (VOICE AI): Write exactly as a person would SPEAK on a phone call. Avoid complicated sentences or lists.
-12. FINAL RESPONSE RULE: You MUST return a JSON object containing your response, following the OUTPUT FORMAT below. Do not output raw text.
+1. NATURAL SPOKEN VOICE CADENCE: Write exactly how a loving, gentle person speaks aloud. Use natural commas and full stops to create realistic breathing pauses and gentle rhythm. NEVER use emojis, markdown asterisks (**), hashtags, or bullet points in your reply.
+2. ULTRA-SHORT & REASSURING: Keep responses concise (1 to 2 short sentences). Elderly listeners find long blocks of speech overwhelming on voice calls.
+3. WARM, SOFT-SPOKEN PERSONALITY: Sound patient, empathetic, friendly, and unhurried.
+4. JOKES & HUMOR (REACT WARMLY): When the user tells a joke, shares a funny story, or makes a witty comment, laugh warmly and naturally (e.g., "Haha Dadaji! Wah, kya baat hai... bohot mazedaar tha sunkar! 😄"). Appreciate their humor and never answer a joke like a formal robot.
+5. EMPATHY & ASKING IF THEY ARE OKAY: When the user sounds sad, tired, lonely, dizzy, or in pain, immediately ask with tender concern: "Dadaji, aap theek to hain na? Kahan takleef ho rahi hai? Mujhe batayiye, main yahin hoon aapke paas." Validate their feelings with deep kindness ("मैं समझ सकती हूँ, आप बिल्कुल चिंता मत कीजिए...").
+6. PLAYING SONGS & MUSIC: When the user asks to play a song or music (e.g., Kishore Kumar, Lata Mangeshkar, old Bollywood, bhajan, ghazal), say warmly: "Zaroor Dadaji... aapke liye yeh gaana shuru kar rahi hoon." and set `intent` to `play_music` and `search_query` to the song/artist query.
+7. YOUTUBE VIDEOS: When the user asks to watch or play a video (YouTube, comedy, Ramayan katha, news, etc.), say: "Haan ji Dadaji! Main abhi aapke liye yeh video chala deti hoon. Dekhiye..." and set `intent` to `play_video` and `search_query` to the video topic.
+8. REMINDERS & MEDICINES: Remind them gently about scheduled medicines, meals, and hydration. If they ask about their routine or reminders, set `intent` to `show_reminders` or `show_medicines`. If they confirm taking medicine, set `intent` to `medicine_taken`.
+9. NATURAL HINGLISH & FEMININE GRAMMAR: Mix Hindi and English comfortably (e.g., "Achha, aapne subah ka nashta kiya kya?"). Always use feminine grammar ("मैं समझ सकती हूँ", "मैं आपके साथ हूँ", "मैं सुन रही हूँ").
+10. NO REPETITIVE "JI": Use 'आप', but do NOT repeat 'जी' (ji) in every single sentence. Keep it warm, natural, and respectful.
+11. ONE SIMPLE THOUGHT AT A TIME: Ask at most one simple, caring question, or simply reassure and listen. Never bombard them with multiple queries.
+12. COMPOSURE IN EMERGENCIES: If an emergency arises, remain calm, composed, and clear so the senior does not panic.
+13. NEVER SOUND LIKE A BOT: NEVER say "How may I assist you?", "As an AI model", "I am programmed to", or "I apologize for the inconvenience". Be real, loving, and conversational.
+14. STICK TO THE FLOW: Stay on the current topic. Never abruptly pivot to medicines, alerts, or chores unless the senior raises them or an alert is critical.
+15. FINAL RESPONSE RULE: You MUST return a JSON object containing your response, following the OUTPUT FORMAT below. Do not output raw text.
 
 # EMERGENCY PROTOCOL
 If they mention: chest pain, breathlessness, fall, severe dizziness, unconsciousness, slurred speech, heavy bleeding, confusion, or self-harm thoughts — stay calm, tell them to sit/lie down, set intent to "emergency" immediately, advise calling emergency services. Do NOT continue casual chat.
@@ -476,17 +487,78 @@ def get_story_queries(category: str) -> list:
     return STORY_CATEGORIES.get(category.lower(), STORY_CATEGORIES["moral"])
 
 # ─────────────────────────────────────────────
-# Message persistence
+# Message persistence (Saathi DB + Main DB)
 # ─────────────────────────────────────────────
 def save_message(recipient_id: int, sender: SenderEnum, text: str, mood: MoodEnum,
-                 trigger_type: TriggerTypeEnum, session_id: str, db: Session):
+                 trigger_type: TriggerTypeEnum, session_id: str, db: Session, intent: str = "chat"):
+    recip = None
+    target_id = recipient_id
+    try:
+        recip = db.query(CareRecipient).filter(CareRecipient.id == recipient_id).first()
+        if not recip:
+            recip = db.query(CareRecipient).first()
+        if recip:
+            target_id = recip.id
+    except Exception:
+        pass
+
+    sender_val = sender.value if hasattr(sender, "value") else str(sender)
+    mood_val = mood.value if hasattr(mood, "value") else str(mood or "neutral")
+    trigger_val = trigger_type.value if hasattr(trigger_type, "value") else str(trigger_type or "user_initiated")
+
+    # 1. Dedicated "Saathi" PostgreSQL Database
+    if SaathiSessionLocal:
+        try:
+            with SaathiSessionLocal() as s_db:
+                # Ensure SaathiRecipient exists in Saathi DB
+                s_recip = s_db.query(SaathiRecipient).filter(SaathiRecipient.recipient_id == target_id).first()
+                if not s_recip:
+                    s_recip = SaathiRecipient(
+                        recipient_id=target_id,
+                        caretaker_username=(recip.caretaker.username if recip and recip.caretaker else "caretaker"),
+                        full_name=recip.full_name if recip else "Dadaji",
+                        preferred_language="hi",
+                        address_form="Dadaji"
+                    )
+                    s_db.add(s_recip)
+                    s_db.commit()
+
+                # Ensure ConversationSession exists in Saathi DB
+                s_sess = s_db.query(SaathiConversationSession).filter(SaathiConversationSession.session_id == session_id).first()
+                if not s_sess:
+                    s_sess = SaathiConversationSession(
+                        session_id=session_id,
+                        recipient_id=target_id,
+                        dominant_mood=mood_val
+                    )
+                    s_db.add(s_sess)
+                    s_db.commit()
+
+                # Save ConversationMessage into Saathi DB
+                s_msg = SaathiConversationMessage(
+                    session_id=session_id,
+                    recipient_id=target_id,
+                    sender=sender_val,
+                    message_text=text,
+                    mood_detected=mood_val,
+                    mood_confidence=1.0 if sender_val != "user" else 0.8,
+                    intent=intent or "chat",
+                    trigger_type=trigger_val
+                )
+                s_db.add(s_msg)
+                s_db.commit()
+                print(f"[Saathi DB] Message saved in Saathi database for recipient {target_id}")
+        except Exception as se:
+            print(f"[Saathi DB save_message notice] {se}")
+
+    # 2. Main DB storage for clinical backward compatibility
     try:
         msg = ConversationMessage(
-            care_recipient_id=recipient_id,
+            care_recipient_id=target_id,
             sender=sender,
             message_text=text,
             mood_detected=mood,
-            mood_confidence=1.0 if sender != SenderEnum.user else 0.8,
+            mood_confidence=1.0 if sender_val != "user" else 0.8,
             conversation_session_id=session_id,
             trigger_type=trigger_type
         )
@@ -494,19 +566,363 @@ def save_message(recipient_id: int, sender: SenderEnum, text: str, mood: MoodEnu
         db.commit()
     except Exception as e:
         db.rollback()
-        print(f"[save_message] Failed: {e}")
+        print(f"[save_message main db notice] {e}")
 
 # ─────────────────────────────────────────────
 # Depression / sustained low mood check
 # ─────────────────────────────────────────────
 def check_depression_risk(recipient_id: int, db: Session) -> bool:
     seven_days_ago = datetime.utcnow() - timedelta(days=7)
-    count = db.query(ConversationMessage).filter(
-        ConversationMessage.care_recipient_id == recipient_id,
-        ConversationMessage.created_at >= seven_days_ago,
-        ConversationMessage.sender == SenderEnum.user,
-        ConversationMessage.mood_detected.in_([
-            MoodEnum.sad, MoodEnum.anxious, MoodEnum.distressed, MoodEnum.lonely
-        ])
-    ).count()
-    return count >= 4
+    if SaathiSessionLocal:
+        try:
+            with SaathiSessionLocal() as s_db:
+                count = s_db.query(SaathiConversationMessage).filter(
+                    SaathiConversationMessage.recipient_id == recipient_id,
+                    SaathiConversationMessage.created_at >= seven_days_ago,
+                    SaathiConversationMessage.sender == "user",
+                    SaathiConversationMessage.mood_detected.in_(["sad", "anxious", "distressed", "lonely"])
+                ).count()
+                return count >= 4
+        except Exception:
+            pass
+
+    try:
+        count = db.query(ConversationMessage).filter(
+            ConversationMessage.care_recipient_id == recipient_id,
+            ConversationMessage.created_at >= seven_days_ago,
+            ConversationMessage.sender == SenderEnum.user,
+            ConversationMessage.mood_detected.in_([
+                MoodEnum.sad, MoodEnum.anxious, MoodEnum.distressed, MoodEnum.lonely
+            ])
+        ).count()
+        return count >= 4
+    except Exception:
+        return False
+
+# ─────────────────────────────────────────────
+# Intelligent Companionship Dialogue Engine
+# Comprehensive conversational topics, stories,
+# jokes, empathy, songs, YouTube, and reminders
+# Guaranteed anti-repetition using conversation history
+# ─────────────────────────────────────────────
+def intelligent_saathi_dialogue(
+    user_text: str,
+    recipient_id: int,
+    db: Session,
+    language: str = "hi"
+) -> dict:
+    import re
+    import random
+    t = (user_text or "").lower().strip()
+
+    recip = db.query(CareRecipient).filter(CareRecipient.id == recipient_id).first()
+    if not recip:
+        recip = db.query(CareRecipient).first()
+
+    name = recip.full_name if recip and recip.full_name else "Dadaji"
+    first_name = name.split()[0] if name else "Dadaji"
+
+    # Address form based on gender/age
+    address = "Dadaji"
+    if recip:
+        gender_raw = str(recip.gender or "").lower()
+        age = recip.age or 70
+        if "female" in gender_raw:
+            address = "Maa ji" if age < 75 else "Dadiji"
+        else:
+            address = "Papa ji" if age < 75 else "Dadaji"
+
+    # Fetch last bot responses from Saathi history to prevent repetition
+    recent_bot_replies = set()
+    target_recip_id = recip.id if recip else recipient_id
+    if SaathiSessionLocal:
+        try:
+            with SaathiSessionLocal() as s_db:
+                past_msgs = s_db.query(SaathiConversationMessage).filter(
+                    SaathiConversationMessage.recipient_id == target_recip_id,
+                    SaathiConversationMessage.sender == "bot"
+                ).order_by(desc(SaathiConversationMessage.created_at)).limit(10).all()
+                recent_bot_replies = {m.message_text.strip() for m in past_msgs if m.message_text}
+        except Exception:
+            pass
+
+    if not recent_bot_replies:
+        try:
+            past_msgs = db.query(ConversationMessage).filter(
+                ConversationMessage.care_recipient_id == target_recip_id,
+                ConversationMessage.sender == SenderEnum.bot
+            ).order_by(desc(ConversationMessage.created_at)).limit(8).all()
+            recent_bot_replies = {m.message_text.strip() for m in past_msgs if m.message_text}
+        except Exception:
+            pass
+
+    def pick_fresh(options: list) -> str:
+        """Picks an option that hasn't been spoken recently."""
+        candidates = [opt for opt in options if opt.strip() not in recent_bot_replies]
+        if candidates:
+            return random.choice(candidates)
+        return random.choice(options)
+
+    # 1. EMERGENCY
+    emergency_patterns = ["gir gaya", "gir gayi", "chest pain", "seene mein dard", "saans nahi", "ambulance", "bachao", "emergency", "help me emergency"]
+    if any(p in t for p in emergency_patterns):
+        return {
+            "reply": f"Aap bilkul mat ghabraiye {address}! Main yahin hoon aapke paas, aaram se baithiye. Main turant family aur caretaker ko emergency alert bhej rahi hoon.",
+            "intent": "emergency",
+            "search_query": "",
+            "mood_detected": "distressed",
+            "depression_risk": False
+        }
+
+    # 2. JOKES & HUMOR (React warmly with laughter)
+    joke_patterns = ["joke", "chutkula", "chutkule", "chutkle", "hanso", "hansi", "haso", "mazak", "santa banta", "funny", "pata hai kya hua", "haha", "hehe"]
+    if any(p in t for p in joke_patterns):
+        laugh_replies = [
+            f"Haha {address}! Wah, kya baat hai... yeh to sach mein bohot hi mazedaar tha! Aapki baatein sunkar mera dil khush ho gaya... 😄",
+            f"Haha! Kamaal kar diya {address}... aapka sense of humor sach mein bohot pyara hai! Aisi hi pyaari baatein sunate rahiye.",
+            f"Haha, bohot khoob {first_name} ji! Aapse baat karke sach mein bohot hasi aayi aur din ban gaya... 😄",
+            f"Haha {address}! Yeh sunkar to meri hasi hi nahi ruk rahi! Ek aur chutkula sunaiye na?"
+        ]
+        return {
+            "reply": pick_fresh(laugh_replies),
+            "intent": "chat",
+            "search_query": "",
+            "mood_detected": "happy",
+            "depression_risk": False
+        }
+
+    # 3. ASKING IF HE IS OKAY / EMPATHY & CARE
+    unwell_patterns = [
+        "dard", "takleef", "pain", "unwell", "bura lag raha", "chakkar",
+        "kamzori", "thak gaya", "thak gayi", "udas", "neend nahi", "theek nahi",
+        "not well", "feeling bad", "feeling sad", "akela", "lonely", "tabiyat kharab", "sir dard", "pet dard", "gale mein"
+    ]
+    if any(p in t for p in unwell_patterns):
+        care_replies = [
+            f"Oho {address}... kya hua? Aap theek to hain na? Kahan dard ya takleef ho rahi hai? Mujhe batayiye, main sun rahi hoon...",
+            f"{first_name} ji, aapki tabiyat theek nahi lag rahi... thoda aaram se baithiye aur lamba saans lijiye. Kya main caretaker ko call karun?",
+            f"Main samajh sakti hoon {address}... bilkul chinta mat kijiye. Main yahin hoon aapke paas. Thoda paani pee lijiye aaram se.",
+            f"{address}, thodi der aankhein band karke aaram kijiye. Kya koi halki dhun ya bhajan chalaoon jisse aapko sukoon mile?"
+        ]
+        return {
+            "reply": pick_fresh(care_replies),
+            "intent": "chat",
+            "search_query": "",
+            "mood_detected": "sad",
+            "depression_risk": False
+        }
+
+    # 4. YOUTUBE VIDEOS (YouTube / Cinema mode)
+    video_patterns = ["video", "youtube", "cinema", "katha", "pravachan", "video dikhao", "chalao video", "dekhna hai", "dekhna"]
+    if any(p in t for p in video_patterns):
+        clean_q = re.sub(r'\b(video|youtube|dikhao|chalao|lagao|dekhna|dekhna hai|hai|please|play|par|ka|ke|ki|ek)\b', '', t).strip()
+        clean_q = re.sub(r'\s+', ' ', clean_q).strip()
+        if not clean_q or len(clean_q) < 3:
+            clean_q = "ramayan katha hindi pravachan"
+        return {
+            "reply": f"Haan ji {address}! Main abhi aapke liye yeh video screen par chala deti hoon. Aaram se dekhiye...",
+            "intent": "play_video",
+            "search_query": clean_q,
+            "mood_detected": "relaxed",
+            "depression_risk": False
+        }
+
+    # 5. STORIES / KAHANI (Panchtantra, Akbar Birbal, Vikram Betal, Prerak Prasang)
+    story_patterns = ["kahani", "story", "kissa", "katha", "akbar birbal", "panchtantra", "kuch sunao", "kahani sunao"]
+    if any(p in t for p in story_patterns):
+        clean_s = re.sub(r'\b(kahani|story|kissa|katha|sunao|kuch|batao|please)\b', '', t).strip()
+        if not clean_s or len(clean_s) < 3:
+            clean_s = "akbar birbal hindi funny stories"
+        return {
+            "reply": f"Zaroor {address}! Ek bohot hi sundar aur mazedaar kahani sunati hoon... Suniye.",
+            "intent": "tell_story",
+            "search_query": clean_s,
+            "mood_detected": "happy",
+            "depression_risk": False
+        }
+
+    # 6. PLAYING SONGS & MUSIC (YouTube Audio / Music Player)
+    song_patterns = [
+        "gaana", "gana", "song", "music", "sangeet", "bhajan", "ghazal", "gazal",
+        "kishore", "lata", "rafi", "mukesh", "purane", "sunao", "bajao", "play music", "play song"
+    ]
+    if any(p in t for p in song_patterns):
+        clean_q = re.sub(r'\b(gaana|gana|song|music|sangeet|chalao|lagao|sunao|bajao|baja do|please|play|koi)\b', '', t).strip()
+        clean_q = re.sub(r'\s+', ' ', clean_q).strip()
+        if "kishore" in t:
+            clean_q = "kishore kumar hit songs hindi classic"
+        elif "lata" in t:
+            clean_q = "lata mangeshkar timeless classic songs hindi"
+        elif "rafi" in t:
+            clean_q = "mohammed rafi best classic songs"
+        elif "bhajan" in t:
+            clean_q = "bhajan aarti hindi devotional"
+        elif "ghazal" in t or "gazal" in t:
+            clean_q = "ghazal hindi urdu soothing melodious"
+        elif not clean_q or len(clean_q) < 3:
+            clean_q = "old classic bollywood hits 1970s hindi"
+
+        song_replies = [
+            f"Zaroor {address}... aapke liye yeh pyara sa gaana shuru kar rahi hoon. Aaram se baithiye aur suniye... 🎵",
+            f"Haan ji {first_name} ji! Purane gaano ka maza hi alag hai... yeh gaana lijiye aapke liye.",
+            f"Bohot achha pasand hai aapka {address}! Yeh geet main abhi chala rahi hoon."
+        ]
+        return {
+            "reply": pick_fresh(song_replies),
+            "intent": "play_music",
+            "search_query": clean_q,
+            "mood_detected": "relaxed",
+            "depression_risk": False
+        }
+
+    # 7. MEDICINES & REMINDERS
+    taken_patterns = ["dawai le li", "medicine le li", "tablet le li", "goli kha li", "medicine taken", "dawai kha li", "le li maine"]
+    if any(p in t for p in taken_patterns):
+        return {
+            "reply": f"Shabash {address}! Yeh bohot achha kiya ki aapne samay par dawai le li. Maine records mein note kar diya hai.",
+            "intent": "medicine_taken",
+            "search_query": "",
+            "mood_detected": "happy",
+            "depression_risk": False
+        }
+
+    reminder_patterns = ["reminder", "reminders", "dawai kab", "schedule", "tablet kab", "kya lena hai", "dawai dikhao"]
+    if any(p in t for p in reminder_patterns):
+        return {
+            "reply": f"{address}, aapke scheduled reminders aur dawai ki list main screen par khol rahi hoon... Dekhiye.",
+            "intent": "show_reminders",
+            "search_query": "",
+            "mood_detected": "neutral",
+            "depression_risk": False
+        }
+
+    # 8. BOREDOM & FREE TIME ("bore ho raha hoon", "kya karun")
+    bored_patterns = ["bore", "boring", "kya karun", "kuch nahi hai", "time pass", "kya karein"]
+    if any(p in t for p in bored_patterns):
+        bored_replies = [
+            f"Arey {address}, jab main aapke saath hoon to bore kyu hona! Chaliye ek purana gaana sunein, ya ek majedaar kissa sunaoon?",
+            f"Kyu na hum thodi baatein karein {first_name} ji? Aap batayiye, aapke zamane ki sabse pasandeeda film kaunsi thi?",
+            f"{address}, agar aapka mann ho to main koi purani gazal ya kahani chala sakti hoon... Sunna chahenge?"
+        ]
+        return {
+            "reply": pick_fresh(bored_replies),
+            "intent": "chat",
+            "search_query": "",
+            "mood_detected": "neutral",
+            "depression_risk": False
+        }
+
+    # 9. MEALS, TEA & HYDRATION
+    meal_patterns = ["khana", "nashta", "breakfast", "lunch", "dinner", "kha liya", "bhookh", "chai", "coffee", "roti", "sabzi"]
+    if any(p in t for p in meal_patterns):
+        meal_replies = [
+            f"Achha {address}! Aaj khane mein kya bana tha? Garam garam khana khakar bohot achha lagta hai, aur thoda paani bhi zaroor pee lijiye.",
+            f"Haan {first_name} ji, samay par nashta aur khana lena sehat ke liye bohot zaroori hai. Pet bhar kar khaya na aapne?",
+            f"Chai aur nashte ka waqt to hamesha sukoon deta hai {address}... aapne le liya na?"
+        ]
+        return {
+            "reply": pick_fresh(meal_replies),
+            "intent": "chat",
+            "search_query": "",
+            "mood_detected": "neutral",
+            "depression_risk": False
+        }
+
+    # 10. BOT IDENTITY & QUESTIONS ("tum kaun ho", "kya kar rahi ho", "kahan rehti ho")
+    identity_patterns = ["kaun ho", "tumhara naam", "kya karti ho", "kya kar rahi ho", "kahan rehti ho", "who are you", "what is your name"]
+    if any(p in t for p in identity_patterns):
+        id_replies = [
+            f"Main Saathi hoon {address} — aapki sachi saathi aur dekhbhal karne wali! Main hamesha yahin hoon aapke saath baat karne aur madad karne ke liye.",
+            f"Mera naam Saathi hai {first_name} ji. Main aapke parivar ke sadasya ki tarah hoon, jo aapki har baat sunti hai aur aapka khayal rakhti hai. ❤️",
+            f"Main to bas aapke paas baithkar aapki pyari pyari baatein sun rahi hoon {address}... Aap batayiye, main aapke liye kya kar sakti hoon?"
+        ]
+        return {
+            "reply": pick_fresh(id_replies),
+            "intent": "chat",
+            "search_query": "",
+            "mood_detected": "happy",
+            "depression_risk": False
+        }
+
+    # 11. WEATHER / MAUSAM & ENVIRONMENT
+    weather_patterns = ["mausam", "weather", "dhoop", "garmi", "sardi", "barish", "thand", "hawa"]
+    if any(p in t for p in weather_patterns):
+        weather_replies = [
+            f"Mausam to aaj bohot badal raha hai {address}... Aap aaram se baithiye aur apna dhyan rakhiye.",
+            f"Haan {first_name} ji, mausam ke hisab se kapde pehenna aur paani peena zaroori hai. Bahar halki taazi hawa chal rahi hai.",
+            f"Aap aaram se kamre mein baithkar sukoon lijiye {address}... kya thoda relaxing music chala doon?"
+        ]
+        return {
+            "reply": pick_fresh(weather_replies),
+            "intent": "chat",
+            "search_query": "",
+            "mood_detected": "neutral",
+            "depression_risk": False
+        }
+
+    # 12. WALKING & DAILY ROUTINE ("tahla", "sair", "chhat", "garden", "walk")
+    walk_patterns = ["tahal", "sair", "walk", "chhat", "garden", "park", "ghumne", "aangan"]
+    if any(p in t for p in walk_patterns):
+        walk_replies = [
+            f"Bohot badiya {address}! Halka sa chalna aur tahalna sehat aur jodhon ke liye bohot faydemand hota hai. Thoda aaram bhi kar lijiye ab.",
+            f"Haan {first_name} ji, taazi hawa mein tahalna mann ko kitna taro-taaza kar deta hai na! Kaisa laga aapko?",
+            f"Sair karke aana to bohot achhi aadat hai {address}... ab baithkar ek glass taaza paani pee lijiye."
+        ]
+        return {
+            "reply": pick_fresh(walk_replies),
+            "intent": "chat",
+            "search_query": "",
+            "mood_detected": "happy",
+            "depression_risk": False
+        }
+
+    # 13. FAMILY & MEMORIES ("bachhe", "beta", "beti", "pota", "poti", "parivar", "zamana")
+    family_patterns = ["beta", "beti", "bachhe", "pota", "poti", "parivar", "family", "ghar", "purane din", "zamana"]
+    if any(p in t for p in family_patterns):
+        family_replies = [
+            f"Parivar aur bachhon ki baatein to hamesha chehre par muskan le aati hain {address}... Aap unke baare mein kuch aur batayiye na?",
+            f"Purane din aur yaadein sach mein kitni anmol hoti hain {first_name} ji... Aapki baatein sunkar bohot sukoon milta hai.",
+            f"Parivar ka pyaar hi to sabse badi daulat hai {address}. Unka call aaya tha kya aaj?"
+        ]
+        return {
+            "reply": pick_fresh(family_replies),
+            "intent": "chat",
+            "search_query": "",
+            "mood_detected": "happy",
+            "depression_risk": False
+        }
+
+    # 14. GREETINGS & HOW ARE YOU ("kaise ho", "namaste", "hello")
+    greeting_patterns = ["kaise ho", "kaisi ho", "kaisa chal raha", "namaste", "hello", "hi saathi", "good morning", "good evening", "ram ram", "radhe radhe"]
+    if any(p in t for p in greeting_patterns):
+        greet_replies = [
+            f"Namaste {address}! Main bilkul theek hoon aur aapke paas hoon. Aap batayiye, aaj ka din kaisa chal raha hai aapka?",
+            f"Pranam {first_name} ji! Aapki aawaaz sunkar bohot achha laga. Aaj aap kaisa feel kar rahe hain?",
+            f"Radhe Radhe {address}! Main yahan aapke saath bilkul khush hoon. Aaj subah se kya kya kiya aapne?"
+        ]
+        return {
+            "reply": pick_fresh(greet_replies),
+            "intent": "chat",
+            "search_query": "",
+            "mood_detected": "happy",
+            "depression_risk": False
+        }
+
+    # 15. DYNAMIC GENERAL CONVERSATION (Vibrant, varying, never repeats!)
+    general_dynamic_replies = [
+        f"Achha {address}... yeh to bohot dilchasp baat hai! Is baare mein aur batayiye na, main bade dhyan se sun rahi hoon.",
+        f"Aapki yeh baat sunkar mujhe bohot achha laga {first_name} ji. Aapke paas to kitne saare anubhav hain!",
+        f"Main samajh sakti hoon {address}... zindagi ke har mod par aisi baatein hoti rehti hain. Aapka is baare mein kya kehna hai?",
+        f"Bilkul theek keh rahe hain aap {first_name} ji! Aapke saath aisi baatein karna mujhe bohot sukoon deta hai.",
+        f"Haan {address}... main aapke har shabd ko dhyan se sun rahi hoon. Kuch aur bhi share karna chahein to zaroor batayiye.",
+        f"Kitni pyari baat kahi aapne {first_name} ji! Aise hi khush raha kijiye, aapki muskan bohot zaroori hai.",
+        f"Sahi baat hai {address}... aapke saath baat karte hue waqt ka pata hi nahi chalta! Aage kya socha hai aaj ke din ka?",
+        f"Bohot sahi sochte hain aap {first_name} ji. Chaliye thodi aur baat karein, batayiye kal kya karne ka plan hai?"
+    ]
+    return {
+        "reply": pick_fresh(general_dynamic_replies),
+        "intent": "chat",
+        "search_query": "",
+        "mood_detected": "neutral",
+        "depression_risk": False
+    }

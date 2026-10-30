@@ -18,6 +18,7 @@ pillow
 pytesseract
 python-socketio
 google-cloud-texttospeech>=2.16.0
+edge-tts>=7.0.0
 google-generativeai>=0.8.0
 protobuf>=4.25.0
 rapidfuzz

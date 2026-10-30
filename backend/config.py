@@ -4,7 +4,8 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv(override=True)
+dotenv_path = os.path.join(os.path.dirname(__file__), ".env")
+load_dotenv(dotenv_path=dotenv_path, override=True)
 
 # Get database URL from environment variables
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -24,6 +25,38 @@ def get_db():
         raise  # re-raise so FastAPI knows
     finally:
         db.close()
+
+# ── Saathi Companion Database Configuration ──────────────────────
+# Dedicated PostgreSQL database for voice assistant conversations & companion data
+SAATHI_DATABASE_URL = os.getenv("SAATHI_DATABASE_URL")
+if not SAATHI_DATABASE_URL and DATABASE_URL:
+    if "/" in DATABASE_URL:
+        SAATHI_DATABASE_URL = DATABASE_URL.rsplit("/", 1)[0] + "/Saathi"
+
+saathi_engine = None
+SaathiSessionLocal = None
+
+if SAATHI_DATABASE_URL:
+    try:
+        saathi_engine = create_engine(SAATHI_DATABASE_URL, pool_pre_ping=True)
+        SaathiSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=saathi_engine)
+    except Exception as e:
+        print(f"[Saathi DB] Engine initialization warning: {e}")
+
+def get_saathi_db():
+    """Dependency that yields a session for the Saathi companion database with graceful fallback."""
+    if SaathiSessionLocal:
+        db = SaathiSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+    else:
+        db = SessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
 
 # JWT Configuration
 SECRET_KEY = os.getenv("SECRET_KEY")

@@ -4214,8 +4214,77 @@
         initializeProfilePage();
 
         // ============================================
-        //  IN-PAGE MEDICATION REMINDERS
+        //  IN-PAGE MEDICATION REMINDERS WITH BEEP & VOICE
         // ============================================
+        let _profileAudioCtx = null;
+        function _ensureProfileAudio() {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!_profileAudioCtx && AudioCtx) _profileAudioCtx = new AudioCtx();
+                if (_profileAudioCtx && _profileAudioCtx.state === 'suspended') {
+                    _profileAudioCtx.resume().catch(() => {});
+                }
+            } catch (e) {}
+            return _profileAudioCtx;
+        }
+        ['click', 'touchstart', 'keydown'].forEach(evt => {
+            document.addEventListener(evt, _ensureProfileAudio, { passive: true });
+        });
+
+        function playMedReminderAlert(dueMeds) {
+            try {
+                const ctx = _ensureProfileAudio();
+                const runChimes = () => {
+                    if (ctx) {
+                        try {
+                            const now = ctx.currentTime;
+                            const chime = (time, freq, dur, vol = 0.35) => {
+                                const osc = ctx.createOscillator();
+                                const gain = ctx.createGain();
+                                osc.type = 'sine';
+                                osc.frequency.setValueAtTime(freq, time);
+                                gain.gain.setValueAtTime(0.0001, time);
+                                gain.gain.linearRampToValueAtTime(vol, time + 0.02);
+                                gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+                                osc.connect(gain);
+                                gain.connect(ctx.destination);
+                                osc.start(time);
+                                osc.stop(time + dur);
+                            };
+                            chime(now + 0.05, 880, 0.16, 0.35);
+                            chime(now + 0.23, 1175, 0.22, 0.35);
+                            chime(now + 0.60, 880, 0.16, 0.35);
+                            chime(now + 0.78, 1175, 0.28, 0.35);
+                        } catch (e) {}
+                    }
+                    setTimeout(() => {
+                        try {
+                            if ('speechSynthesis' in window) {
+                                window.speechSynthesis.cancel();
+                                const medNames = dueMeds.map(d => d.name).join(', ');
+                                const u = new SpeechSynthesisUtterance(`Reminder: Time to take your medicine, ${medNames}.`);
+                                u.rate = 0.92;
+                                u.pitch = 1.0;
+                                const voices = window.speechSynthesis.getVoices();
+                                const natVoice = voices.find(v => (v.name.includes('Natural') || v.name.includes('Neural')) && !v.name.toLowerCase().includes('male'))
+                                    || voices.find(v => v.name.includes('Neerja') || v.name.includes('Jenny') || v.name.includes('Google US English') || v.name.includes('Samantha'));
+                                if (natVoice) u.voice = natVoice;
+                                window.speechSynthesis.speak(u);
+                            }
+                        } catch (e) {}
+                    }, 1150);
+                };
+
+                if (ctx && ctx.state === 'suspended') {
+                    ctx.resume().then(runChimes).catch(runChimes);
+                } else {
+                    runChimes();
+                }
+            } catch (err) {
+                console.warn('Med reminder alert error:', err);
+            }
+        }
+
         function checkInPageMedReminders() {
             const meds = (profileData.medications || []).filter(m => m.status === 'active' && m.schedule_time);
             if (!meds.length) return;
@@ -4246,6 +4315,9 @@
                 toast.style.display = 'block';
                 // Auto-dismiss after 30 seconds
                 setTimeout(() => { if (toast.style.display !== 'none') toast.style.display = 'none'; }, 30000);
+
+                // Play beep and voice reminder alert
+                playMedReminderAlert(dueMeds);
             }
         }
 

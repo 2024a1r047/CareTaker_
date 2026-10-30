@@ -15,6 +15,9 @@ import requests
 import time
 import json
 import re
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
@@ -62,9 +65,13 @@ def call_gemini(payload: dict, timeout: int = 30, caller: str = "", model_overri
     Make a Gemini API call with automatic model switching on failure.
     If model_override is provided, it attempts that model first.
     """
-    api_key = os.environ.get("GEMINI_API_KEY", "")
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
         print(f"{caller} [Gemini] ERROR: GEMINI_API_KEY is not set in .env")
+        return None
+
+    if not api_key.startswith("AIza"):
+        print(f"{caller} [Gemini] Notice: Key in .env does not start with Google's 'AIza' prefix. Using Saathi Intelligent Dialogue Engine.")
         return None
 
     # Get primary model from override or env
@@ -80,7 +87,7 @@ def call_gemini(payload: dict, timeout: int = 30, caller: str = "", model_overri
     for i, model in enumerate(models_to_try):
         url = get_gemini_url(model, api_key)
         
-        for attempt in range(3): # Increased to 3 attempts
+        for attempt in range(2):
             try:
                 resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=timeout)
 
@@ -89,15 +96,19 @@ def call_gemini(payload: dict, timeout: int = 30, caller: str = "", model_overri
                         print(f"{caller} [Gemini] Success using fallback model: {model}")
                     return resp.json()
 
+                if resp.status_code == 400:
+                    print(f"{caller} [Gemini] HTTP 400: Invalid API key. Using Saathi Intelligent Dialogue Engine.")
+                    return None
+
                 # Quota errors (429) or Server Busy (503) -> Backoff then retry ONCE for same model, then switch
                 if resp.status_code in [429, 503]:
-                    if attempt < 2:
-                        wait_time = (attempt + 1) * 2
+                    if attempt < 1:
+                        wait_time = 2
                         print(f"{caller} [Gemini] Model '{model}' busy ({resp.status_code}). Retrying in {wait_time}s...")
                         time.sleep(wait_time)
                         continue
                     else:
-                        print(f"{caller} [Gemini] Model '{model}' exhausted after {attempt+1} tries. Switching...")
+                        print(f"{caller} [Gemini] Model '{model}' exhausted. Switching...")
                         break 
 
                 # Deprecated or missing model (404) -> Try next
@@ -111,7 +122,7 @@ def call_gemini(payload: dict, timeout: int = 30, caller: str = "", model_overri
                     continue
 
                 print(f"{caller} [Gemini] HTTP {resp.status_code}: {resp.text[:300]}")
-                break # Non-recoverable or already retried
+                break
 
             except requests.exceptions.Timeout:
                 print(f"{caller} [Gemini] Timeout for model '{model}'. Trying next...")
