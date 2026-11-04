@@ -17,14 +17,78 @@ def get_elevenlabs_model_id() -> str:
     return os.getenv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
 
 def get_elevenlabs_api_key() -> str:
-    key = os.getenv("ELEVENLABS_API_KEY", "")
-    # ElevenLabs secret keys always start with 'sk_'. If a 64-character Key ID was entered, use the valid secret key.
-    if key and not key.startswith("sk_"):
-        return "sk_6f15fbb2646ca02b27e7fcce34a17dddf3c7bae20ff0bd33"
-    return key or "sk_6f15fbb2646ca02b27e7fcce34a17dddf3c7bae20ff0bd33"
+    return os.getenv("ELEVENLABS_API_KEY", "")
 
 def get_elevenlabs_agent_id() -> str:
     return os.getenv("ELEVENLABS_AGENT_ID", "agent_0201m5wjypr0f46990bqwck3596g")
+
+def check_elevenlabs_quota() -> Dict[str, Any]:
+    """Checks character credits on ElevenLabs to verify quota availability."""
+    api_key = get_elevenlabs_api_key()
+    if not api_key:
+        return {"configured": False, "quota_exceeded": True, "reason": "No API key configured"}
+    try:
+        url = "https://api.elevenlabs.io/v1/user/subscription"
+        r = requests.get(url, headers={"xi-api-key": api_key}, timeout=5)
+        if r.status_code == 200:
+            data = r.json()
+            count = data.get("character_count", 0)
+            limit = data.get("character_limit", 30000)
+            remaining = max(0, limit - count)
+            is_exceeded = remaining < 50
+            return {
+                "configured": True,
+                "quota_exceeded": is_exceeded,
+                "character_count": count,
+                "character_limit": limit,
+                "remaining_characters": remaining,
+                "tier": data.get("tier", "starter"),
+                "status": data.get("status", "active")
+            }
+        return {"configured": True, "quota_exceeded": False, "status_code": r.status_code}
+    except Exception as e:
+        return {"configured": True, "quota_exceeded": False, "error": str(e)}
+
+def update_elevenlabs_credentials(api_key: str = None, agent_id: str = None) -> bool:
+    """Updates ELEVENLABS_API_KEY and/or ELEVENLABS_AGENT_ID in runtime and .env"""
+    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+    updated = False
+    if not os.path.exists(env_path):
+        return False
+    try:
+        with open(env_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        new_lines = []
+        key_found = False
+        agent_found = False
+        for line in lines:
+            if api_key and line.startswith("ELEVENLABS_API_KEY="):
+                new_lines.append(f"ELEVENLABS_API_KEY={api_key.strip()}\n")
+                os.environ["ELEVENLABS_API_KEY"] = api_key.strip()
+                key_found = True
+                updated = True
+            elif agent_id and line.startswith("ELEVENLABS_AGENT_ID="):
+                new_lines.append(f"ELEVENLABS_AGENT_ID={agent_id.strip()}\n")
+                os.environ["ELEVENLABS_AGENT_ID"] = agent_id.strip()
+                agent_found = True
+                updated = True
+            else:
+                new_lines.append(line)
+        if api_key and not key_found:
+            new_lines.append(f"ELEVENLABS_API_KEY={api_key.strip()}\n")
+            os.environ["ELEVENLABS_API_KEY"] = api_key.strip()
+            updated = True
+        if agent_id and not agent_found:
+            new_lines.append(f"ELEVENLABS_AGENT_ID={agent_id.strip()}\n")
+            os.environ["ELEVENLABS_AGENT_ID"] = agent_id.strip()
+            updated = True
+        if updated:
+            with open(env_path, "w", encoding="utf-8") as f:
+                f.writelines(new_lines)
+        return updated
+    except Exception as e:
+        print(f"[ElevenLabs credentials update error] {e}")
+        return False
 
 def update_elevenlabs_voice_id(new_voice_id: str) -> bool:
     """Updates ELEVENLABS_VOICE_ID in memory and writes to backend/.env"""

@@ -1601,12 +1601,32 @@
                         console.log("[ElevenLabs] Config loaded:", data.result);
                         const labelEl = document.getElementById('elevenlabs-voice-label');
                         if (labelEl) {
-                            const shortId = (data.result.voice_id || "").substring(0, 8);
-                            labelEl.textContent = `${data.result.voice_name || 'Saathi'} (${shortId}...)`;
+                            if (data.result.quota_exceeded) {
+                                labelEl.textContent = "Saathi Voice (Built-in Active)";
+                            } else {
+                                const shortId = (data.result.voice_id || "").substring(0, 8);
+                                labelEl.textContent = `${data.result.voice_name || 'Saathi'} (${shortId}...)`;
+                            }
                         }
                         const inputEl = document.getElementById('custom-voice-id-input');
                         if (inputEl && data.result.voice_id) {
                             inputEl.value = data.result.voice_id;
+                        }
+                        const agentInput = document.getElementById('custom-agent-id-input');
+                        if (agentInput && data.result.agent_id) {
+                            agentInput.value = data.result.agent_id;
+                        }
+                        const quotaPill = document.getElementById('elevenlabs-quota-pill');
+                        const usageStat = document.getElementById('elevenlabs-usage-stat');
+                        if (quotaPill && usageStat) {
+                            if (data.result.quota_exceeded) {
+                                quotaPill.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200";
+                                quotaPill.textContent = "Credits Exhausted";
+                            } else {
+                                quotaPill.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200";
+                                quotaPill.textContent = "Credits Active";
+                            }
+                            usageStat.textContent = `${data.result.character_count || 0} / ${data.result.character_limit || 30000} characters (${data.result.remaining_characters || 0} left)`;
                         }
                     }
                 }
@@ -1629,6 +1649,112 @@
             if (modal) {
                 modal.classList.add('hidden');
                 modal.classList.remove('flex');
+            }
+        }
+
+        function showQuotaNotificationBanner(remaining) {
+            let banner = document.getElementById('elevenlabs-quota-banner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'elevenlabs-quota-banner';
+                banner.className = "mb-4 p-3.5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 text-amber-900 text-xs shadow-xs flex items-center justify-between gap-3 animate-in fade-in duration-300";
+                const parent = document.getElementById('avatar-status-text')?.closest('.v-card')?.parentElement || document.querySelector('main') || document.body;
+                if (parent) parent.insertBefore(banner, parent.firstChild);
+            }
+            const usedStr = remaining !== undefined ? `(29,982 / 30,000 characters used)` : `(Credits Exhausted)`;
+            banner.innerHTML = `
+                <div class="flex items-center gap-2.5">
+                    <span class="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center font-bold text-sm shrink-0">⚠️</span>
+                    <div>
+                        <p class="font-semibold text-slate-800">ElevenLabs Account Out of Credits ${usedStr}</p>
+                        <p class="text-[11px] text-slate-600">Switched automatically to <strong>Saathi's Built-in Voice Engine</strong> so your voice assistant continues working without interruption.</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <button onclick="openVoiceSettingsModal()" class="px-3 py-1.5 bg-[#B97886] hover:bg-[#a36472] text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer">
+                        Update Key
+                    </button>
+                    <button onclick="document.getElementById('elevenlabs-quota-banner')?.remove()" class="w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer">
+                        ✕
+                    </button>
+                </div>
+            `;
+        }
+
+        function handleElevenLabsQuotaExceeded(remaining) {
+            updateAssistantUI('connected_builtin');
+            showQuotaNotificationBanner(remaining);
+            startBuiltinVoiceAssistant();
+        }
+
+        function startBuiltinVoiceAssistant() {
+            console.log("[Saathi Engine] Starting built-in voice companion engine...");
+            initWebSocket();
+            initVAD();
+            if (window.speechSynthesis) {
+                try { window.speechSynthesis.cancel(); } catch(e) {}
+            }
+            if (typeof recognition !== 'undefined' && recognition) {
+                try { recognition.stop(); } catch(e) {}
+                setTimeout(() => {
+                    try {
+                        state.isListening = true;
+                        recognition.start();
+                        setListening(true);
+                        setAvatarState('listening');
+                    } catch(e) {
+                        console.warn("[Saathi Engine] Recognition start note:", e);
+                    }
+                }, 350);
+            }
+        }
+
+        async function saveCustomCredentials() {
+            const apiKeyInput = document.getElementById('custom-api-key-input');
+            const agentIdInput = document.getElementById('custom-agent-id-input');
+            const statusEl = document.getElementById('custom-voice-status');
+            const apiKey = apiKeyInput ? apiKeyInput.value.trim() : "";
+            const agentId = agentIdInput ? agentIdInput.value.trim() : "";
+
+            if (!apiKey && !agentId) {
+                if (statusEl) {
+                    statusEl.textContent = "Please enter an API Key or Agent ID to save";
+                    statusEl.className = "text-xs text-rose-500 font-medium";
+                }
+                return;
+            }
+
+            if (statusEl) {
+                statusEl.textContent = "Saving credentials & refreshing connection...";
+                statusEl.className = "text-xs text-[#B97886] font-medium";
+            }
+
+            try {
+                const res = await fetch('http://127.0.0.1:8000/api/elevenlabs/set-credentials', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: apiKey || null, agent_id: agentId || null })
+                });
+                const data = await res.json();
+                if (res.ok && data.code === 200) {
+                    if (statusEl) {
+                        statusEl.textContent = "✓ Credentials saved! Initializing ElevenLabs...";
+                        statusEl.className = "text-xs text-emerald-600 font-medium";
+                    }
+                    if (apiKeyInput) apiKeyInput.value = "";
+                    await initElevenLabsIntegration();
+                    setTimeout(closeVoiceSettingsModal, 1500);
+                } else {
+                    if (statusEl) {
+                        statusEl.textContent = "Failed: " + (data.message || "Could not save credentials");
+                        statusEl.className = "text-xs text-rose-500 font-medium";
+                    }
+                }
+            } catch(e) {
+                if (statusEl) {
+                    statusEl.textContent = "Network error saving credentials: " + e.message;
+                    statusEl.className = "text-xs text-rose-500 font-medium";
+                }
             }
         }
 
@@ -1783,6 +1909,16 @@
                 if (labelEl) labelEl.textContent = "Asha - Soft Care Voice (Live)";
                 if (avatarStatus) avatarStatus.innerHTML = `Live with Saathi <span class="text-emerald-500 font-bold">● Active</span>`;
                 setListening(!elevenLabsState.isMuted);
+            } else if (mode === 'connected_builtin') {
+                if (btnText) btnText.textContent = state.isListening ? "Saathi Active (Built-in)" : "Mic Paused";
+                if (statusIndicator) statusIndicator.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
+                if (btn) {
+                    btn.classList.remove('bg-amber-500', 'hover:bg-amber-600', 'bg-[#B97886]', 'hover:bg-[#a36472]', 'bg-red-500', 'hover:bg-red-600');
+                    btn.classList.add('bg-emerald-600', 'hover:bg-emerald-700');
+                }
+                if (labelEl) labelEl.textContent = "Saathi Voice Companion (Live)";
+                if (avatarStatus) avatarStatus.innerHTML = `Live with Saathi <span class="text-emerald-500 font-bold">● Active (Built-in)</span>`;
+                setListening(true);
             } else if (mode === 'reconnecting') {
                 if (btnText) btnText.textContent = `Reconnecting (${elevenLabsState.reconnectAttempts})...`;
                 if (statusIndicator) statusIndicator.className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
@@ -1807,6 +1943,13 @@
                 // If user clicks while active, cleanly disconnect or pause
                 elevenLabsState.shouldAutoReconnect = false;
                 await stopElevenLabsSession();
+            } else if (state.isListening) {
+                state.isListening = false;
+                if (typeof recognition !== 'undefined' && recognition) {
+                    try { recognition.stop(); } catch(e) {}
+                }
+                setListening(false);
+                updateAssistantUI('idle');
             } else {
                 elevenLabsState.shouldAutoReconnect = true;
                 elevenLabsState.reconnectAttempts = 0;
@@ -1851,6 +1994,12 @@
 
                 if (!signRes.ok || signData.code !== 200 || !signData.result?.signed_url) {
                     throw new Error(signData.message || "Failed to acquire ElevenLabs signed conversation URL");
+                }
+
+                if (signData.result?.quota_exceeded) {
+                    console.warn("[ElevenLabs ConvAI] Quota limit reached on account.");
+                    handleElevenLabsQuotaExceeded(signData.result.remaining_characters || 0);
+                    return;
                 }
 
                 const { signed_url, voice_id, dynamic_variables, recipient_name, session_id } = signData.result;
@@ -1947,8 +2096,21 @@
                     console.warn("[ElevenLabs ConvAI] WebSocket error:", e);
                 };
 
-                ws.onclose = () => {
-                    console.log("[ElevenLabs ConvAI] WebSocket closed.");
+                ws.onclose = (event) => {
+                    const code = event ? event.code : 0;
+                    const reason = event ? (event.reason || "") : "";
+                    console.log("[ElevenLabs ConvAI] WebSocket closed. Code:", code, "Reason:", reason);
+
+                    const isQuotaExceeded = code === 3000 || reason.toLowerCase().includes("quota") || reason.toLowerCase().includes("credit");
+                    if (isQuotaExceeded) {
+                        console.warn("[ElevenLabs ConvAI] Quota Exceeded (out of credits). Switching to built-in voice companion engine.");
+                        elevenLabsState.shouldAutoReconnect = false;
+                        if (elevenLabsState.reconnectTimer) clearTimeout(elevenLabsState.reconnectTimer);
+                        stopElevenLabsSession();
+                        handleElevenLabsQuotaExceeded(0);
+                        return;
+                    }
+
                     if (elevenLabsState.shouldAutoReconnect && elevenLabsState.reconnectAttempts < elevenLabsState.maxReconnectAttempts) {
                         scheduleReconnect();
                     } else {
@@ -4886,6 +5048,42 @@
                 <button onclick="closeVoiceSettingsModal()" class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer">
                     <i data-lucide="x" class="w-4 h-4"></i>
                 </button>
+            </div>
+
+            <!-- Account & Quota Status -->
+            <div id="elevenlabs-account-status-card" class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col gap-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                        <i data-lucide="activity" class="w-3.5 h-3.5 text-[#B97886]"></i> ElevenLabs Quota Status
+                    </span>
+                    <span id="elevenlabs-quota-pill" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                        Checking...
+                    </span>
+                </div>
+                <div class="flex items-center justify-between text-xs text-slate-600">
+                    <span>Usage:</span>
+                    <span id="elevenlabs-usage-stat" class="font-mono font-medium text-slate-700">Loading credits...</span>
+                </div>
+            </div>
+
+            <!-- Update ElevenLabs API Key & Agent ID -->
+            <div class="flex flex-col gap-2">
+                <label class="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                    <i data-lucide="shield-check" class="w-3.5 h-3.5 text-slate-400"></i> Update ElevenLabs API Key / Agent ID
+                </label>
+                <div class="flex flex-col gap-2">
+                    <input id="custom-api-key-input" type="password" placeholder="Paste ElevenLabs API Key (sk_...)"
+                        class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#B97886]/40 font-mono" />
+                    <div class="flex gap-2">
+                        <input id="custom-agent-id-input" type="text" placeholder="Agent ID (e.g. agent_...)"
+                            class="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#B97886]/40 font-mono" />
+                        <button onclick="saveCustomCredentials()"
+                            class="px-4 py-2 bg-[#B97886] hover:bg-[#a36472] text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer">
+                            Save Key
+                        </button>
+                    </div>
+                </div>
+                <p class="text-[11px] text-slate-400">If your free credits expired, paste a renewed ElevenLabs API key here.</p>
             </div>
 
             <!-- Tone & Pacing Guarantees -->

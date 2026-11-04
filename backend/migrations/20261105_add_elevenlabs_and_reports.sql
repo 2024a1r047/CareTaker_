@@ -11,3 +11,4 @@ ON conversation_sessions(elevenlabs_conversation_id);
 -- Add source_session_id to member_memory
 ALTER TABLE member_memory 
 ADD COLUMN IF NOT EXISTS source_session_id UUID REFERENCES conversation_sessions(id) ON DELETE SET NULL;
+

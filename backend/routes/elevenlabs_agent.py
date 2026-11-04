@@ -26,6 +26,8 @@ from services.elevenlabs_service import (
     build_saathi_context,
     handle_log_medicine_or_meal,
     handle_send_emergency_alert,
+    check_elevenlabs_quota,
+    update_elevenlabs_credentials,
 )
 
 router = APIRouter(prefix="/elevenlabs", tags=["ElevenLabs Saathi"])
@@ -62,6 +64,10 @@ class ConversationTurnRequest(BaseModel):
 class EndSessionRequest(BaseModel):
     session_id: str
 
+class CredentialsRequest(BaseModel):
+    api_key: Optional[str] = None
+    agent_id: Optional[str] = None
+
 @router.get("/config", response_model=ResponseSchema)
 async def get_elevenlabs_config():
     """Returns safe public config for ElevenLabs Saathi integration (never exposes private API keys)."""
@@ -69,6 +75,7 @@ async def get_elevenlabs_config():
     agent_id = get_elevenlabs_agent_id()
     active_voice_id = get_elevenlabs_voice_id()
     active_model_id = get_elevenlabs_model_id()
+    quota = check_elevenlabs_quota()
     return ResponseSchema(
         code=200,
         status="success",
@@ -79,9 +86,27 @@ async def get_elevenlabs_config():
             "model_id": active_model_id,
             "has_api_key": bool(api_key),
             "has_agent_id": bool(agent_id),
-            "agent_id": agent_id if agent_id else None
+            "agent_id": agent_id if agent_id else None,
+            "quota_exceeded": quota.get("quota_exceeded", False),
+            "remaining_characters": quota.get("remaining_characters", 0),
+            "character_count": quota.get("character_count", 0),
+            "character_limit": quota.get("character_limit", 30000),
+            "tier": quota.get("tier", "starter")
         }
     )
+
+@router.post("/set-credentials", response_model=ResponseSchema)
+async def set_credentials(payload: CredentialsRequest):
+    """Updates ELEVENLABS_API_KEY and/or ELEVENLABS_AGENT_ID safely in environment."""
+    updated = update_elevenlabs_credentials(api_key=payload.api_key, agent_id=payload.agent_id)
+    if updated:
+        return ResponseSchema(
+            code=200,
+            status="success",
+            message="ElevenLabs credentials updated successfully in environment",
+            result={"has_api_key": bool(payload.api_key), "agent_id": payload.agent_id}
+        )
+    return ResponseSchema(code=400, status="error", message="Failed to update credentials in .env")
 
 @router.get("/session-context/{recipient_id}", response_model=ResponseSchema)
 async def get_session_context(recipient_id: int, db: Session = Depends(get_db)):
@@ -147,6 +172,8 @@ async def get_signed_url(
     except Exception as _serr:
         pass
 
+    quota = check_elevenlabs_quota()
+
     return ResponseSchema(
         code=200,
         status="success",
@@ -161,6 +188,8 @@ async def get_signed_url(
             "address": context.get("address", "Dadaji"),
             "language": context.get("language", "Hindi, English, or Hinglish"),
             "first_message": context.get("first_message", ""),
+            "quota_exceeded": quota.get("quota_exceeded", False),
+            "remaining_characters": quota.get("remaining_characters", 0),
             "dynamic_variables": {
                 "name": context.get("name", "Dadaji"),
                 "user_name": context.get("name", "Dadaji"),
