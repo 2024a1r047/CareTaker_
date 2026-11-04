@@ -12,6 +12,7 @@ from tables.vital_signs import VitalSign
 from tables.medical_conditions import PatientCondition, LabValue, MedicalAlert
 from tables.medical_recommendations import MedicalRecommendation
 from tables.medications import Medication
+from tables.medical_reports import MedicalReport
 from tables.audio_events import AudioEvent
 from config import SaathiSessionLocal
 from tables.saathi_history import (
@@ -236,6 +237,7 @@ def build_conversation_context(recipient_id: int, db: Session):
         "active_alerts": [{"type": a.alert_type.value if hasattr(a.alert_type, 'value') else str(a.alert_type), "message": a.message, "severity": a.severity.value if hasattr(a.severity, 'value') else str(a.severity)} for a in active_alerts],
         "reminders": [{"type": r.reminder_type.value, "text": r.reminder_text, "time": r.scheduled_time} for r in pending_reminders],
         "medications": [{"name": m.medicine_name, "details": m.dosage, "frequency": m.frequency} for m in active_meds],
+        "uploaded_reports": [{"filename": r.filename, "uploaded_at": r.uploaded_at.strftime("%Y-%m-%d") if r.uploaded_at else "", "summary": (r.analysis_summary or "").strip()} for r in db.query(MedicalReport).filter(MedicalReport.care_recipient_id == recipient_id).order_by(desc(MedicalReport.uploaded_at)).limit(5).all()],
         "clinical_recs": [{"metric": r.metric, "message": r.message, "actions": [a["text"] for a in r.actions]} for r in deterministic_recs],
         "trend_summary": trends,
         "yesterday_engagement": yesterday_engagement
@@ -725,7 +727,8 @@ def intelligent_saathi_dialogue(
     med_info_patterns = ["meri dawai", "kaunsi dawai", "medicine schedule", "dawai ka time", "meri dawaiyan", "what are my medicines", "my medicine", "konsi goli"]
     if any(p in t for p in med_info_patterns) and not any(p in t for p in ["le li", "kha li", "taken"]):
         try:
-            from tables.medications import Medication, MedicationStatus
+            from tables.medications import Medication
+            from tables.medications import MedicationStatus
 
             active_meds = db.query(Medication).filter(
                 Medication.care_recipient_id == target_recip_id,
@@ -806,6 +809,39 @@ def intelligent_saathi_dialogue(
         doc_adv = doctor_remarks or "Doctor ki taraf se sab theek bataya gaya hai. Samay par aaram karein aur sehat ka dhyan rakhein."
         return {
             "reply": f"{profile_name}, doctor ki taraf se yeh salah darj hai: {doc_adv}.",
+            "intent": "chat",
+            "search_query": "",
+            "mood_detected": "neutral",
+            "depression_risk": False
+        }
+
+    # User asks about medical reports & lab test findings
+    report_patterns = ["medical report", "lab report", "test report", "meri report", "report mein kya", "jaanch report", "sugar report", "blood report", "what does my report say", "my report", "reports", "report"]
+    if any(p in t for p in report_patterns):
+        try:
+            from tables.medical_reports import MedicalReport
+            reps = db.query(MedicalReport).filter(MedicalReport.care_recipient_id == target_recip_id).order_by(desc(MedicalReport.uploaded_at)).limit(3).all()
+            rep_texts = []
+            for r in reps:
+                s = (r.analysis_summary or '').strip()
+                if s:
+                    rep_texts.append(f"{r.filename}: {s[:160]}")
+            if not rep_texts and recip and recip.report_summary:
+                rep_texts.append(recip.report_summary[:180])
+
+            if rep_texts:
+                rep_summary = " | ".join(rep_texts)
+                return {
+                    "reply": f"{profile_name}, aapke uploaded medical report ke anusaar: {rep_summary}. Kripya doctor ki salah ka dhyan rakhein.",
+                    "intent": "show_reports",
+                    "search_query": "",
+                    "mood_detected": "neutral",
+                    "depression_risk": False
+                }
+        except Exception:
+            pass
+        return {
+            "reply": f"{profile_name}, aapke profile mein filhal koi medical report darj nahi hai.",
             "intent": "chat",
             "search_query": "",
             "mood_detected": "neutral",

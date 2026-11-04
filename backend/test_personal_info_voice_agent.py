@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from config import SaathiSessionLocal, SessionLocal
 from tables.users import CareRecipient, CareTaker
 from tables.medications import Medication
+from tables.medical_reports import MedicalReport
 from tables.allergies import Allergy, AllergyType, AllergyStatus
 from tables.medical_conditions import PatientCondition
 from tables.saathi_db_models import (
@@ -32,6 +33,8 @@ from services.saathi_memory_service import (
     end_session_sync,
     get_member_context,
     build_system_prompt,
+    build_agent_context,
+    sync_member_profile,
 )
 from services.voice_bot_engine import (
     build_conversation_context,
@@ -140,6 +143,22 @@ def run_tests():
             db.add(cond)
             db.commit()
 
+        # Setup uploaded medical report
+        existing_rep = db.query(MedicalReport).filter(
+            MedicalReport.care_recipient_id == test_recip_id,
+            MedicalReport.filename == "blood_test_report_latest.pdf"
+        ).first()
+        if not existing_rep:
+            rep = MedicalReport(
+                care_recipient_id=test_recip_id,
+                filename="blood_test_report_latest.pdf",
+                mime_type="application/pdf",
+                analysis_summary="HbA1c 6.8% indicates controlled diabetes. Lipid profile normal. Kidney and liver functions normal.",
+                processing_status="completed"
+            )
+            db.add(rep)
+            db.commit()
+
     print(f"[Setup] Recipient ID: {test_recip_id}, Full Name: 'Harbans Lal Sharma', Profile Name: 'Bauji'")
 
     # ─────────────────────────────────────────────────────────
@@ -207,6 +226,30 @@ def run_tests():
         print(f"  Saathi: '{res_doc['reply']}'")
         assert "walk" in res_doc["reply"].lower() or "dhyan" in res_doc["reply"].lower()
         print("  [PASS] Saathi accurately conveyed doctor's remarks and advice.")
+
+        # G. Uploaded Medical Report Query
+        res_rep = intelligent_saathi_dialogue("mera medical report kya kehta hai", test_recip_id, db, "hi")
+        print(f"  User: 'Mera medical report kya kehta hai?'")
+        print(f"  Saathi: '{res_rep['reply']}'")
+        assert "report" in res_rep["reply"].lower() or "diabetes" in res_rep["reply"].lower() or "hba1c" in res_rep["reply"].lower()
+        assert "Bauji" in res_rep["reply"]
+        print("  [PASS] Saathi accurately reported uploaded medical report findings from profile.")
+
+    # ─────────────────────────────────────────────────────────
+    # TEST 2.5: Dynamic Agent Context & Profile Synchronization
+    # ─────────────────────────────────────────────────────────
+    print("\n--- TEST 2.5: Dynamic Agent Context (8 variables) & saathi_db Sync ---")
+    sync_res = sync_member_profile(test_recip_id)
+    assert sync_res["success"] is True
+    print("  [PASS] Personal data, medicines, and reports synced to saathi_db.family_members.")
+
+    agent_ctx = build_agent_context(test_recip_id)
+    assert agent_ctx["user_name"] == "Bauji"
+    assert "Amlodipine" in agent_ctx["medicines"]
+    assert "blood_test_report_latest.pdf" in agent_ctx["medical_reports"] or "diabetes" in agent_ctx["medical_reports"].lower()
+    assert "Bauji" in agent_ctx["profile_details"]
+    assert "B+" in agent_ctx["profile_details"]
+    print("  [PASS] build_agent_context returned all 8 clean variables with full medicine & report data.")
 
     # ─────────────────────────────────────────────────────────
     # TEST 3: Remembering Personal Info in saathi_db Memory

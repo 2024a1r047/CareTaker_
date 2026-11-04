@@ -263,6 +263,27 @@ def build_saathi_context(recipient_id: int, db: Session) -> Dict[str, Any]:
             conditions.append(c.disease_name)
     conditions_str = ", ".join(conditions) if conditions else "None recorded"
 
+    # Uploaded medical reports
+    reports_str = "No medical reports uploaded yet"
+    if recipient:
+        try:
+            from tables.medical_reports import MedicalReport
+            reps = db.query(MedicalReport).filter(
+                MedicalReport.care_recipient_id == recipient.id
+            ).order_by(MedicalReport.uploaded_at.desc()).limit(5).all()
+            r_list = []
+            for r in reps:
+                s = (r.analysis_summary or '').strip().replace('\n', ' ')
+                if len(s) > 200:
+                    s = s[:200] + "..."
+                r_list.append(f"{r.filename}: {s}")
+            if not r_list and recipient.report_summary:
+                r_list.append(recipient.report_summary[:200])
+            if r_list:
+                reports_str = " | ".join(r_list)
+        except Exception:
+            pass
+
     # Language preference
     language = "Hindi, English, or Hinglish"
 
@@ -270,7 +291,7 @@ def build_saathi_context(recipient_id: int, db: Session) -> Dict[str, Any]:
     first_message = f"Namaste {preferred_name}... aaj aap kaisa feel kar rahe hain? ... Jo bhi aapke mann mein hai, mujhe batayiye. Main sun rahi hoon."
 
     # Injected User Data Context format
-    user_data_context = f"Name: {preferred_name} ({address}) | Preferred language: {language} | Medicines: {medicine_schedule} | Conditions: {conditions_str} | Family contact: {family_contact}"
+    user_data_context = f"Name: {preferred_name} ({address}) | Preferred language: {language} | Medicines: {medicine_schedule} | Reports: {reports_str} | Conditions: {conditions_str} | Family contact: {family_contact}"
 
     profile_details = mem_ctx.get("profile_details") or f"Age: {recipient.age if recipient else 68}, Conditions: {conditions_str}"
     member_memory = mem_ctx.get("member_memory") or "No specific personal memories recorded yet."
@@ -302,6 +323,8 @@ DUTIES & TOOLS:
         "address": preferred_name,
         "language": language,
         "medicine_schedule": medicine_schedule,
+        "medicines": medicine_schedule,
+        "medical_reports": reports_str,
         "conditions": conditions_str,
         "family_contact": family_contact,
         "first_message": first_message,

@@ -66,7 +66,7 @@ def _to_valid_uuid(val: Union[str, uuid.UUID]) -> uuid.UUID:
 
 
 def _ensure_family_member_exists(s_db: Session, family_member_id: int, account_id: Optional[int] = None) -> FamilyMember:
-    """Ensures family_member record exists in saathi_db, syncing from care_recipients if needed."""
+    """Ensures family_member record exists in saathi_db, syncing complete personal profile, medicines, and reports."""
     member = s_db.query(FamilyMember).filter(FamilyMember.id == family_member_id).first()
     if member:
         return member
@@ -76,6 +76,28 @@ def _ensure_family_member_exists(s_db: Session, family_member_id: int, account_i
         recip = main_db.query(CareRecipient).filter(CareRecipient.id == family_member_id).first()
         if recip:
             act_id = account_id or recip.caretaker_id or 1
+            
+            # Fetch active medications
+            med_list = []
+            try:
+                from tables.medications import Medication, MedicationStatus
+                meds = main_db.query(Medication).filter(
+                    Medication.care_recipient_id == recip.id,
+                    Medication.status.in_([MedicationStatus.active, 'active'])
+                ).all()
+                med_list = [{"name": m.medicine_name, "dosage": m.dosage, "schedule": m.schedule_time} for m in meds]
+            except Exception:
+                pass
+
+            # Fetch uploaded reports
+            report_list = []
+            try:
+                from tables.medical_reports import MedicalReport
+                reps = main_db.query(MedicalReport).filter(MedicalReport.care_recipient_id == recip.id).order_by(MedicalReport.uploaded_at.desc()).limit(5).all()
+                report_list = [{"filename": r.filename, "summary": (r.analysis_summary or '')[:200]} for r in reps]
+            except Exception:
+                pass
+
             member = FamilyMember(
                 id=recip.id,
                 account_id=act_id,
@@ -86,7 +108,12 @@ def _ensure_family_member_exists(s_db: Session, family_member_id: int, account_i
                     "age": recip.age,
                     "gender": str(recip.gender) if recip.gender else None,
                     "city": recip.city,
+                    "blood_group": getattr(recip, 'blood_group', None),
+                    "emergency_contact": getattr(recip, 'emergency_contact', None),
+                    "doctor_remarks": getattr(recip, 'doctor_remarks', None),
                     "report_summary": recip.report_summary,
+                    "medications": med_list,
+                    "uploaded_reports": report_list
                 }
             )
             s_db.add(member)
@@ -107,6 +134,70 @@ def _ensure_family_member_exists(s_db: Session, family_member_id: int, account_i
     s_db.commit()
     s_db.refresh(member)
     return member
+
+
+def sync_member_profile(family_member_id: int) -> Dict[str, Any]:
+    """
+    Explicitly synchronizes personal data, active medications, and uploaded reports
+    from the main caretaker database into saathi_db.family_members.
+    """
+    with SessionLocal() as main_db:
+        recip = main_db.query(CareRecipient).filter(CareRecipient.id == family_member_id).first()
+        if not recip:
+            return {"success": False, "error": f"Recipient {family_member_id} not found"}
+
+        med_list = []
+        try:
+            from tables.medications import Medication, MedicationStatus
+            meds = main_db.query(Medication).filter(
+                Medication.care_recipient_id == recip.id,
+                Medication.status.in_([MedicationStatus.active, 'active'])
+            ).all()
+            med_list = [{"name": m.medicine_name, "dosage": m.dosage, "schedule": m.schedule_time} for m in meds]
+        except Exception:
+            pass
+
+        report_list = []
+        try:
+            from tables.medical_reports import MedicalReport
+            reps = main_db.query(MedicalReport).filter(MedicalReport.care_recipient_id == recip.id).order_by(MedicalReport.uploaded_at.desc()).limit(5).all()
+            report_list = [{"filename": r.filename, "summary": (r.analysis_summary or '')[:200]} for r in reps]
+        except Exception:
+            pass
+
+        prof_dict = {
+            "full_name": recip.full_name,
+            "preferred_name": recip.preferred_name,
+            "age": recip.age,
+            "gender": str(recip.gender) if recip.gender else None,
+            "city": recip.city,
+            "blood_group": getattr(recip, 'blood_group', None),
+            "emergency_contact": getattr(recip, 'emergency_contact', None),
+            "doctor_remarks": getattr(recip, 'doctor_remarks', None),
+            "report_summary": recip.report_summary,
+            "medications": med_list,
+            "uploaded_reports": report_list
+        }
+
+        with SaathiSessionLocal() as s_db:
+            member = s_db.query(FamilyMember).filter(FamilyMember.id == family_member_id).first()
+            if member:
+                member.full_name = recip.full_name or member.full_name
+                member.preferred_name = recip.preferred_name or member.preferred_name
+                member.profile_details = prof_dict
+                member.updated_at = datetime.now(timezone.utc)
+            else:
+                member = FamilyMember(
+                    id=recip.id,
+                    account_id=recip.caretaker_id or 1,
+                    full_name=recip.full_name or "Family Member",
+                    preferred_name=recip.preferred_name,
+                    language="hi",
+                    profile_details=prof_dict
+                )
+                s_db.add(member)
+            s_db.commit()
+            return {"success": True, "profile": prof_dict}
 
 
 def start_session(account_id: int, family_member_id: int) -> uuid.UUID:
@@ -543,6 +634,27 @@ def get_member_context(family_member_id: int) -> Dict[str, Any]:
 
             if recip.report_summary:
                 details_parts.append(f"Health summary: {recip.report_summary}")
+
+            # Uploaded Medical Reports from DB
+            try:
+                from tables.medical_reports import MedicalReport
+                reports = main_db.query(MedicalReport).filter(
+                    MedicalReport.care_recipient_id == recip.id
+                ).order_by(MedicalReport.uploaded_at.desc()).limit(5).all()
+                rep_summaries = []
+                for r in reports:
+                    date_str = r.report_date.isoformat() if getattr(r, 'report_date', None) else (
+                        r.uploaded_at.strftime('%Y-%m-%d') if getattr(r, 'uploaded_at', None) else 'Recent'
+                    )
+                    sm = (r.analysis_summary or '').strip().replace('\n', ' ')
+                    if len(sm) > 250:
+                        sm = sm[:250] + "..."
+                    rep_summaries.append(f"{r.filename} ({date_str}): {sm or 'Processed'}")
+                if rep_summaries:
+                    details_parts.append(f"Uploaded Medical Reports: {'; '.join(rep_summaries)}")
+            except Exception:
+                pass
+
             profile_details = " | ".join(details_parts)
 
     # 2. Read memories & recent summaries from saathi_db
@@ -612,3 +724,76 @@ def build_system_prompt(family_member_id: int) -> str:
         .replace("{{preferred_language}}", ctx["preferred_language"])
     )
     return prompt
+
+
+def build_agent_context(family_member_id: int) -> Dict[str, str]:
+    """
+    Builds dynamic variables for ElevenLabs ConvAI & Saathi voice assistant:
+    Returns the 8 standard string variables + medical reports for voice agent personalization.
+    """
+    ctx = get_member_context(family_member_id)
+    user_name = ctx["preferred_name"]
+
+    meds_str = "None on record"
+    reports_str = "No medical reports uploaded yet"
+    caretaker_str = "Caretaker"
+    family_str = "Emergency contact"
+
+    with SessionLocal() as db:
+        recip = db.query(CareRecipient).filter(CareRecipient.id == family_member_id).first()
+        if recip:
+            if getattr(recip, 'emergency_contact', None):
+                family_str = f"Emergency Contact: {recip.emergency_contact}"
+            if recip.caretaker:
+                caretaker_str = recip.caretaker.full_name or recip.caretaker.username
+                if getattr(recip.caretaker, 'phone_number', None):
+                    caretaker_str += f" ({recip.caretaker.phone_number})"
+
+            # Active medicines
+            try:
+                from tables.medications import Medication, MedicationStatus
+                active_meds = db.query(Medication).filter(
+                    Medication.care_recipient_id == recip.id,
+                    Medication.status.in_([MedicationStatus.active, 'active'])
+                ).all()
+                if active_meds:
+                    meds_str = "; ".join([
+                        f"{m.medicine_name} ({m.dosage or 'as prescribed'}, {m.frequency or 'daily'}, schedule: {m.schedule_time or 'regular'})"
+                        for m in active_meds
+                    ])
+            except Exception:
+                pass
+
+            # Uploaded medical reports
+            try:
+                from tables.medical_reports import MedicalReport
+                reps = db.query(MedicalReport).filter(
+                    MedicalReport.care_recipient_id == recip.id
+                ).order_by(MedicalReport.uploaded_at.desc()).limit(5).all()
+                r_list = []
+                for r in reps:
+                    s = (r.analysis_summary or '').strip().replace('\n', ' ')
+                    if len(s) > 200:
+                        s = s[:200] + "..."
+                    r_list.append(f"{r.filename}: {s}")
+                if not r_list and recip.report_summary:
+                    r_list.append(recip.report_summary[:200])
+                if r_list:
+                    reports_str = " | ".join(r_list)
+            except Exception:
+                pass
+
+    last_sum = ctx["recent_session_summaries"] if ctx["recent_session_summaries"] else "No previous conversation recorded."
+
+    return {
+        "user_name": str(user_name),
+        "preferred_language": "Hinglish (Hindi and English mixed)",
+        "profile_details": str(ctx["profile_details"]),
+        "medicines": str(meds_str),
+        "family_members": str(family_str),
+        "caretaker_name": str(caretaker_str),
+        "member_memory": str(ctx["member_memory"]),
+        "last_summary": str(last_sum),
+        "medical_reports": str(reports_str),
+    }
+

@@ -99,6 +99,7 @@ async def get_session_context(recipient_id: int, db: Session = Depends(get_db)):
     )
 
 @router.get("/signed-url", response_model=ResponseSchema)
+@router.get("/session", response_model=ResponseSchema)
 async def get_signed_url(
     agent_id: Optional[str] = None,
     recipient_id: Optional[int] = 1,
@@ -164,7 +165,13 @@ async def get_signed_url(
                 "name": context.get("name", "Dadaji"),
                 "user_name": context.get("name", "Dadaji"),
                 "address": context.get("address", "Dadaji"),
-                "medicine_schedule": context.get("medicine_schedule", "")
+                "preferred_language": context.get("language", "Hindi, English, or Hinglish"),
+                "medicine_schedule": context.get("medicine_schedule", ""),
+                "medicines": context.get("medicines", ""),
+                "medical_reports": context.get("medical_reports", ""),
+                "reports": context.get("medical_reports", ""),
+                "conditions": context.get("conditions", ""),
+                "family_contact": context.get("family_contact", "")
             }
         }
     )
