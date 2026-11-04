@@ -204,6 +204,20 @@ def build_saathi_context(recipient_id: int, db: Session) -> Dict[str, Any]:
     name = recipient.full_name if recipient else "Maa"
     first_name = name.split()[0] if name else "Maa"
 
+    # Load member memory and preferred name from saathi_db / caretaker profile
+    mem_ctx = {}
+    try:
+        from services.saathi_memory_service import get_member_context
+        mem_ctx = get_member_context(recipient.id if recipient else recipient_id)
+    except Exception as _mem_err:
+        pass
+
+    preferred_name = (
+        mem_ctx.get("preferred_name")
+        or (recipient.preferred_name if recipient and getattr(recipient, "preferred_name", None) else None)
+        or first_name
+    )
+
     # Address form based on gender/age
     address = "ji"
     if recipient:
@@ -253,37 +267,39 @@ def build_saathi_context(recipient_id: int, db: Session) -> Dict[str, Any]:
     language = "Hindi, English, or Hinglish"
 
     # Exact opening audio greeting with pauses
-    first_message = f"Namaste {first_name} ji... aaj aap kaisa feel kar rahe hain? ... Jo bhi aapke mann mein hai, mujhe batayiye. Main sun rahi hoon."
+    first_message = f"Namaste {preferred_name}... aaj aap kaisa feel kar rahe hain? ... Jo bhi aapke mann mein hai, mujhe batayiye. Main sun rahi hoon."
 
     # Injected User Data Context format
-    user_data_context = f"Name: {first_name} ({address}) | Preferred language: {language} | Medicines: {medicine_schedule} | Conditions: {conditions_str} | Family contact: {family_contact}"
+    user_data_context = f"Name: {preferred_name} ({address}) | Preferred language: {language} | Medicines: {medicine_schedule} | Conditions: {conditions_str} | Family contact: {family_contact}"
+
+    profile_details = mem_ctx.get("profile_details") or f"Age: {recipient.age if recipient else 68}, Conditions: {conditions_str}"
+    member_memory = mem_ctx.get("member_memory") or "No specific personal memories recorded yet."
+    recent_summaries = mem_ctx.get("recent_session_summaries") or "No previous conversations recorded yet."
 
     # Exact Specification Saathi System Prompt
-    system_prompt = f"""You are "Saathi", a caring companion for an elderly person. Speak like a loving son or daughter—warm, patient, soft-spoken, respectful, and never rushed.
+    system_prompt = f"""You are Saathi, a warm, patient and caring voice companion.
+You are talking to {preferred_name}. Always address them as "{preferred_name}".
+About them: {profile_details}
+What you remember: {member_memory}
+Recent conversations: {recent_summaries}
+Speak in {language} in short, simple sentences suitable for voice.
+Use remembered details naturally but never invent facts.
+If they mention a health emergency, a fall, chest pain or feeling unsafe, calmly tell them to contact their caretaker or emergency services right away.
 
-LANGUAGE & SPEECH PACE:
-- Respond in whichever language the user uses: Hindi, English, or Hinglish (Hindi words written in natural script). Match their mix naturally.
-- Speak slowly with deliberate, natural pauses. Use soft, gentle tones.
-- Keep sentences short and simple. Address them respectfully ("{address}", "Maa ji", "Papa ji", or {first_name} ji).
-- Pause for a moment after the user finishes speaking; never interrupt them.
-- If the user seems confused or repeats themselves, patiently reiterate in simpler terms with a calm tone.
-
-DUTIES:
-1. Medicines: Remind at scheduled times from user records ({medicine_schedule}). Ask gently if they took their medicine. Encourage gently if not. Never alter dosages or offer medical advice. When confirmed, invoke `log_medicine_or_meal`.
+DUTIES & TOOLS:
+1. Medicines: Remind at scheduled times from user records ({medicine_schedule}). Ask gently if they took their medicine. When confirmed, invoke `log_medicine_or_meal`.
 2. Meals & Hydration: Remind about meals and drinking water. Ask what they ate. When confirmed, invoke `log_medicine_or_meal`.
 3. Wellbeing: Ask how they slept and feel. Listen for pain, dizziness, or sadness.
-4. Company: Chat about their day, memories, or old songs. Listen more than you speak.
+4. Music & Entertainment: When they ask for music, songs, or bhajans, invoke `play_music` (with song_name) or `play_youtube_video` (with query) or `media_control` (action='pause'|'resume'|'stop'|'next'|'volume_up'|'volume_down'). Available local library tracks include: Pal Pal Dil Ke Paas, Relaxing Piano, Gentle Breeze, Soft Morning, Roop Tera Mastana, Zindagi Ka Safar. Chat warmly about old melodies.
 5. Safety: If they report a fall, chest pain, or breathing issues, remain calm, reassure them help is coming, and trigger the emergency alert tool `send_emergency_alert`.
-
-USER DATA CONTEXT:
-{user_data_context}
 """
 
     return {
         "recipient_id": recipient.id if recipient else 1,
-        "name": first_name,
+        "name": preferred_name,
+        "preferred_name": preferred_name,
         "full_name": name,
-        "address": address,
+        "address": preferred_name,
         "language": language,
         "medicine_schedule": medicine_schedule,
         "conditions": conditions_str,
@@ -312,6 +328,12 @@ async def handle_log_medicine_or_meal(
     Function calling tool: Logs when user confirms taking medication or having a meal.
     Updates MedicationDoseLog, inventory stock, and emits real-time sync event.
     """
+    from tables.users import CareRecipient, CareTaker
+    recip = db.query(CareRecipient).filter(CareRecipient.id == recipient_id).first()
+    if not recip:
+        recip = db.query(CareRecipient).first()
+    target_id = recip.id if recip else recipient_id
+
     item_type_clean = (item_type or "medicine").lower()
     status_clean = (status or "taken").lower()
     action = "TAKEN" if status_clean in ["taken", "yes", "completed", "had", "done", "consumed"] else "MISSED"
@@ -323,7 +345,7 @@ async def handle_log_medicine_or_meal(
 
             # Find matching pending log or most recent medication
             query = db.query(MedicationDoseLog).filter(
-                MedicationDoseLog.care_recipient_id == recipient_id,
+                MedicationDoseLog.care_recipient_id == target_id,
                 MedicationDoseLog.status == DoseStatusEnum.PENDING
             )
             if item_name:
@@ -398,6 +420,9 @@ async def handle_send_emergency_alert(
     from tables.medical_conditions import MedicalAlert, AlertType, AlertSeverity
 
     recipient = db.query(CareRecipient).filter(CareRecipient.id == recipient_id).first()
+    if not recipient:
+        recipient = db.query(CareRecipient).first()
+    target_id = recipient.id if recipient else recipient_id
     recipient_name = recipient.full_name if recipient else "Care Recipient"
     caretaker_email = None
 
@@ -409,7 +434,7 @@ async def handle_send_emergency_alert(
     # 1. Create database MedicalAlert
     try:
         alert = MedicalAlert(
-            care_recipient_id=recipient_id,
+            care_recipient_id=target_id,
             alert_type=AlertType.critical,
             severity=AlertSeverity.critical,
             message=f"EMERGENCY triggered via Saathi Voice: {reason or 'Fall or severe distress reported'}"

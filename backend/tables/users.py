@@ -56,6 +56,7 @@ class CareRecipient(Base):
     caretaker_id = Column(Integer, ForeignKey("caretakers.id", ondelete="CASCADE"), nullable=False)
 
     full_name = Column(String, nullable=False)
+    preferred_name = Column(String(100), nullable=True)
     email = Column(String, unique=True, index=True, nullable=False)
     phone_number = Column(String(10), unique=True, index=True, nullable=False)
     age = Column(Integer, nullable=True)

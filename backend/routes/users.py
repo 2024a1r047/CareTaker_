@@ -123,6 +123,7 @@ async def profile(authorization: Optional[str] = Header(None), db: Session = Dep
                 recipients.append({
                     'id': r.id,
                     'full_name': r.full_name,
+                    'preferred_name': r.preferred_name,
                     'email': r.email,
                     'phone_number': r.phone_number,
                     'age': r.age,

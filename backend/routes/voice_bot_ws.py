@@ -35,6 +35,7 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
     
     caretaker = None
     recipient_id = 1 # Default
+    saathi_session_id = None
     
     try:
         while True:
@@ -52,6 +53,12 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
                 username = _get_username_from_token(token)
                 if username:
                     caretaker = UsersRepo.find_by_username(db, CareTaker, username)
+                    if caretaker and not saathi_session_id:
+                        try:
+                            from services.saathi_memory_service import start_session
+                            saathi_session_id = start_session(caretaker.id, recipient_id)
+                        except Exception as _serr:
+                            print(f"[WS] start_session notice: {_serr}")
                     
             if not caretaker:
                 await websocket.send_json({"error": "Unauthorized. Please provide a valid token."})
@@ -75,7 +82,7 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
                     except (TypeError, ValueError):
                         recipient_id = 1
                     lang = payload.get("language", "hi")
-                    session_id = payload.get("session_id", "ws_session")
+                    session_id = str(saathi_session_id) if saathi_session_id else payload.get("session_id", "ws_session")
 
                     # Resolve recipient name
                     recipient = db.query(CareRecipient).filter(CareRecipient.id == recipient_id).first()
@@ -99,7 +106,10 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
                     }
                     data = call_gemini(gemini_payload, timeout=20, caller="[proactive_init]")
 
-                    first_name = (recipient_name.split()[0] if recipient_name else "Maa")
+                    from services.saathi_memory_service import get_member_context
+                    mem_ctx = get_member_context(recipient_id)
+                    pref_name = mem_ctx.get("preferred_name") or (recipient_name.split()[0] if recipient_name else "Maa")
+                    first_name = pref_name
                     # Specification: Exact opening greeting with natural pauses
                     reply_text = f"Namaste {first_name} ji... aaj aap kaisa feel kar rahe hain? ... Jo bhi aapke mann mein hai, mujhe batayiye. Main sun rahi hoon."
                     intent = "greeting"
@@ -134,7 +144,7 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
                     recipient_id = int(payload.get("recipient_id") or 1)
                 except (TypeError, ValueError):
                     recipient_id = 1
-                session_id = payload.get("session_id", "ws_session")
+                session_id = str(saathi_session_id) if saathi_session_id else payload.get("session_id", "ws_session")
                 lang = payload.get("language", "hi")
                 trigger_type = TriggerTypeEnum.user_initiated
 
@@ -143,7 +153,10 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
 
                 # Resolve recipient name from DB
                 recipient = db.query(CareRecipient).filter(CareRecipient.id == recipient_id).first()
-                recipient_name = recipient.full_name if recipient else "ji"
+                recipient_name = (
+                    recipient.preferred_name.strip() if (recipient and getattr(recipient, 'preferred_name', None) and recipient.preferred_name.strip())
+                    else (recipient.full_name if recipient else "ji")
+                )
 
                 # 1. Sentiment & DB save
 
@@ -274,3 +287,11 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
         pass
     except Exception as e:
         print(f"[WS] Unhandled error: {e}")
+    finally:
+        if saathi_session_id:
+            try:
+                from services.saathi_memory_service import end_session
+                end_session(saathi_session_id)
+                print(f"[WS] Closed Saathi session {saathi_session_id}")
+            except Exception as _end_err:
+                print(f"[WS] end_session notice: {_end_err}")

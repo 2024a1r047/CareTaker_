@@ -31,7 +31,7 @@ def get_db():
 SAATHI_DATABASE_URL = os.getenv("SAATHI_DATABASE_URL")
 if not SAATHI_DATABASE_URL and DATABASE_URL:
     if "/" in DATABASE_URL:
-        SAATHI_DATABASE_URL = DATABASE_URL.rsplit("/", 1)[0] + "/Saathi"
+        SAATHI_DATABASE_URL = DATABASE_URL.rsplit("/", 1)[0] + "/saathi_db"
 
 saathi_engine = None
 SaathiSessionLocal = None

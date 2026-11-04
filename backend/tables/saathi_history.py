@@ -16,6 +16,7 @@ class SaathiRecipient(SaathiBase):
     recipient_id = Column(Integer, primary_key=True, index=True)
     caretaker_username = Column(String, index=True, nullable=True)
     full_name = Column(String, nullable=False, default="Dadaji")
+    preferred_name = Column(String(100), nullable=True)
     preferred_language = Column(String, default="hi")
     address_form = Column(String, default="Dadaji")
     preferred_voice_id = Column(String, nullable=True, default="VQxh7q9EH7jUlfwkQI00")
@@ -27,6 +28,7 @@ class SaathiRecipient(SaathiBase):
     messages = relationship("ConversationMessage", back_populates="recipient", cascade="all, delete-orphan")
     reminders = relationship("ProactiveReminder", back_populates="recipient", cascade="all, delete-orphan")
     preference = relationship("SaathiPreference", back_populates="recipient", uselist=False, cascade="all, delete-orphan")
+    memories = relationship("SaathiMemory", back_populates="recipient", cascade="all, delete-orphan")
 
 
 class ConversationSession(SaathiBase):
@@ -107,3 +109,24 @@ class SaathiPreference(SaathiBase):
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
     recipient = relationship("SaathiRecipient", back_populates="preference")
+
+
+class SaathiMemory(SaathiBase):
+    """
+    Stores persistent long-term personal facts, preferences, health notes,
+    and conversational memory across sessions for a patient.
+    """
+    __tablename__ = "saathi_memories"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    recipient_id = Column(Integer, ForeignKey("saathi_recipients.recipient_id", ondelete="CASCADE"), nullable=False, index=True)
+    category = Column(String(50), default="general")  # "preferred_name", "health", "sleep", "family", "routine", "general"
+    memory_key = Column(String(100), nullable=True)     # e.g. "preferred_name"
+    memory_value = Column(Text, nullable=False)         # e.g. "Yami", "Kal raat neend theek nahi aayi thi"
+    source_session_id = Column(String(100), nullable=True)
+    importance = Column(Integer, default=3)             # 1 (low) to 5 (critical)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    is_active = Column(Boolean, default=True)
+
+    recipient = relationship("SaathiRecipient", back_populates="memories")

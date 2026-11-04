@@ -28,6 +28,7 @@ except ImportError:
 
 from fall_lstm_model import FallLSTM, FallSequenceBuffer, load_model, DEFAULT_SEQ_LEN
 from inactivity_monitor import InactivityMonitor
+from prototype_fall_detector import PrototypeFallDetector
 
 _YOLO_MODEL_PATH = os.path.join(_here, "..", "yolov8n-pose.pt")
 _LSTM_MODEL_PATH = os.path.join(_here, "fall_lstm.pth")
@@ -38,9 +39,27 @@ _SENSITIVITY_PRESETS = {
     "high":   {"lstm_thresh": 0.85, "confirm_frames": 5,  "confirm_decay": 1},
 }
 
+def _sound_loud_beep():
+    """Plays an urgent, loud audio beep on Windows in a non-blocking background thread."""
+    def _beep_worker():
+        try:
+            import winsound
+            # High-decibel emergency siren beep pattern: 3 piercing pulses
+            for freq, dur in [(2400, 200), (2800, 200), (3200, 350)]:
+                winsound.Beep(freq, dur)
+                time.sleep(0.05)
+        except Exception:
+            pass
+    try:
+        import threading
+        threading.Thread(target=_beep_worker, daemon=True).start()
+    except Exception:
+        pass
+
 class UnitedMonitor:
-    def __init__(self, sensitivity="medium", inactivity_threshold=30, stable_percentage=0.10, is_live=False, process_every_n_frames=2, video_fps: float = 0.0):
-        print(f"[UnitedMonitor] Initializing... live={is_live}")
+    def __init__(self, sensitivity="medium", inactivity_threshold=30, stable_percentage=0.10, is_live=False, process_every_n_frames=2, video_fps: float = 0.0, fall_model: str = "prototype_rf"):
+        print(f"[UnitedMonitor] Initializing... live={is_live} model={fall_model}")
+        self.fall_model = fall_model
         self.sensitivity = sensitivity
         self.is_live = is_live
         self.process_every_n_frames = process_every_n_frames if is_live else 1
@@ -53,6 +72,8 @@ class UnitedMonitor:
         self._frame_counter = 0
         self._confirm_count = 0
         self._fall_detected = False
+        self._is_sleeping = False
+        self._fall_confidence = 0
         self._fall_start_time = None
         self._inactivity_alert = False
         self._last_result = None
@@ -96,11 +117,22 @@ class UnitedMonitor:
         self._current_fps = video_fps if (not is_live and video_fps > 0) else 0.0
 
         self._yolo = YOLO(_YOLO_MODEL_PATH)
-        self._lstm, self._device = load_model(_LSTM_MODEL_PATH)
-        # Use a shorter buffer for offline mode so short clips can still run inference.
-        # BiGRU model handles variable sequence lengths — 15 frames fills 2x faster than 30.
-        seq_len = DEFAULT_SEQ_LEN if is_live else 15
-        self._seq_buf = FallSequenceBuffer(seq_len=seq_len)
+        self._prototype_detector = None
+        self._lstm = None
+        self._device = None
+        self._seq_buf = None
+
+        if self.fall_model.startswith("prototype"):
+            variant = "window"
+            if "motion" in self.fall_model:
+                variant = "motion"
+            elif "frame" in self.fall_model:
+                variant = "frame"
+            self._prototype_detector = PrototypeFallDetector(model_variant=variant)
+        else:
+            self._lstm, self._device = load_model(_LSTM_MODEL_PATH)
+            seq_len = DEFAULT_SEQ_LEN if is_live else 15
+            self._seq_buf = FallSequenceBuffer(seq_len=seq_len)
         self._inactivity = InactivityMonitor(safety_threshold_seconds=inactivity_threshold, stability_percentage=stable_percentage)
 
     def _is_human_pose(self, kps_xy, kps_conf, box):
@@ -253,6 +285,8 @@ class UnitedMonitor:
                 monitored_idx = -1
                 self._monitored_centroid = None
                 self._monitored_was_present = False
+                if self._prototype_detector is not None:
+                    self._prototype_detector.reset()
         else:
             self._monitored_id = None
             self._monitored_centroid = None
@@ -297,11 +331,55 @@ class UnitedMonitor:
             else:
                 self._standing_duration = max(0.0, self._standing_duration - dt)
 
-            self._seq_buf.push(monitored_xy, conf_kps)
-            if self._seq_buf.ready:
-                with torch.no_grad():
-                    logits = self._lstm(self._seq_buf.get_tensor(device=self._device))
-                    lstm_prob = float(torch.softmax(logits, dim=1)[0, 1])
+            cooldown = self._EVENT_FRAME_COOLDOWN if self.is_live else 60
+            fall_triggered = False
+
+            if self._prototype_detector is not None:
+                prob, p_event, p_alarm = self._prototype_detector.process_keypoints(now, monitored_xy, monitored_box, frame.shape)
+                lstm_prob = prob
+                is_sleeping_detected = getattr(self._prototype_detector, 'is_sleeping', False)
+
+                # Re-arm on standing; set sleep mode when lying static
+                if is_upright and self._standing_duration > 1.0:
+                    self._is_sleeping = False
+                    self._inactivity.set_external_sleep_status(False)
+                elif is_sleeping_detected:
+                    self._is_sleeping = True
+                    self._inactivity.set_external_sleep_status(True)
+
+                # 90%+ confirmed fall required; deliberate lie-down / sleeping strictly rejected
+                fall_triggered = (
+                    p_event and
+                    prob >= 0.90 and
+                    self._has_been_standing and
+                    not self._is_sleeping and
+                    not self._is_currently_falling and
+                    (self._frame_counter - self._last_event_frame) > cooldown
+                )
+                if fall_triggered:
+                    self._fall_confidence = int(prob * 100)
+            else:
+                if self._seq_buf is not None:
+                    self._seq_buf.push(monitored_xy, conf_kps)
+                    if self._seq_buf.ready and self._lstm is not None:
+                        with torch.no_grad():
+                            logits = self._lstm(self._seq_buf.get_tensor(device=self._device))
+                            lstm_prob = float(torch.softmax(logits, dim=1)[0, 1])
+
+                is_significantly_tilted = torso_angle > 45
+                if lstm_prob > self._lstm_thresh and self._has_been_standing:
+                    if bbox_is_horizontal:
+                        self._confirm_count += 2
+                    elif is_significantly_tilted:
+                        self._confirm_count += 1
+                else:
+                    self._confirm_count = max(0, self._confirm_count - 1)
+
+                fall_triggered = (
+                    self._confirm_count >= self._confirm_frames and
+                    not self._is_currently_falling and
+                    (self._frame_counter - self._last_event_frame) > cooldown
+                )
 
             # ── Record pose state for pre-disappearance analysis ──
             self._pre_disappear_torso_angles.append(torso_angle)
@@ -312,39 +390,8 @@ class UnitedMonitor:
             self._pre_disappear_lstm_probs   = self._pre_disappear_lstm_probs[-self._PRE_HISTORY_LEN:]
             self._pre_disappear_bbox_horiz   = self._pre_disappear_bbox_horiz[-self._PRE_HISTORY_LEN:]
 
-            features = {"lstm_prob": lstm_prob, "is_upright": is_upright, "standing_duration": self._standing_duration,
-                        "torso_angle": torso_angle}
-            
-            # ── Confirmation logic ───────────────────────────────────────────
-            # Gate logic — two tiers, both require LSTM above threshold + prior standing:
-            #
-            #   Tier 1 (floor fall):  bbox_is_horizontal           → count += 2 (fast-track)
-            #   Tier 2 (chair fall):  torso_angle > 45° (tilting)  → count += 1
-            #   Blocked:              seated (torso upright, angle < 45°) → false positive
-            #
-            # This prevents high LSTM scores on SEATED postures from firing early false positives.
-            is_significantly_tilted = torso_angle > 45  # Standing=<35°, Seated≈35°, Tilting/Fallen=>45°
-
-            if lstm_prob > self._lstm_thresh and self._has_been_standing:
-                if bbox_is_horizontal:
-                    # Person is fully on the floor — fast-track confirmation
-                    self._confirm_count += 2
-                elif is_significantly_tilted:
-                    # Chair fall / slump — torso tilting but not yet horizontal
-                    self._confirm_count += 1
-                # else: high LSTM but seated/upright = likely false positive, don't count
-            else:
-                self._confirm_count = max(0, self._confirm_count - 1)
-
-            # Cooldown in frames: for offline mode use a tighter window so a false positive
-            # doesn't block the real fall event for 10 seconds (300 frames at 30fps).
-            cooldown = self._EVENT_FRAME_COOLDOWN if self.is_live else 60
-
-            fall_triggered = (
-                self._confirm_count >= self._confirm_frames and
-                not self._is_currently_falling and
-                (self._frame_counter - self._last_event_frame) > cooldown
-            )
+            features = {"lstm_prob": lstm_prob, "fall_prob": lstm_prob, "is_upright": is_upright, "standing_duration": self._standing_duration,
+                        "torso_angle": torso_angle, "fall_model": self.fall_model}
             if fall_triggered:
                 self._fall_event_just_fired = True
                 self._is_currently_falling = True
@@ -355,6 +402,7 @@ class UnitedMonitor:
                 # This prevents the "! FALL DETECTED" label from jumping to other people
                 # in multi-person scenes (predict() mode uses sequential IDs that shift).
                 self._fall_anchor_box = monitored_box.copy() if monitored_box is not None else None
+                _sound_loud_beep()
             
             # HUD Clearing Logic: once clearly upright and stable, clear the fall flag
             if self._is_currently_falling:
@@ -403,6 +451,7 @@ class UnitedMonitor:
                     self._last_fall_event_time = now
                     self._last_event_frame = self._frame_counter
                     self._disappear_fall_fired = True
+                    _sound_loud_beep()
                     print(f"[UnitedMonitor] Pose-aware disappearance fall: torso={avg_torso:.1f}° lstm={avg_lstm:.2f} horiz={any_horiz}")
 
         # Inactivity
@@ -413,15 +462,18 @@ class UnitedMonitor:
             "fall": {
                 "fall_detected": self._fall_detected,
                 "fall_event_fired": self._fall_event_just_fired,
+                "confidence": self._fall_confidence if self._fall_detected else 0,
                 "all_persons": all_persons,
                 "features": features,
                 "keypoints": monitored_xy,
                 "boxes": monitored_box,
-                "fall_anchor_box": self._fall_anchor_box,  # fixed position for visual overlay
+                "fall_anchor_box": self._fall_anchor_box,
             },
             "inactivity": inactivity_res,
             "global_state": {
                 "fall_detected": self._fall_detected,
+                "confidence": self._fall_confidence if self._fall_detected else 0,
+                "is_sleeping": self._is_sleeping,
                 "inactivity_alert": self._inactivity_alert,
                 "fps": self._current_fps,
                 "timestamp": ts
@@ -443,7 +495,10 @@ class UnitedMonitor:
         self._fall_detected = False
         self._is_currently_falling = False
         self._confirm_count = 0
-        self._seq_buf.reset()
+        if self._seq_buf is not None:
+            self._seq_buf.reset()
+        if self._prototype_detector is not None:
+            self._prototype_detector.reset()
 
 def draw_united_interface(frame, results, draw_skeleton=True):
     frame_copy = frame.copy()
@@ -490,7 +545,11 @@ def draw_united_interface(frame, results, draw_skeleton=True):
         if is_fall_person:
             if fall_detected:
                 color = (0, 0, 255)           # Red — fall
-                label = "! FALL DETECTED"
+                conf_val = fall_res.get("confidence", 95)
+                label = f"! FALL DETECTED ({conf_val}%)"
+            elif gs.get("is_sleeping"):
+                color = (255, 200, 0)         # Soft Cyan/Blue — Resting
+                label = ">> RESTING / IN BED"
             elif gs["inactivity_alert"]:
                 color = (0, 128, 255)         # Orange — inactivity
                 label = ">> INACTIVITY ALERT"
@@ -529,11 +588,12 @@ def draw_united_interface(frame, results, draw_skeleton=True):
 
     # Build status string
     if gs["fall_detected"] and (fall_person_idx != -1 or (fall_anchor is not None and n_persons > 0)):
-        # Show FALL DETECTED only when a person is currently visible near the anchor.
-        # If nobody is in frame (person left, or disappearance false-positive),
-        # fall through to the normal scanning/monitoring status — no confusing mismatch.
-        status_txt   = "FALL DETECTED"
+        conf_val = fall_res.get("confidence", 95)
+        status_txt   = f"FALL DETECTED (CONFIRMED {conf_val}%)"
         status_color = (0, 0, 255)
+    elif gs.get("is_sleeping"):
+        status_txt   = "Resting / Sleeping in bed (Sleep mode active)"
+        status_color = (255, 200, 0)
     elif n_persons == 0:
         status_txt   = "Scanning... (step back so full body is visible)"
         status_color = (100, 100, 100)

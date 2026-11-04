@@ -196,9 +196,19 @@ def build_conversation_context(recipient_id: int, db: Session):
     return {
         "recipient": {
             "name": recipient.full_name,
+            "full_name": recipient.full_name,
+            "preferred_name": getattr(recipient, 'preferred_name', None),
             "age": recipient.age,
             "gender": recipient.gender.value if recipient.gender and hasattr(recipient.gender, 'value') else (str(recipient.gender) if recipient.gender else ""),
             "city": recipient.city,
+            "blood_group": getattr(recipient, 'blood_group', None),
+            "height": getattr(recipient, 'height', None),
+            "weight": getattr(recipient, 'weight', None),
+            "emergency_contact": getattr(recipient, 'emergency_contact', None),
+            "phone_number": getattr(recipient, 'phone_number', None),
+            "doctor_remarks": getattr(recipient, 'doctor_remarks', None),
+            "caretaker_name": recipient.caretaker.full_name or recipient.caretaker.username if recipient.caretaker else None,
+            "caretaker_phone": getattr(recipient.caretaker, 'phone_number', None) if recipient.caretaker else None,
             "report_summary": recipient.report_summary,
             # Extended profile fields (used by system prompt for persona)
             "family_info": getattr(recipient, 'family_info', None),
@@ -208,6 +218,10 @@ def build_conversation_context(recipient_id: int, db: Session):
         },
         "history": [{"sender": m.sender.value, "text": m.message_text} for m in history],
         "mood_counts": mood_counts,
+        "allergies": [
+            {"allergen": a.allergen, "reaction": a.reaction, "severity": a.severity}
+            for a in getattr(recipient, 'allergies', [])
+        ],
         "vitals": {
             "heartRate": latest_vitals.heart_rate,
             "bloodPressure": f"{latest_vitals.systolic_bp}/{latest_vitals.diastolic_bp}",
@@ -264,13 +278,17 @@ def generate_system_prompt(name: str, context: dict, language: str = "en", senti
         era_actors = "Amitabh Bachchan ji, Mithun Chakraborty ji, Sridevi ji, Madhuri Dixit ji, Anil Kapoor ji"
         era_singers = "Kumar Sanu ji, Lata Mangeshkar ji, Asha Bhosle ji, Udit Narayan ji"
 
-    # ── Address form based on gender/age ──
-    if gender == "male":
+    # ── Address form based on caretaker-given profile name (with fallback) ──
+    preferred_name = recip.get("preferred_name") if recip and recip.get("preferred_name") else None
+    if preferred_name and str(preferred_name).strip():
+        address = str(preferred_name).strip()
+        first_name = address
+    elif gender == "male":
         address = "Dadaji" if age >= 65 else "Nanaji" if age >= 75 else "Uncle ji"
     elif gender == "female":
         address = "Dadiji" if age >= 65 else "Naniji" if age >= 75 else "Aunty ji"
     else:
-        address = "ji"
+        address = first_name or "ji"
 
     # ── Sentiment context ──
     current_mood = "neutral"
@@ -372,18 +390,24 @@ Note: You didn't speak to them yesterday. If this is the start of the conversati
     # ── Summary of past conversations ──
     summary_block = f"Past Conversation Summary: {last_summary}" if last_summary else ""
 
+    profile_allergies = ", ".join([f"{a.get('allergen', '')} ({a.get('reaction', '')})" for a in context.get("allergies", [])]) or "None on record"
+    profile_blood = recip.get("blood_group") or "Not recorded"
+    profile_emergency = recip.get("emergency_contact") or "Family / Caretaker"
+    profile_caretaker = f"{recip.get('caretaker_name', 'Caretaker')} (Phone: {recip.get('caretaker_phone', 'registered contact')})"
+    profile_doc = recip.get("doctor_remarks") or "None on record"
+
     prompt = f"""# ROLE
 NATURAL HUMAN CONVERSATION MODE — COMPASSIONATE FEMALE CAREGIVER
-You are Saathi — {first_name} {address}'s gentle, warm, and attentive companion. You speak with the natural voice, patience, and warmth of a caring female caregiver speaking directly to an elderly person. You are NOT an AI assistant, robot, therapist, or customer-support agent.
+You are Saathi — gentle, warm, and attentive companion to {address}. Always address them as "{address}". You speak with the natural voice, patience, and warmth of a caring female caregiver speaking directly to an elderly person. You are NOT an AI assistant, robot, therapist, or customer-support agent.
 
 # CORE BEHAVIOUR — NATURAL CONVERSATION MODE (FOLLOW STRICTLY)
 1. NATURAL SPOKEN VOICE CADENCE: Write exactly how a loving, gentle person speaks aloud. Use natural commas and full stops to create realistic breathing pauses and gentle rhythm. NEVER use emojis, markdown asterisks (**), hashtags, or bullet points in your reply.
 2. ULTRA-SHORT & REASSURING: Keep responses concise (1 to 2 short sentences). Elderly listeners find long blocks of speech overwhelming on voice calls.
-3. WARM, SOFT-SPOKEN PERSONALITY: Sound patient, empathetic, friendly, and unhurried.
-4. JOKES & HUMOR (REACT WARMLY): When the user tells a joke, shares a funny story, or makes a witty comment, laugh warmly and naturally (e.g., "Haha Dadaji! Wah, kya baat hai... bohot mazedaar tha sunkar! 😄"). Appreciate their humor and never answer a joke like a formal robot.
-5. EMPATHY & ASKING IF THEY ARE OKAY: When the user sounds sad, tired, lonely, dizzy, or in pain, immediately ask with tender concern: "Dadaji, aap theek to hain na? Kahan takleef ho rahi hai? Mujhe batayiye, main yahin hoon aapke paas." Validate their feelings with deep kindness ("मैं समझ सकती हूँ, आप बिल्कुल चिंता मत कीजिए...").
-6. PLAYING SONGS & MUSIC: When the user asks to play a song or music (e.g., Kishore Kumar, Lata Mangeshkar, old Bollywood, bhajan, ghazal), say warmly: "Zaroor Dadaji... aapke liye yeh gaana shuru kar rahi hoon." and set `intent` to `play_music` and `search_query` to the song/artist query.
-7. YOUTUBE VIDEOS: When the user asks to watch or play a video (YouTube, comedy, Ramayan katha, news, etc.), say: "Haan ji Dadaji! Main abhi aapke liye yeh video chala deti hoon. Dekhiye..." and set `intent` to `play_video` and `search_query` to the video topic.
+3. WARM, SOFT-SPOKEN PERSONALITY: Sound patient, empathetic, friendly, and unhurried. Always address them with their profile name "{address}".
+4. JOKES & HUMOR (REACT WARMLY): When the user tells a joke, shares a funny story, or makes a witty comment, laugh warmly and naturally (e.g., "Haha {address}! Wah, kya baat hai... bohot mazedaar tha sunkar! 😄"). Appreciate their humor and never answer a joke like a formal robot.
+5. EMPATHY & ASKING IF THEY ARE OKAY: When the user sounds sad, tired, lonely, dizzy, or in pain, immediately ask with tender concern: "{address}, aap theek to hain na? Kahan takleef ho rahi hai? Mujhe batayiye, main yahin hoon aapke paas." Validate their feelings with deep kindness ("मैं समझ सकती हूँ, आप बिल्कुल चिंता मत कीजिए...").
+6. PLAYING SONGS & MUSIC: When the user asks to play a song or music (e.g., Kishore Kumar, Lata Mangeshkar, old Bollywood, bhajan, ghazal), say warmly: "Zaroor {address}... aapke liye yeh gaana shuru kar rahi hoon." and set `intent` to `play_music` and `search_query` to the song/artist query.
+7. YOUTUBE VIDEOS: When the user asks to watch or play a video (YouTube, comedy, Ramayan katha, news, etc.), say: "Haan ji {address}! Main abhi aapke liye yeh video chala deti hoon. Dekhiye..." and set `intent` to `play_video` and `search_query` to the video topic.
 8. REMINDERS & MEDICINES: Remind them gently about scheduled medicines, meals, and hydration. If they ask about their routine or reminders, set `intent` to `show_reminders` or `show_medicines`. If they confirm taking medicine, set `intent` to `medicine_taken`.
 9. NATURAL HINGLISH & FEMININE GRAMMAR: Mix Hindi and English comfortably (e.g., "Achha, aapne subah ka nashta kiya kya?"). Always use feminine grammar ("मैं समझ सकती हूँ", "मैं आपके साथ हूँ", "मैं सुन रही हूँ").
 10. NO REPETITIVE "JI": Use 'आप', but do NOT repeat 'जी' (ji) in every single sentence. Keep it warm, natural, and respectful.
@@ -396,11 +420,23 @@ You are Saathi — {first_name} {address}'s gentle, warm, and attentive companio
 # EMERGENCY PROTOCOL
 If they mention: chest pain, breathlessness, fall, severe dizziness, unconsciousness, slurred speech, heavy bleeding, confusion, or self-harm thoughts — stay calm, tell them to sit/lie down, set intent to "emergency" immediately, advise calling emergency services. Do NOT continue casual chat.
 
-# USER PROFILE / AGE
-- User age: {age}
-- Preferred language: {language.upper()}
+# USER PERSONAL PROFILE & PERMISSIONS
+- Full Legal Name: {recip.get('full_name') or first_name}
+- Profile / Preferred Name: {address} (ALWAYS address them as "{address}")
+- User Age: {age}
+- Preferred Language: {language.upper()}
 - Gender: {gender}
-- Health conditions: {conditions_str}
+- City: {city}
+- Blood Group: {profile_blood}
+- Emergency Contact: {profile_emergency}
+- Primary Caretaker: {profile_caretaker}
+- Health Conditions: {conditions_str}
+- Known Allergies: {profile_allergies}
+- Active Medications: {med_str}
+- Doctor's Remarks & Advice: {profile_doc}
+
+# PERSONAL PROFILE ACCESS INSTRUCTION:
+You have complete access to {address}'s personal profile information above. When {address} asks about their name, profile, medicines, allergies, doctor advice, blood group, or emergency contact, answer directly and accurately from their profile, addressing them warmly as "{address}".
 
 # RELEVANT MEMORY
 - Preferences: {preferences_str}
@@ -619,18 +655,27 @@ def intelligent_saathi_dialogue(
     if not recip:
         recip = db.query(CareRecipient).first()
 
-    name = recip.full_name if recip and recip.full_name else "Dadaji"
-    first_name = name.split()[0] if name else "Dadaji"
+    name = recip.full_name if recip and recip.full_name else "Senior"
+    first_name = name.split()[0] if name else "Senior"
 
-    # Address form based on gender/age
-    address = "Dadaji"
-    if recip:
-        gender_raw = str(recip.gender or "").lower()
-        age = recip.age or 70
-        if "female" in gender_raw:
-            address = "Maa ji" if age < 75 else "Dadiji"
-        else:
-            address = "Papa ji" if age < 75 else "Dadaji"
+    # Address form strictly based on caretaker-given profile name (with fallback)
+    profile_name = (
+        recip.preferred_name.strip() if (recip and getattr(recip, 'preferred_name', None) and recip.preferred_name.strip())
+        else first_name
+    )
+    address = profile_name
+    first_name = profile_name
+
+    # Load personal profile records for direct conversational access
+    caretaker_name = "Caretaker"
+    caretaker_phone = "registered phone"
+    if recip and recip.caretaker:
+        caretaker_name = recip.caretaker.full_name or recip.caretaker.username
+        if getattr(recip.caretaker, 'phone_number', None):
+            caretaker_phone = recip.caretaker.phone_number
+
+    blood_group = getattr(recip, 'blood_group', None) if recip else None
+    doctor_remarks = getattr(recip, 'doctor_remarks', None) if recip else None
 
     # Fetch last bot responses from Saathi history to prevent repetition
     recent_bot_replies = set()
@@ -662,6 +707,137 @@ def intelligent_saathi_dialogue(
         if candidates:
             return random.choice(candidates)
         return random.choice(options)
+
+    # 0. PERSONAL PROFILE ACCESS & MEMORY Q&A
+    # User asks about their name/identity
+    name_patterns = ["mera naam kya", "mera naam", "what is my name", "who am i", "mujhe kya bulate ho", "what do you call me", "mera profile name", "kaun hoon main"]
+    if any(p in t for p in name_patterns):
+        full_n = recip.full_name if recip and recip.full_name else profile_name
+        return {
+            "reply": f"Aapka naam {full_n} hai, aur main aapko hamesha pyaar aur aadar se '{profile_name}' bulati hoon! Kya main aapki kisi aur cheez mein madad karoon {profile_name}?",
+            "intent": "chat",
+            "search_query": "",
+            "mood_detected": "happy",
+            "depression_risk": False
+        }
+
+    # User asks about medicines & prescription
+    med_info_patterns = ["meri dawai", "kaunsi dawai", "medicine schedule", "dawai ka time", "meri dawaiyan", "what are my medicines", "my medicine", "konsi goli"]
+    if any(p in t for p in med_info_patterns) and not any(p in t for p in ["le li", "kha li", "taken"]):
+        try:
+            from tables.medications import Medication, MedicationStatus
+
+            active_meds = db.query(Medication).filter(
+                Medication.care_recipient_id == target_recip_id,
+                Medication.status.in_([MedicationStatus.active, 'active'])
+            ).all()
+
+
+            if active_meds:
+                med_summary = "; ".join([f"{m.medicine_name} ({m.dosage or 'standard dose'}, {m.frequency or 'daily'})" for m in active_meds])
+                return {
+                    "reply": f"{profile_name}, aapke profile ke anusaar aapki active medicines hain: {med_summary}. Kripya inhe samay par zaroor lijiye.",
+                    "intent": "show_medicines",
+                    "search_query": "",
+                    "mood_detected": "neutral",
+                    "depression_risk": False
+                }
+        except Exception:
+            pass
+        return {
+            "reply": f"{profile_name}, aapke profile mein filhal koi active medicine darj nahi hai.",
+            "intent": "chat",
+            "search_query": "",
+            "mood_detected": "neutral",
+            "depression_risk": False
+        }
+
+    # User asks about allergies
+    allergy_patterns = ["allergy", "allergies", "kis cheez se allergy", "meri allergy"]
+    if any(p in t for p in allergy_patterns):
+        try:
+            from tables.allergies import Allergy
+            allergies = db.query(Allergy).filter(Allergy.care_recipient_id == target_recip_id).all()
+            if allergies:
+                a_summary = ", ".join([f"{a.allergen} ({a.reaction or 'reaction'})" for a in allergies])
+                return {
+                    "reply": f"{profile_name}, aapke medical profile ke anusaar aapko {a_summary} se allergy darj hai. Kripya iska dhyan rakhiyega.",
+                    "intent": "chat",
+                    "search_query": "",
+                    "mood_detected": "neutral",
+                    "depression_risk": False
+                }
+        except Exception:
+            pass
+        return {
+            "reply": f"{profile_name}, aapke record ke anusaar aapko kisi dawai ya cheez se allergy darj nahi hai.",
+            "intent": "chat",
+            "search_query": "",
+            "mood_detected": "neutral",
+            "depression_risk": False
+        }
+
+    # User asks about emergency contact / caretaker
+    contact_patterns = ["emergency contact", "caretaker kaun", "mera caretaker", "family contact", "caretaker ka number", "kis se contact karein"]
+    if any(p in t for p in contact_patterns):
+        return {
+            "reply": f"{profile_name}, aapke primary caretaker {caretaker_name} hain, jinka phone number {caretaker_phone} hai. Agar koi bhi takleef ho to main turant unhe alert bhej sakti hoon.",
+            "intent": "chat",
+            "search_query": "",
+            "mood_detected": "neutral",
+            "depression_risk": False
+        }
+
+    # User asks about blood group or physical profile
+    blood_patterns = ["blood group", "mera blood", "khoon ka group", "mera weight", "meri height"]
+    if any(p in t for p in blood_patterns):
+        bg = blood_group or "profile mein darj nahi"
+        return {
+            "reply": f"{profile_name}, aapke profile ke anusaar aapka blood group {bg} hai.",
+            "intent": "chat",
+            "search_query": "",
+            "mood_detected": "neutral",
+            "depression_risk": False
+        }
+
+    # User asks about doctor advice
+    doctor_patterns = ["doctor ne kya bola", "doctor ki advice", "doctor remarks", "doctor ne kya kaha", "doctor ki salah"]
+    if any(p in t for p in doctor_patterns):
+        doc_adv = doctor_remarks or "Doctor ki taraf se sab theek bataya gaya hai. Samay par aaram karein aur sehat ka dhyan rakhein."
+        return {
+            "reply": f"{profile_name}, doctor ki taraf se yeh salah darj hai: {doc_adv}.",
+            "intent": "chat",
+            "search_query": "",
+            "mood_detected": "neutral",
+            "depression_risk": False
+        }
+
+    # User asks what Saathi remembers about them (Memory)
+    mem_patterns = ["kya yaad hai", "kya yaad rakha", "what do you remember", "mere baare mein kya yaad", "kya jaanti ho mere baare"]
+    if any(p in t for p in mem_patterns):
+        try:
+            if SaathiSessionLocal:
+                with SaathiSessionLocal() as s_db:
+                    from tables.saathi_db_models import MemberMemory
+                    mems = s_db.query(MemberMemory).filter(MemberMemory.family_member_id == target_recip_id).order_by(desc(MemberMemory.updated_at)).limit(4).all()
+                    if mems:
+                        mem_texts = [m.fact for m in mems]
+                        return {
+                            "reply": f"{profile_name}, mujhe aapke baare mein bohot kuch yaad hai! Jaise: {'; '.join(mem_texts)}. Main aapki har baat hamesha yaad rakhti hoon.",
+                            "intent": "chat",
+                            "search_query": "",
+                            "mood_detected": "happy",
+                            "depression_risk": False
+                        }
+        except Exception:
+            pass
+        return {
+            "reply": f"{profile_name}, main aapki har baat dhyan se sunti hoon aur yaad rakhti hoon. Jo bhi aap mujhse share karenge, mujhe hamesha yaad rahega.",
+            "intent": "chat",
+            "search_query": "",
+            "mood_detected": "neutral",
+            "depression_risk": False
+        }
 
     # 1. EMERGENCY
     emergency_patterns = ["gir gaya", "gir gayi", "chest pain", "seene mein dard", "saans nahi", "ambulance", "bachao", "emergency", "help me emergency"]

@@ -86,6 +86,7 @@ class StartLiveRequest(BaseModel):
     camera_url:   Optional[str]    = None
     camera_id:    Optional[str]    = None
     sensitivity:  str              = "medium"
+    fall_model:   str              = "prototype_rf"
 
 class AddCameraRequest(BaseModel):
     name:     str
@@ -171,6 +172,7 @@ async def send_alert_email_with_image(recipient_email: str, subject: str, body: 
 async def upload_video_for_analysis(
     file: UploadFile = File(...),
     recipient_id: Optional[int] = Form(None),
+    fall_model: str = Form("prototype_rf"),
     background_tasks: BackgroundTasks = None,
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db)
@@ -243,7 +245,8 @@ async def upload_video_for_analysis(
                 output_path=str(output_path),
                 user_email=user.email,
                 caretaker_id=user.id,
-                recipient_id=recipient_id
+                recipient_id=recipient_id,
+                fall_model=fall_model
             )
         
         return {
@@ -257,7 +260,7 @@ async def upload_video_for_analysis(
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
-def process_video_direct(process_id: str, input_path: str, output_path: str, user_email: str, caretaker_id: int, recipient_id: Optional[int] = None):
+def process_video_direct(process_id: str, input_path: str, output_path: str, user_email: str, caretaker_id: int, recipient_id: Optional[int] = None, fall_model: str = "prototype_rf"):
     """
     Direct in-process video analysis using UnitedMonitor.
     Runs in a thread pool managed by FastAPI BackgroundTasks.
@@ -326,7 +329,8 @@ def process_video_direct(process_id: str, input_path: str, output_path: str, use
             inactivity_threshold=30,
             is_live=False,
             process_every_n_frames=1,
-            video_fps=fps
+            video_fps=fps,
+            fall_model=fall_model
         )
 
         # ── Adaptive FRAME_SKIP + WARMUP based on video duration ──────────────
@@ -736,6 +740,7 @@ async def start_live_monitoring(
         sensitivity=request.sensitivity,
         inactivity_threshold=inactivity_threshold,
         camera_name=camera_name,
+        fall_model=request.fall_model,
     )
     
     if not success:

@@ -32,13 +32,15 @@ class CameraSession:
                  camera_source = 0,          # int | str
                  sensitivity: str = "medium",
                  inactivity_threshold: int = 30,
-                 camera_name: str = ""):
+                 camera_name: str = "",
+                 fall_model: str = "prototype_rf"):
         self.session_id = session_id
         # Accept legacy camera_index kwarg as well
         self.camera_source = camera_source
         self.camera_name   = camera_name or str(camera_source)
         self.sensitivity = sensitivity
         self.inactivity_threshold = inactivity_threshold
+        self.fall_model = fall_model
         
         # User Ownership
         self.username: Optional[str] = None
@@ -113,7 +115,8 @@ class CameraSession:
                 sensitivity=self.sensitivity,
                 inactivity_threshold=self.inactivity_threshold,
                 is_live=True,
-                process_every_n_frames=2  # Process every 2nd frame for performance
+                process_every_n_frames=2,  # Process every 2nd frame for performance
+                fall_model=self.fall_model
             )
             
             # Start capture thread
@@ -300,7 +303,8 @@ class StreamManager:
                       camera_index: int = 0,  # legacy kwarg — ignored if camera_source supplied
                       sensitivity: str = "medium", 
                       inactivity_threshold: int = 30,
-                      camera_name: str = "") -> bool:
+                      camera_name: str = "",
+                      fall_model: str = "prototype_rf") -> bool:
         """Create and start a new camera session.
         
         camera_source accepts:
@@ -322,6 +326,7 @@ class StreamManager:
                 sensitivity=sensitivity,
                 inactivity_threshold=inactivity_threshold,
                 camera_name=camera_name,
+                fall_model=fall_model,
             )
             
             if session.start():

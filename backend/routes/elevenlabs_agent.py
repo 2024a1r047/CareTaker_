@@ -59,6 +59,9 @@ class ConversationTurnRequest(BaseModel):
     intent: Optional[str] = "chat"
     trigger_type: Optional[str] = "user_initiated"
 
+class EndSessionRequest(BaseModel):
+    session_id: str
+
 @router.get("/config", response_model=ResponseSchema)
 async def get_elevenlabs_config():
     """Returns safe public config for ElevenLabs Saathi integration (never exposes private API keys)."""
@@ -136,12 +139,20 @@ async def get_signed_url(
             result=None
         )
 
+    saathi_sess_id = None
+    try:
+        from services.saathi_memory_service import start_session
+        saathi_sess_id = str(start_session(caretaker.id, recip_id))
+    except Exception as _serr:
+        pass
+
     return ResponseSchema(
         code=200,
         status="success",
         message="Signed conversation URL generated",
         result={
             "signed_url": result["signed_url"],
+            "session_id": saathi_sess_id,
             "agent_id": target_agent_id,
             "voice_id": get_elevenlabs_voice_id(),
             "recipient_id": recip_id,
@@ -157,6 +168,21 @@ async def get_signed_url(
             }
         }
     )
+
+@router.post("/end-session", response_model=ResponseSchema)
+async def end_conversation_session(
+    payload: EndSessionRequest,
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Closes conversation session in saathi_db, generates summary, and extracts member memory."""
+    caretaker = verify_and_get_caretaker(authorization, db)
+    try:
+        from services.saathi_memory_service import end_session
+        end_session(payload.session_id)
+        return ResponseSchema(code=200, status="success", message="Session ended and memory extracted", result={"session_id": payload.session_id})
+    except Exception as e:
+        return ResponseSchema(code=500, status="error", message=str(e))
 
 @router.post("/save-turn", response_model=ResponseSchema)
 async def save_conversation_turn(

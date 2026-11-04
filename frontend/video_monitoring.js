@@ -782,10 +782,63 @@ function showAlert(message, type) {
     }, 5000);
 }
 
+// High-decibel Web Audio API siren alert for fall detection
+let _alertAudioCtx = null;
+
 function playAlertSound() {
     try {
+        if (!_alertAudioCtx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) {
+                _alertAudioCtx = new AudioCtx();
+            }
+        }
+        if (_alertAudioCtx && _alertAudioCtx.state === 'suspended') {
+            _alertAudioCtx.resume();
+        }
+
+        if (_alertAudioCtx) {
+            // Urgent, piercing emergency alarm pattern
+            // 4 high-frequency square/sawtooth pulses for maximum audibility
+            const now = _alertAudioCtx.currentTime;
+            const beeps = [
+                { time: 0.00, freq: 1600, dur: 0.20 },
+                { time: 0.25, freq: 2200, dur: 0.20 },
+                { time: 0.50, freq: 1600, dur: 0.20 },
+                { time: 0.75, freq: 2600, dur: 0.40 }
+            ];
+
+            beeps.forEach(b => {
+                const osc = _alertAudioCtx.createOscillator();
+                const gain = _alertAudioCtx.createGain();
+
+                osc.type = 'sawtooth'; // Piercing harmonics for maximum loudness
+                osc.frequency.setValueAtTime(b.freq, now + b.time);
+
+                // Peak volume envelope
+                gain.gain.setValueAtTime(0.001, now + b.time);
+                gain.gain.linearRampToValueAtTime(1.0, now + b.time + 0.02);
+                gain.gain.setValueAtTime(1.0, now + b.time + b.dur - 0.03);
+                gain.gain.linearRampToValueAtTime(0.001, now + b.time + b.dur);
+
+                osc.connect(gain);
+                gain.connect(_alertAudioCtx.destination);
+
+                osc.start(now + b.time);
+                osc.stop(now + b.time + b.dur);
+            });
+            console.log('[Alert] Loud emergency fall alarm played via Web Audio API');
+            return;
+        }
+    } catch (err) {
+        console.warn('Web Audio alarm error:', err);
+    }
+
+    // Fallback: standard audio element
+    try {
         const audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-989.mp3');
-        audio.play().catch(e => console.log('Could not play alert sound'));
+        audio.volume = 1.0;
+        audio.play().catch(e => console.log('Could not play fallback alert sound'));
     } catch (e) {
         console.log('Alert sound not available');
     }

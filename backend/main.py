@@ -74,6 +74,8 @@ thresholds_tables.Base.metadata.create_all(bind=engine)
 if saathi_engine:
     try:
         saathi_tables.SaathiBase.metadata.create_all(bind=saathi_engine)
+        import tables.saathi_db_models as saathi_db_models
+        saathi_db_models.SaathiBase.metadata.create_all(bind=saathi_engine)
         print("[Saathi DB] Synchronized conversation and companion tables in Saathi DB.")
     except Exception as _e:
         print(f"[Saathi DB] Connection/Table creation notice: {_e}")
@@ -235,6 +237,8 @@ app.include_router(medications_routes.router, prefix="/api")
 
 from routes import elevenlabs_agent
 app.include_router(elevenlabs_agent.router, prefix="/api")
+from routes import saathi_privacy
+app.include_router(saathi_privacy.router, prefix="/api")
 
 # Debug: Print all registered routes
 print("\n=== Registered Routes ===")

@@ -810,6 +810,7 @@ async def get_care_recipient_profile(
     general_info = {
         "id": recipient.id,
         "name": recipient.full_name,
+        "preferred_name": recipient.preferred_name,
         "age": recipient.age,
         "gender": recipient.gender.value if recipient.gender else None,
         "height": recipient.height,

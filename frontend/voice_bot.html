@@ -791,10 +791,16 @@
                     </div>
                     <i data-lucide="chevron-right" class="h-5 w-5 ml-auto"></i>
                 </button>
-                <button onclick="startVideoCall()"
-                    class="w-full py-3 bg-[#7e9677] hover:bg-[#6c8266] text-white rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm hover:shadow-md cursor-pointer font-semibold text-sm">
-                    <i data-lucide="phone" class="h-4.5 w-4.5"></i>
-                    Call Caretaker
+                <button onclick="contactCaretakerModal()"
+                    class="w-full py-3 bg-[#E8F0E5] hover:bg-[#dbe6d7] text-[#443744] rounded-xl flex items-center justify-start px-5 gap-3 transition-all border border-[#d1dec0] hover:shadow-sm cursor-pointer text-sm font-semibold">
+                    <div class="w-8 h-8 rounded-full bg-[#7e9677]/20 flex items-center justify-center text-[#7e9677]">
+                        <i data-lucide="phone-call" class="h-4.5 w-4.5"></i>
+                    </div>
+                    <div class="text-left leading-tight">
+                        <div class="font-bold text-base">Contact Caretaker</div>
+                        <div class="font-normal text-xs text-[#756D70]">Reach out to family or nurse</div>
+                    </div>
+                    <i data-lucide="chevron-right" class="h-5 w-5 ml-auto text-[#756D70]"></i>
                 </button>
             </div>
 
@@ -871,10 +877,10 @@
                         class="p-2 text-[#756D70] hover:text-[#B97886] hover:bg-white/80 rounded-xl transition-all cursor-pointer">
                         <i data-lucide="mic" class="w-4 h-4"></i>
                     </button>
-                    <button id="elevenlabs-call-btn" onclick="toggleElevenLabsSession()"
-                        class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#B97886] hover:bg-[#a36472] text-white rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer">
-                        <i data-lucide="radio" class="h-3.5 w-3.5"></i>
-                        <span id="elevenlabs-call-text">ElevenLabs Live Call</span>
+                    <button id="saathi-assistant-btn" onclick="toggleVoiceAssistant()"
+                        class="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#B97886] hover:bg-[#a36472] text-white rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer">
+                        <span id="saathi-status-indicator" class="w-2 h-2 rounded-full bg-white/70"></span>
+                        <span id="saathi-status-text">Start Assistant</span>
                     </button>
                 </div>
             </div>
@@ -967,30 +973,38 @@
         </div>
     </div>
 
-    <!-- Video Call Modal -->
-    <div id="call-modal" class="hidden fixed inset-0 bg-black/90 z-50 flex flex-col items-center justify-center p-4">
-        <div class="relative mb-8">
-            <div
-                class="w-32 h-32 rounded-full bg-slate-700 flex items-center justify-center relative z-10 border-4 border-white calling-animation">
-                <i data-lucide="user" class="h-16 w-16 text-white"></i>
+    <!-- Caretaker Contact Modal -->
+    <div id="call-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex flex-col items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-[#E8E1DB] text-center space-y-4">
+            <div class="w-16 h-16 rounded-full bg-[#E8F0E5] text-[#7e9677] flex items-center justify-center mx-auto border-2 border-white shadow-inner">
+                <i data-lucide="heart-handshake" class="h-8 w-8"></i>
             </div>
-            <div class="absolute inset-0 rounded-full bg-blue-400/20 animate-ping"></div>
-        </div>
-        <h2 class="text-2xl font-bold text-white mb-2">Calling Caretaker...</h2>
-        <p class="text-slate-300 mb-12 animate-pulse">Connecting secure video line</p>
-        <div class="flex gap-6">
-            <button
-                class="w-14 h-14 rounded-full bg-slate-700 text-white flex items-center justify-center hover:bg-slate-600 transition-colors">
-                <i data-lucide="mic-off" class="h-6 w-6"></i>
-            </button>
-            <button onclick="endVideoCall()"
-                class="w-16 h-16 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg shadow-red-500/30 transform hover:scale-105">
-                <i data-lucide="phone-off" class="h-8 w-8"></i>
-            </button>
-            <button
-                class="w-14 h-14 rounded-full bg-slate-700 text-white flex items-center justify-center hover:bg-slate-600 transition-colors">
-                <i data-lucide="video-off" class="h-6 w-6"></i>
-            </button>
+            <div>
+                <h3 class="text-xl font-bold text-[#443744]">Caretaker Contact</h3>
+                <p id="caretaker-modal-details" class="text-sm text-[#756D70] mt-1">Connecting you with your registered family caretaker.</p>
+            </div>
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs text-left space-y-1.5">
+                <div class="flex justify-between">
+                    <span class="text-slate-400">Primary Caretaker:</span>
+                    <span id="caretaker-modal-name" class="font-semibold text-slate-700">Family Caretaker</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">Status:</span>
+                    <span class="font-semibold text-emerald-600 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Available
+                    </span>
+                </div>
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button onclick="endVideoCall()"
+                    class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-all cursor-pointer">
+                    Close
+                </button>
+                <button onclick="sendCaretakerUrgentPing()"
+                    class="flex-1 py-2.5 bg-[#7e9677] hover:bg-[#6c8266] text-white font-semibold rounded-xl text-sm transition-all shadow-sm cursor-pointer flex items-center justify-center gap-1.5">
+                    <i data-lucide="bell" class="w-4 h-4"></i> Notify Now
+                </button>
+            </div>
         </div>
     </div>
 
@@ -1095,17 +1109,51 @@
                 .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         }
 
-        // ── YOUTUBE POSTMESSAGE CONTROL ──
-        function controlYouTube(command) {
-            const msg = JSON.stringify({ event: 'command', func: command, args: '' });
+        // ── YOUTUBE POSTMESSAGE CONTROL & AUDIO DUCKING ──
+        let originalAudioVolume = 1.0;
+        let isMediaDucked = false;
+
+        function controlYouTube(command, args = []) {
+            const msg = JSON.stringify({ event: 'command', func: command, args: args });
             const mainIframe = document.getElementById('yt-player');
-            if (mainIframe && mainIframe.src.includes('youtube')) {
+            if (mainIframe && mainIframe.src && mainIframe.src.includes('youtube')) {
                 mainIframe.contentWindow.postMessage(msg, 'https://www.youtube.com');
             }
             const cinIframe = document.getElementById('cinema-player');
-            if (cinIframe && cinIframe.src.includes('youtube')) {
+            if (cinIframe && cinIframe.src && cinIframe.src.includes('youtube')) {
                 cinIframe.contentWindow.postMessage(msg, 'https://www.youtube.com');
             }
+        }
+
+        function duckMediaAudio(shouldDuck) {
+            if (shouldDuck && !isMediaDucked) {
+                isMediaDucked = true;
+                if (audioPlayer && state.musicPlaying && !state.youtubeMode) {
+                    originalAudioVolume = audioPlayer.volume || 1.0;
+                    audioPlayer.volume = Math.max(0.15, originalAudioVolume * 0.22);
+                }
+                if (state.youtubeMode) {
+                    controlYouTube('setVolume', [22]);
+                }
+            } else if (!shouldDuck && isMediaDucked) {
+                isMediaDucked = false;
+                if (audioPlayer && !state.youtubeMode) {
+                    audioPlayer.volume = originalAudioVolume || 1.0;
+                }
+                if (state.youtubeMode) {
+                    controlYouTube('setVolume', [Math.round((originalAudioVolume || 1.0) * 100)]);
+                }
+            }
+        }
+
+        function changeMediaVolume(delta) {
+            let current = audioPlayer.volume || 1.0;
+            current = Math.max(0.0, Math.min(1.0, current + delta));
+            audioPlayer.volume = current;
+            originalAudioVolume = current;
+            const pct = Math.round(current * 100);
+            controlYouTube('setVolume', [pct]);
+            addUIMessage('bot', `🔊 Media volume: ${pct}%`);
         }
 
         // ── CINEMA MODE ──
@@ -1685,12 +1733,13 @@
         }
 
         // ═══════════════════════════════════════════
-        // ELEVENLABS REAL-TIME CONVERSATIONAL AI ENGINE
+        // ELEVENLABS REAL-TIME IN-APP VOICE ASSISTANT ENGINE (24/7 CONTINUOUS)
         // ═══════════════════════════════════════════
         const elevenLabsState = {
             ws: null,
             isConnected: false,
             isListening: false,
+            isMuted: false,
             audioCtx: null,
             mediaStream: null,
             processor: null,
@@ -1700,28 +1749,95 @@
             sessionId: null,
             agentId: "agent_0201m5wjypr0f46990bqwck3596g",
             voiceId: "VQxh7q9EH7jUlfwkQI00",
-            recipientId: 1
+            recipientId: 1,
+            reconnectAttempts: 0,
+            maxReconnectAttempts: 5,
+            reconnectTimer: null,
+            shouldAutoReconnect: false,
+            wakeWordRecognizer: null,
+            isWakeWordActive: false
         };
 
-        async function toggleElevenLabsSession() {
+        function updateAssistantUI(mode) {
+            const btnText = document.getElementById('saathi-status-text') || document.getElementById('elevenlabs-call-text');
+            const statusIndicator = document.getElementById('saathi-status-indicator');
+            const btn = document.getElementById('saathi-assistant-btn') || document.getElementById('elevenlabs-call-btn');
+            const labelEl = document.getElementById('elevenlabs-voice-label');
+            const avatarStatus = document.getElementById('avatar-status-text');
+
+            if (mode === 'connecting') {
+                if (btnText) btnText.textContent = "Connecting to Saathi...";
+                if (statusIndicator) statusIndicator.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+                if (btn) {
+                    btn.classList.remove('bg-[#B97886]', 'hover:bg-[#a36472]', 'bg-red-500', 'hover:bg-red-600', 'bg-emerald-600', 'hover:bg-emerald-700');
+                    btn.classList.add('bg-amber-500', 'hover:bg-amber-600');
+                }
+                if (avatarStatus) avatarStatus.innerHTML = `Connecting to Asha voice... <span class="text-amber-500">●</span>`;
+            } else if (mode === 'connected') {
+                if (btnText) btnText.textContent = elevenLabsState.isMuted ? "Mic Paused" : "Saathi Active";
+                if (statusIndicator) statusIndicator.className = elevenLabsState.isMuted ? "w-2 h-2 rounded-full bg-amber-400" : "w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
+                if (btn) {
+                    btn.classList.remove('bg-amber-500', 'hover:bg-amber-600', 'bg-[#B97886]', 'hover:bg-[#a36472]', 'bg-red-500', 'hover:bg-red-600');
+                    btn.classList.add(elevenLabsState.isMuted ? 'bg-amber-600' : 'bg-emerald-600', 'hover:bg-emerald-700');
+                }
+                if (labelEl) labelEl.textContent = "Asha - Soft Care Voice (Live)";
+                if (avatarStatus) avatarStatus.innerHTML = `Live with Saathi <span class="text-emerald-500 font-bold">● Active</span>`;
+                setListening(!elevenLabsState.isMuted);
+            } else if (mode === 'reconnecting') {
+                if (btnText) btnText.textContent = `Reconnecting (${elevenLabsState.reconnectAttempts})...`;
+                if (statusIndicator) statusIndicator.className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
+                if (avatarStatus) avatarStatus.innerHTML = `Reconnecting to Saathi... <span class="text-amber-500">⏳</span>`;
+            } else {
+                // disconnected / idle
+                if (btnText) btnText.textContent = "Start Assistant";
+                if (statusIndicator) statusIndicator.className = "w-2 h-2 rounded-full bg-white/70";
+                if (btn) {
+                    btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-700', 'bg-amber-500', 'hover:bg-amber-600', 'bg-red-500', 'hover:bg-red-600');
+                    btn.classList.add('bg-[#B97886]', 'hover:bg-[#a36472]');
+                }
+                if (labelEl) labelEl.textContent = "Asha - Soft Care Voice";
+                if (avatarStatus) avatarStatus.innerHTML = `Your Care Companion <span class="text-[#B97886]">♥</span>`;
+                setListening(false);
+                setAvatarState('idle');
+            }
+        }
+
+        async function toggleVoiceAssistant() {
             if (elevenLabsState.isConnected) {
+                // If user clicks while active, cleanly disconnect or pause
+                elevenLabsState.shouldAutoReconnect = false;
                 await stopElevenLabsSession();
             } else {
+                elevenLabsState.shouldAutoReconnect = true;
+                elevenLabsState.reconnectAttempts = 0;
                 await startElevenLabsSession();
+            }
+        }
+
+        // Maintain backward compatibility for any existing invocation
+        const toggleElevenLabsSession = toggleVoiceAssistant;
+
+        function toggleAssistantMute() {
+            if (!elevenLabsState.isConnected) {
+                toggleVoiceAssistant();
+                return;
+            }
+            elevenLabsState.isMuted = !elevenLabsState.isMuted;
+            elevenLabsState.isListening = !elevenLabsState.isMuted;
+            setListening(!elevenLabsState.isMuted);
+            updateAssistantUI('connected');
+            if (elevenLabsState.isMuted) {
+                setAvatarState('idle');
+            } else {
+                setAvatarState('listening');
             }
         }
 
         async function startElevenLabsSession() {
             const rid = getRecipientId() || "1";
             const token = getToken();
-            const btnText = document.getElementById('elevenlabs-call-text');
-            const callBtn = document.getElementById('elevenlabs-call-btn');
 
-            if (btnText) btnText.textContent = "Connecting to Saathi...";
-            if (callBtn) {
-                callBtn.classList.remove('bg-[#B97886]', 'hover:bg-[#a36472]');
-                callBtn.classList.add('bg-amber-500', 'hover:bg-amber-600');
-            }
+            updateAssistantUI('connecting');
 
             try {
                 elevenLabsState.recipientId = parseInt(rid);
@@ -1737,7 +1853,8 @@
                     throw new Error(signData.message || "Failed to acquire ElevenLabs signed conversation URL");
                 }
 
-                const { signed_url, voice_id, dynamic_variables, recipient_name } = signData.result;
+                const { signed_url, voice_id, dynamic_variables, recipient_name, session_id } = signData.result;
+                if (session_id) elevenLabsState.sessionId = session_id;
                 elevenLabsState.voiceId = voice_id || "VQxh7q9EH7jUlfwkQI00";
 
                 // Close any existing WS before starting a fresh session
@@ -1751,18 +1868,11 @@
                 elevenLabsState.ws = ws;
 
                 ws.onopen = async () => {
-                    console.log("[ElevenLabs ConvAI] WebSocket connected to Saathi agent!");
+                    console.log("[ElevenLabs ConvAI] In-App Assistant connected with Asha cloned voice!");
                     elevenLabsState.isConnected = true;
+                    elevenLabsState.reconnectAttempts = 0;
                     isElevenLabsActive = true;
-
-                    // Update UI labels
-                    const labelEl = document.getElementById('elevenlabs-voice-label');
-                    if (labelEl) labelEl.textContent = "Asha - Soft Care Voice (Live)";
-                    if (btnText) btnText.textContent = "End Call";
-                    if (callBtn) {
-                        callBtn.classList.remove('bg-amber-500', 'hover:bg-amber-600', 'bg-[#B97886]', 'hover:bg-[#a36472]');
-                        callBtn.classList.add('bg-red-500', 'hover:bg-red-600');
-                    }
+                    updateAssistantUI('connected');
 
                     // Send conversation initiation with Asha cloned voice configuration
                     const initPayload = {
@@ -1779,18 +1889,15 @@
                     };
                     ws.send(JSON.stringify(initPayload));
 
-                    // Cancel any residual browser synthesis or audio immediately
+                    // Cancel any residual browser synthesis
                     if (window.speechSynthesis) {
                         try { window.speechSynthesis.cancel(); } catch (e) {}
                     }
-                    if (state.currentAudio) {
-                        try { state.currentAudio.pause(); state.currentAudio = null; } catch (e) {}
-                    }
-                    if (typeof recognition !== 'undefined' && recognition) {
+                    if (typeof recognition !== 'undefined' && recognition && !elevenLabsState.isWakeWordActive) {
                         try { recognition.stop(); } catch (e) {}
                     }
 
-                    // Start microphone streaming (16kHz PCM chunks)
+                    // Start continuous microphone streaming (16kHz PCM chunks)
                     await startElevenLabsMicrophone();
                 };
 
@@ -1818,9 +1925,10 @@
                             addUIMessage('user', transcript);
                             saveTurnToSaathiDB('user', transcript);
                             setAvatarState('thinking');
+                            handleVoiceMediaIntents(transcript);
                         }
                     } else if (data.type === "interruption") {
-                        console.log("[ElevenLabs ConvAI] Interruption: stopping bot playback");
+                        console.log("[ElevenLabs ConvAI] Interruption: user spoke, stopping Asha playback");
                         stopAgentPlayback();
                     } else if (data.type === "client_tool_call") {
                         // Handle function calling tools from ElevenLabs
@@ -1840,21 +1948,36 @@
                 };
 
                 ws.onclose = () => {
-                    console.log("[ElevenLabs ConvAI] WebSocket disconnected.");
-                    stopElevenLabsSession();
+                    console.log("[ElevenLabs ConvAI] WebSocket closed.");
+                    if (elevenLabsState.shouldAutoReconnect && elevenLabsState.reconnectAttempts < elevenLabsState.maxReconnectAttempts) {
+                        scheduleReconnect();
+                    } else {
+                        stopElevenLabsSession();
+                    }
                 };
 
             } catch (err) {
-                console.error("[ElevenLabs ConvAI] Failed to start session:", err);
-                alert("Could not start live voice session with Saathi: " + err.message);
-                if (btnText) btnText.textContent = "ElevenLabs Live Call";
-                if (callBtn) {
-                    callBtn.classList.remove('bg-amber-500', 'hover:bg-amber-600', 'bg-red-500', 'hover:bg-red-600');
-                    callBtn.classList.add('bg-[#B97886]', 'hover:bg-[#a36472]');
+                console.error("[ElevenLabs ConvAI] Failed to start in-app assistant:", err);
+                if (elevenLabsState.shouldAutoReconnect && elevenLabsState.reconnectAttempts < elevenLabsState.maxReconnectAttempts) {
+                    scheduleReconnect();
+                } else {
+                    updateAssistantUI('idle');
+                    elevenLabsState.isConnected = false;
+                    isElevenLabsActive = false;
                 }
-                elevenLabsState.isConnected = false;
-                isElevenLabsActive = false;
             }
+        }
+
+        function scheduleReconnect() {
+            elevenLabsState.reconnectAttempts++;
+            updateAssistantUI('reconnecting');
+            const delay = Math.min(1000 * Math.pow(1.8, elevenLabsState.reconnectAttempts), 12000);
+            console.log(`[ElevenLabs ConvAI] Auto-reconnecting in ${Math.round(delay)}ms (attempt ${elevenLabsState.reconnectAttempts}/${elevenLabsState.maxReconnectAttempts})`);
+            
+            if (elevenLabsState.reconnectTimer) clearTimeout(elevenLabsState.reconnectTimer);
+            elevenLabsState.reconnectTimer = setTimeout(async () => {
+                await startElevenLabsSession();
+            }, delay);
         }
 
         async function startElevenLabsMicrophone() {
@@ -1886,7 +2009,7 @@
                 muteGain.gain.value = 0; // Prevent echo into own speaker
 
                 processor.onaudioprocess = (e) => {
-                    if (!elevenLabsState.isListening || !elevenLabsState.ws || elevenLabsState.ws.readyState !== WebSocket.OPEN) {
+                    if (!elevenLabsState.isListening || elevenLabsState.isMuted || !elevenLabsState.ws || elevenLabsState.ws.readyState !== WebSocket.OPEN) {
                         return;
                     }
                     const inputBuffer = e.inputBuffer.getChannelData(0);
@@ -1917,9 +2040,10 @@
 
                 elevenLabsState.processor = processor;
                 elevenLabsState.isListening = true;
+                elevenLabsState.isMuted = false;
                 setListening(true);
                 setAvatarState('listening');
-                console.log("[ElevenLabs ConvAI] Microphone active and streaming 16kHz PCM to Saathi.");
+                console.log("[ElevenLabs ConvAI] Microphone active and streaming 16kHz PCM to Saathi continuously.");
             } catch (err) {
                 console.warn("[ElevenLabs ConvAI] Microphone setup error:", err);
                 alert("Microphone permission required to speak with Saathi. Please allow microphone access.");
@@ -1984,12 +2108,14 @@
                 elevenLabsState.nextPlaybackTime += audioBuffer.duration;
                 elevenLabsState.activeSources.push(source);
                 setAvatarState('talking');
+                duckMediaAudio(true); // Gently lower background music while Asha is speaking
 
                 source.onended = () => {
                     const idx = elevenLabsState.activeSources.indexOf(source);
                     if (idx > -1) elevenLabsState.activeSources.splice(idx, 1);
                     if (elevenLabsState.activeSources.length === 0 && elevenLabsState.playbackCtx.currentTime >= elevenLabsState.nextPlaybackTime - 0.1) {
-                        setAvatarState(elevenLabsState.isListening ? 'listening' : 'idle');
+                        setAvatarState(elevenLabsState.isListening && !elevenLabsState.isMuted ? 'listening' : 'idle');
+                        duckMediaAudio(false); // Restore background music smoothly
                     }
                 };
             } catch (err) {
@@ -2003,7 +2129,8 @@
             });
             elevenLabsState.activeSources = [];
             elevenLabsState.nextPlaybackTime = 0;
-            setAvatarState(elevenLabsState.isListening ? 'listening' : 'idle');
+            duckMediaAudio(false);
+            setAvatarState(elevenLabsState.isListening && !elevenLabsState.isMuted ? 'listening' : 'idle');
         }
 
         async function handleElevenLabsToolCall(toolCall) {
@@ -2043,6 +2170,41 @@
                     toggleEmergencyMode(true);
                     resultMsg = "Emergency alert sent to family contacts.";
                     addUIMessage('bot', `🚨 ${resultMsg}`);
+                } else if (toolName === "play_music") {
+                    const songName = (params.song_name || "").toLowerCase();
+                    if (songName) {
+                        const idx = localPlaylist.findIndex(s => s.title.toLowerCase().includes(songName));
+                        if (idx !== -1) {
+                            playlist = [...localPlaylist];
+                            playSong(idx);
+                            resultMsg = `Playing ${localPlaylist[idx].title} from library`;
+                        } else {
+                            await playYouTubeSong(params.song_name);
+                            resultMsg = `Playing ${params.song_name} on YouTube`;
+                        }
+                    } else {
+                        playlist = [...localPlaylist];
+                        playSong(0);
+                        resultMsg = "Playing music from library";
+                    }
+                    addUIMessage('bot', `🎵 ${resultMsg}`);
+                } else if (toolName === "media_control") {
+                    const action = params.action || "toggle";
+                    if (action === "volume_up") {
+                        changeMediaVolume(0.15);
+                        resultMsg = "Volume increased";
+                    } else if (action === "volume_down") {
+                        changeMediaVolume(-0.15);
+                        resultMsg = "Volume decreased";
+                    } else {
+                        controlMusic(action);
+                        resultMsg = `Media ${action} executed`;
+                    }
+                } else if (toolName === "play_youtube_video") {
+                    const q = params.query || "soothing old hindi melodies";
+                    await playYouTubeSong(q);
+                    resultMsg = `Playing ${q} on YouTube player`;
+                    addUIMessage('bot', `🎬 ${resultMsg}`);
                 }
 
                 if (elevenLabsState.ws && elevenLabsState.ws.readyState === WebSocket.OPEN) {
@@ -2057,6 +2219,49 @@
             } catch (err) {
                 console.warn("[ElevenLabs Tool Execution error]", err);
             }
+        }
+
+        function handleVoiceMediaIntents(rawText) {
+            if (!rawText) return false;
+            const t = rawText.toLowerCase().trim();
+            // Direct volume controls
+            if (t.includes('volume up') || t.includes('volume badhao') || t.includes('awaz badhao')) {
+                changeMediaVolume(0.15);
+                return true;
+            }
+            if (t.includes('volume down') || t.includes('volume kam karo') || t.includes('awaz kam karo')) {
+                changeMediaVolume(-0.15);
+                return true;
+            }
+            // Pause / Stop controls
+            if (t === 'pause' || t.includes('pause music') || t.includes('gana roko') || t.includes('gana pause') || t.includes('gana band karo') || t === 'stop music') {
+                controlMusic('pause');
+                return true;
+            }
+            // Resume controls
+            if (t.includes('resume music') || t.includes('gana bajao') || t.includes('gana shuru karo') || t.includes('play music') || t === 'gana sunao') {
+                controlMusic('resume');
+                return true;
+            }
+            // Next / Prev controls
+            if (t.includes('next song') || t.includes('agla gana') || t.includes('agla video')) {
+                controlMusic('next');
+                return true;
+            }
+            if (t.includes('previous song') || t.includes('pichhla gana')) {
+                controlMusic('prev');
+                return true;
+            }
+            // Specific local songs check
+            for (let i = 0; i < localPlaylist.length; i++) {
+                const titleLower = localPlaylist[i].title.toLowerCase();
+                if (t.includes(titleLower) || (titleLower.includes('pal pal') && t.includes('pal pal')) || (titleLower.includes('roop tera') && t.includes('roop tera')) || (titleLower.includes('zindagi ka') && t.includes('zindagi ka'))) {
+                    playlist = [...localPlaylist];
+                    playSong(i);
+                    return true;
+                }
+            }
+            return false;
         }
 
         async function saveTurnToSaathiDB(sender, text) {
@@ -2084,6 +2289,9 @@
         }
 
         async function stopElevenLabsSession() {
+            elevenLabsState.shouldAutoReconnect = false;
+            if (elevenLabsState.reconnectTimer) clearTimeout(elevenLabsState.reconnectTimer);
+
             stopAgentPlayback();
             stopElevenLabsMicrophone();
 
@@ -2094,18 +2302,108 @@
 
             elevenLabsState.isConnected = false;
             isElevenLabsActive = false;
-
-            const btnText = document.getElementById('elevenlabs-call-text');
-            const callBtn = document.getElementById('elevenlabs-call-btn');
-            const labelEl = document.getElementById('elevenlabs-voice-label');
-            if (labelEl) labelEl.textContent = "Asha - Soft Care Voice";
-            if (btnText) btnText.textContent = "ElevenLabs Live Call";
-            if (callBtn) {
-                callBtn.classList.remove('bg-red-500', 'hover:bg-red-600', 'bg-amber-500', 'hover:bg-amber-600');
-                callBtn.classList.add('bg-[#B97886]', 'hover:bg-[#a36472]');
+            updateAssistantUI('idle');
+            if (elevenLabsState.sessionId) {
+                const token = getToken();
+                fetch('http://127.0.0.1:8000/api/elevenlabs/end-session', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': token ? `Bearer ${token}` : ''
+                    },
+                    body: JSON.stringify({ session_id: elevenLabsState.sessionId })
+                }).catch(() => {});
             }
-            setAvatarState('idle');
-            console.log("[ElevenLabs ConvAI] Session ended cleanly.");
+            console.log("[ElevenLabs ConvAI] In-App Assistant session stopped cleanly.");
+        }
+
+        // ═══════════════════════════════════════════
+        // IN-TAB WAKE-WORD DETECTION ("Saathi" / "Hey Saathi")
+        // ═══════════════════════════════════════════
+        function initWakeWordDetection() {
+            const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRec) return;
+
+            try {
+                const rec = new SpeechRec();
+                rec.continuous = true;
+                rec.interimResults = false;
+                rec.lang = 'hi-IN';
+
+                rec.onresult = (event) => {
+                    const lastResult = event.results[event.results.length - 1];
+                    if (!lastResult || !lastResult[0]) return;
+                    const text = lastResult[0].transcript.toLowerCase();
+                    console.log("[Wake Word Check]", text);
+                    if (text.includes("saathi") || text.includes("sathi") || text.includes("साथी") || text.includes("hey saathi")) {
+                        if (!elevenLabsState.isConnected) {
+                            console.log("[Wake Word Detected] Activating Saathi Assistant!");
+                            toggleVoiceAssistant();
+                        } else if (elevenLabsState.isMuted) {
+                            toggleAssistantMute();
+                        }
+                    }
+                };
+
+                rec.onerror = (e) => {
+                    // Ignore expected background errors like no-speech
+                };
+
+                rec.onend = () => {
+                    // Keep listening if tab is active and assistant is not actively capturing
+                    if (!elevenLabsState.isConnected && !elevenLabsState.isListening) {
+                        try { rec.start(); } catch (e) {}
+                    }
+                };
+
+                try {
+                    rec.start();
+                    elevenLabsState.wakeWordRecognizer = rec;
+                    elevenLabsState.isWakeWordActive = true;
+                    console.log("[Wake Word] In-tab listener ready for 'Saathi'.");
+                } catch (e) {
+                    // User gesture may be required before starting speech recognition
+                }
+            } catch (e) {
+                console.log("[Wake Word] Not initialized:", e);
+            }
+        }
+
+        // Caretaker Contact Helper
+        function contactCaretakerModal() {
+            const modal = document.getElementById('call-modal');
+            if (modal) {
+                const ctName = state.recipientInfo?.caretaker?.full_name || state.recipientInfo?.caretaker?.username || "Family Caretaker";
+                const ctPhone = state.recipientInfo?.caretaker?.phone_number || "";
+                const nameEl = document.getElementById('caretaker-modal-name');
+                const detEl = document.getElementById('caretaker-modal-details');
+                if (nameEl) nameEl.textContent = ctName;
+                if (detEl && ctPhone) detEl.textContent = `Registered primary contact: ${ctName} (${ctPhone})`;
+                modal.classList.remove('hidden');
+                lucide.createIcons();
+            }
+        }
+
+        async function sendCaretakerUrgentPing() {
+            const token = getToken();
+            const rid = getRecipientId() || "1";
+            try {
+                await fetch('http://127.0.0.1:8000/api/voice-bot/emergency', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': token ? `Bearer ${token}` : ''
+                    },
+                    body: JSON.stringify({
+                        recipient_id: parseInt(rid),
+                        message: "Senior requested immediate contact via In-App Caretaker button"
+                    })
+                });
+                addUIMessage('bot', 'A notification has been sent to your caretaker to check in with you.');
+            } catch (e) {
+                console.warn("[Caretaker Ping] Error:", e);
+            }
+            endVideoCall();
         }
 
         // ═══════════════════════════════════════════
