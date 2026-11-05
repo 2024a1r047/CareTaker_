@@ -15,6 +15,8 @@ from tables.saathi_history import (
     SaathiRecipient
 )
 from services.elevenlabs_service import (
+    check_elevenlabs_quota,
+    update_elevenlabs_credentials,
     get_elevenlabs_voice_id,
     get_elevenlabs_model_id,
     get_elevenlabs_api_key,
@@ -24,10 +26,9 @@ from services.elevenlabs_service import (
     synthesize_elevenlabs_speech,
     get_elevenlabs_signed_url,
     build_saathi_context,
+    build_agent_dynamic_variables,
     handle_log_medicine_or_meal,
     handle_send_emergency_alert,
-    check_elevenlabs_quota,
-    update_elevenlabs_credentials,
 )
 
 router = APIRouter(prefix="/elevenlabs", tags=["ElevenLabs Saathi"])
@@ -47,6 +48,11 @@ class EmergencyToolRequest(BaseModel):
     reason: str = "Fall or acute distress reported"
     severity: Optional[str] = "critical"
 
+class CaretakerMessageRequest(BaseModel):
+    recipient_id: Optional[int] = 1
+    message: str = ""
+    urgent: Optional[bool] = False
+
 class DirectTTSRequest(BaseModel):
     text: str
     voice_id: Optional[str] = None
@@ -64,9 +70,26 @@ class ConversationTurnRequest(BaseModel):
 class EndSessionRequest(BaseModel):
     session_id: str
 
+
 class CredentialsRequest(BaseModel):
     api_key: Optional[str] = None
     agent_id: Optional[str] = None
+
+
+@router.post("/set-credentials", response_model=ResponseSchema)
+async def set_credentials(payload: CredentialsRequest):
+    """Updates ELEVENLABS_API_KEY and/or ELEVENLABS_AGENT_ID safely in environment."""
+    key = (payload.api_key or "").strip()
+    agent = (payload.agent_id or "").strip()
+    updated = update_elevenlabs_credentials(api_key=key if key else None, agent_id=agent if agent else None)
+    if updated:
+        return ResponseSchema(
+            code=200,
+            status="success",
+            message="ElevenLabs credentials updated successfully in environment",
+            result={"has_api_key": bool(key), "agent_id": agent}
+        )
+    return ResponseSchema(code=400, status="error", message="Failed to update credentials in .env")
 
 @router.get("/config", response_model=ResponseSchema)
 async def get_elevenlabs_config():
@@ -91,22 +114,9 @@ async def get_elevenlabs_config():
             "remaining_characters": quota.get("remaining_characters", 0),
             "character_count": quota.get("character_count", 0),
             "character_limit": quota.get("character_limit", 30000),
-            "tier": quota.get("tier", "starter")
+            "tier": quota.get("tier", "creator")
         }
     )
-
-@router.post("/set-credentials", response_model=ResponseSchema)
-async def set_credentials(payload: CredentialsRequest):
-    """Updates ELEVENLABS_API_KEY and/or ELEVENLABS_AGENT_ID safely in environment."""
-    updated = update_elevenlabs_credentials(api_key=payload.api_key, agent_id=payload.agent_id)
-    if updated:
-        return ResponseSchema(
-            code=200,
-            status="success",
-            message="ElevenLabs credentials updated successfully in environment",
-            result={"has_api_key": bool(payload.api_key), "agent_id": payload.agent_id}
-        )
-    return ResponseSchema(code=400, status="error", message="Failed to update credentials in .env")
 
 @router.get("/session-context/{recipient_id}", response_model=ResponseSchema)
 async def get_session_context(recipient_id: int, db: Session = Depends(get_db)):
@@ -124,7 +134,6 @@ async def get_session_context(recipient_id: int, db: Session = Depends(get_db)):
     )
 
 @router.get("/signed-url", response_model=ResponseSchema)
-@router.get("/session", response_model=ResponseSchema)
 async def get_signed_url(
     agent_id: Optional[str] = None,
     recipient_id: Optional[int] = 1,
@@ -139,7 +148,7 @@ async def get_signed_url(
     # 1. Validate authenticated CareTaker user
     caretaker = verify_and_get_caretaker(authorization, db)
 
-    # 2. Verify recipient belongs to this caretaker or fallback safely
+    # 2. Verify recipient belongs to this caretaker (never fall back to another account's patient)
     recipient = db.query(CareRecipient).filter(
         CareRecipient.id == recipient_id,
         CareRecipient.caretaker_id == caretaker.id
@@ -147,13 +156,36 @@ async def get_signed_url(
     if not recipient:
         recipient = db.query(CareRecipient).filter(CareRecipient.caretaker_id == caretaker.id).first()
     if not recipient:
-        recipient = db.query(CareRecipient).first()
+        return ResponseSchema(
+            code=404, status="error",
+            message="No family member profile found for this account. Add one in Settings first.",
+            result=None
+        )
 
-    recip_id = recipient.id if recipient else 1
+    recip_id = recipient.id
 
-    # 3. Retrieve dynamic context for Saathi (name, medicines, address form)
+    # 3. Retrieve profile + memory for Asha (name, medicines, past calls) from the DBs
     context = build_saathi_context(recip_id, db)
+    dynamic_variables = build_agent_dynamic_variables(recip_id, db)
     target_agent_id = agent_id or get_elevenlabs_agent_id()
+
+    # 3b. Medical record briefing: uploaded reports + analysis, labs with normal ranges,
+    #     vitals, care plan, and BP / heart-rate / sugar guidance. The page sends it to the
+    #     agent as a contextual_update. Never blocks the call if something fails.
+    medical_context = ""
+    try:
+        from services.agent_medical_context import build_medical_context, format_medical_context
+        medical_context = format_medical_context(build_medical_context(recip_id, db))
+    except Exception as _mcerr:
+        print(f"[ElevenLabs] Medical context skipped for recipient {recip_id}: {_mcerr}")
+
+    # 3c. Contacts the agent can call (via the page's call_* client tools)
+    contacts = {
+        "caretaker_name": caretaker.full_name or caretaker.username or "",
+        "caretaker_phone": (getattr(caretaker, "phone_number", None) or "").strip(),
+        "emergency_contact": (getattr(recipient, "emergency_contact", None) or "").strip(),
+        "emergency_services": "112",
+    }
 
     # 4. Generate signed WebSocket URL for ElevenLabs
     result = get_elevenlabs_signed_url(target_agent_id)
@@ -170,9 +202,7 @@ async def get_signed_url(
         from services.saathi_memory_service import start_session
         saathi_sess_id = str(start_session(caretaker.id, recip_id))
     except Exception as _serr:
-        pass
-
-    quota = check_elevenlabs_quota()
+        print(f"[Saathi DB] Could not start session in saathi_db: {_serr}")
 
     return ResponseSchema(
         code=200,
@@ -184,24 +214,13 @@ async def get_signed_url(
             "agent_id": target_agent_id,
             "voice_id": get_elevenlabs_voice_id(),
             "recipient_id": recip_id,
-            "recipient_name": context.get("name", "Dadaji"),
-            "address": context.get("address", "Dadaji"),
+            "recipient_name": dynamic_variables["user_name"],
+            "address": dynamic_variables["user_name"],
             "language": context.get("language", "Hindi, English, or Hinglish"),
             "first_message": context.get("first_message", ""),
-            "quota_exceeded": quota.get("quota_exceeded", False),
-            "remaining_characters": quota.get("remaining_characters", 0),
-            "dynamic_variables": {
-                "name": context.get("name", "Dadaji"),
-                "user_name": context.get("name", "Dadaji"),
-                "address": context.get("address", "Dadaji"),
-                "preferred_language": context.get("language", "Hindi, English, or Hinglish"),
-                "medicine_schedule": context.get("medicine_schedule", ""),
-                "medicines": context.get("medicines", ""),
-                "medical_reports": context.get("medical_reports", ""),
-                "reports": context.get("medical_reports", ""),
-                "conditions": context.get("conditions", ""),
-                "family_contact": context.get("family_contact", "")
-            }
+            "dynamic_variables": dynamic_variables,
+            "medical_context": medical_context,
+            "contacts": contacts
         }
     )
 
@@ -241,7 +260,9 @@ async def save_conversation_turn(
     ).first()
     if not recip:
         recip = db.query(CareRecipient).filter(CareRecipient.caretaker_id == caretaker.id).first()
-    recip_id = recip.id if recip else (payload.recipient_id or 1)
+    if not recip:
+        return ResponseSchema(code=404, status="error", message="Family member not found for this account")
+    recip_id = recip.id
 
     sender_enum = SenderEnum.bot if payload.sender.lower() in ["bot", "agent", "assistant", "ai"] else SenderEnum.user
     mood_str = payload.mood_detected or "neutral"
@@ -275,6 +296,21 @@ async def save_conversation_turn(
         recip_id, sender_enum, payload.text.strip(), mood_enum,
         trigger_enum, payload.session_id, db, intent=payload.intent or "chat"
     )
+
+    # Also store the turn in saathi_db memory tables (member_sessions / member_messages).
+    # end-session reads these to write the call summary and extract personal memory,
+    # which Asha receives at the next login.
+    try:
+        from services.saathi_memory_service import save_message_async
+        save_message_async(
+            payload.session_id, recip_id,
+            "assistant" if sender_enum == SenderEnum.bot else "user",
+            payload.text.strip(),
+            account_id=caretaker.id,
+        )
+    except Exception as _me:
+        print(f"[Saathi DB] memory-table save notice: {_me}")
+
     return ResponseSchema(
         code=200, status="success",
         message="Turn saved successfully to Saathi database",
@@ -361,6 +397,60 @@ async def tool_log_medicine_or_meal(payload: LogToolRequest, db: Session = Depen
         status="success" if result.get("success") else "error",
         message=result.get("message", "Tool execution complete"),
         result=result
+    )
+
+@router.post("/tools/message-caretaker", response_model=ResponseSchema)
+async def tool_message_caretaker(payload: CaretakerMessageRequest, db: Session = Depends(get_db)):
+    """
+    ElevenLabs client tool `message_caretaker`: delivers a message from the patient to their
+    caretaker. Always saved as an alert on the caretaker's dashboard (and pushed live via
+    Socket.IO), so the message is delivered even without email/SMS configured. Returns the
+    caretaker's name and phone so the page can also offer WhatsApp / SMS.
+    """
+    from tables.medical_conditions import MedicalAlert, AlertType, AlertSeverity
+
+    recipient = db.query(CareRecipient).filter(CareRecipient.id == payload.recipient_id).first()
+    if not recipient:
+        return ResponseSchema(code=404, status="error", message="Family member not found")
+    caretaker = db.query(CareTaker).filter(CareTaker.id == recipient.caretaker_id).first()
+    patient_name = (getattr(recipient, "preferred_name", None) or recipient.full_name or "Your family member").strip()
+    text = (payload.message or "").strip() or "Please call me when you can."
+
+    saved = False
+    try:
+        db.add(MedicalAlert(
+            care_recipient_id=recipient.id,
+            alert_type=AlertType.critical if payload.urgent else AlertType.monitoring_gap,
+            severity=AlertSeverity.high if payload.urgent else AlertSeverity.medium,
+            message=f"💬 Message from {patient_name} (via Saathi): {text}",
+        ))
+        db.commit()
+        saved = True
+    except Exception as e:
+        db.rollback()
+        print(f"[Saathi message] could not save dashboard alert: {e}")
+
+    try:
+        from socket_manager import sio_server
+        await sio_server.emit("caretaker_message", {
+            "recipient_id": recipient.id, "recipient_name": patient_name,
+            "message": text, "urgent": bool(payload.urgent),
+            "timestamp": datetime.utcnow().isoformat(),
+        })
+    except Exception as e:
+        print(f"[Saathi message] socket push failed: {e}")
+
+    return ResponseSchema(
+        code=200 if saved else 500,
+        status="success" if saved else "error",
+        message="Message delivered to the caretaker's dashboard" if saved else "Could not save the message",
+        result={
+            "delivered_to_dashboard": saved,
+            "caretaker_name": (caretaker.full_name or caretaker.username) if caretaker else "",
+            "caretaker_phone": (getattr(caretaker, "phone_number", None) or "") if caretaker else "",
+            "patient_name": patient_name,
+            "message": text,
+        },
     )
 
 @router.post("/tools/send-emergency-alert", response_model=ResponseSchema)

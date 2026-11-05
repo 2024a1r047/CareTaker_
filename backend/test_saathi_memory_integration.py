@@ -43,7 +43,9 @@ def run_tests():
 
     # 1. Setup test caretaker and recipient in main DB if not present
     with SessionLocal() as db:
-        caretaker = db.query(CareTaker).first()
+        # Use a dedicated test account only. Never take .first(): that is a real user, and this
+        # test overwrites the member's preferred_name with "Bauji".
+        caretaker = db.query(CareTaker).filter(CareTaker.username == "test_caretaker").first()
         if not caretaker:
             caretaker = CareTaker(username="test_caretaker", email="caretaker@test.com", password_hash="dummy")
             db.add(caretaker)

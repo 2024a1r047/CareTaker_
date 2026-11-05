@@ -158,6 +158,13 @@ def _run_medical_history_pipeline_v2(recipient_id: int, report_id: int, filename
         print(f"[pipeline_v2] ✅ Report {report_id} — "
               f"{hybrid_result['saved_count']} lab values, {len(new_diseases)} new conditions")
 
+        # ── 8b. Prescribed medicines -> Medication section ────────────────────
+        try:
+            from services.report_medication_sync import sync_report_medications
+            sync_report_medications(report, db, text=text)
+        except Exception as e:
+            print(f"[pipeline_v2] medication import failed: {e}")
+
         # ── 9. Aggregate summary ──────────────────────────────────────────────
         try:
             _recalculate_aggregate_summary(db, recipient_id)
@@ -253,6 +260,11 @@ def _run_medical_history_pipeline_v1_legacy(recipient_id: int, report_id: int, f
         report.processing_status = ReportProcessingStatus.completed
         db.commit()
         print(f"[pipeline_v1] ✅ Report {report_id} complete (legacy mode)")
+        try:
+            from services.report_medication_sync import sync_report_medications
+            sync_report_medications(report, db, text=text)
+        except Exception as e:
+            print(f"[pipeline_v1] medication import failed: {e}")
         try:
             _recalculate_aggregate_summary(db, recipient_id)
         except Exception:
@@ -647,6 +659,7 @@ def add_care_recipient(payload: CareRecipientCreate, authorization: Optional[str
     new_recipient = CareRecipient(
         caretaker_id=caretaker.id,
         full_name=payload.full_name,
+        preferred_name=(payload.preferred_name or "").strip() or None,
         email=payload.email,
         phone_number=payload.phone_number,
         age=payload.age,
@@ -684,6 +697,20 @@ def update_care_recipient(recipient_id: int, payload: RecipientUpdate, authoriza
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipient not found")
 
     if payload.full_name is not None: recipient.full_name = payload.full_name
+    if payload.preferred_name is not None:
+        recipient.preferred_name = payload.preferred_name.strip() or None
+        # keep the saathi_db copy in sync so Asha uses the new name immediately
+        try:
+            from config import SaathiSessionLocal
+            from tables.saathi_db_models import FamilyMember
+            if SaathiSessionLocal:
+                with SaathiSessionLocal() as s_db:
+                    fm = s_db.query(FamilyMember).filter(FamilyMember.id == recipient.id).first()
+                    if fm:
+                        fm.preferred_name = recipient.preferred_name
+                        s_db.commit()
+        except Exception as _sync_e:
+            print(f"[recipients] saathi_db preferred_name sync notice: {_sync_e}")
     if payload.email is not None: recipient.email = payload.email
     if payload.phone_number is not None: recipient.phone_number = payload.phone_number
     if payload.age is not None: recipient.age = payload.age

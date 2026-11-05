@@ -17,10 +17,17 @@ def get_elevenlabs_model_id() -> str:
     return os.getenv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
 
 def get_elevenlabs_api_key() -> str:
-    return os.getenv("ELEVENLABS_API_KEY", "")
+    # The secret key (starts with 'sk_') must come ONLY from backend/.env.
+    # Never hardcode it here: anyone who sees the code could use your ElevenLabs account.
+    key = os.getenv("ELEVENLABS_API_KEY", "").strip()
+    if key and not key.startswith("sk_"):
+        print("[ElevenLabs] ELEVENLABS_API_KEY in .env does not start with 'sk_'. "
+              "Copy the secret API key (not the key ID) from the ElevenLabs dashboard.")
+    return key
 
 def get_elevenlabs_agent_id() -> str:
     return os.getenv("ELEVENLABS_AGENT_ID", "agent_0201m5wjypr0f46990bqwck3596g")
+
 
 def check_elevenlabs_quota() -> Dict[str, Any]:
     """Checks character credits on ElevenLabs to verify quota availability."""
@@ -48,6 +55,7 @@ def check_elevenlabs_quota() -> Dict[str, Any]:
         return {"configured": True, "quota_exceeded": False, "status_code": r.status_code}
     except Exception as e:
         return {"configured": True, "quota_exceeded": False, "error": str(e)}
+
 
 def update_elevenlabs_credentials(api_key: str = None, agent_id: str = None) -> bool:
     """Updates ELEVENLABS_API_KEY and/or ELEVENLABS_AGENT_ID in runtime and .env"""
@@ -282,15 +290,17 @@ def build_saathi_context(recipient_id: int, db: Session) -> Dict[str, Any]:
         or first_name
     )
 
-    # Address form based on gender/age
-    address = "ji"
-    if recipient:
-        age = recipient.age or 68
-        gender_raw = str(recipient.gender or "").lower()
-        if "male" in gender_raw:
-            address = "Papa ji" if age < 75 else "Dadaji"
-        elif "female" in gender_raw:
-            address = "Maa ji" if age < 75 else "Dadiji"
+    # Address form based on gender/age (Commented out to strictly bind to database username)
+    # address = "ji"
+    # if recipient:
+    #     age = recipient.age or 68
+    #     gender_raw = str(recipient.gender or "").lower()
+    #     if "male" in gender_raw:
+    #         address = "Papa ji" if age < 75 else "Dadaji"
+    #     elif "female" in gender_raw:
+    #         address = "Maa ji" if age < 75 else "Dadiji"
+    # Strict database name resolution:
+    address = preferred_name if (preferred_name and preferred_name != "ji") else first_name
 
     # Caretaker / family contact
     family_contact = "Not provided"
@@ -327,27 +337,6 @@ def build_saathi_context(recipient_id: int, db: Session) -> Dict[str, Any]:
             conditions.append(c.disease_name)
     conditions_str = ", ".join(conditions) if conditions else "None recorded"
 
-    # Uploaded medical reports
-    reports_str = "No medical reports uploaded yet"
-    if recipient:
-        try:
-            from tables.medical_reports import MedicalReport
-            reps = db.query(MedicalReport).filter(
-                MedicalReport.care_recipient_id == recipient.id
-            ).order_by(MedicalReport.uploaded_at.desc()).limit(5).all()
-            r_list = []
-            for r in reps:
-                s = (r.analysis_summary or '').strip().replace('\n', ' ')
-                if len(s) > 200:
-                    s = s[:200] + "..."
-                r_list.append(f"{r.filename}: {s}")
-            if not r_list and recipient.report_summary:
-                r_list.append(recipient.report_summary[:200])
-            if r_list:
-                reports_str = " | ".join(r_list)
-        except Exception:
-            pass
-
     # Language preference
     language = "Hindi, English, or Hinglish"
 
@@ -355,7 +344,7 @@ def build_saathi_context(recipient_id: int, db: Session) -> Dict[str, Any]:
     first_message = f"Namaste {preferred_name}... aaj aap kaisa feel kar rahe hain? ... Jo bhi aapke mann mein hai, mujhe batayiye. Main sun rahi hoon."
 
     # Injected User Data Context format
-    user_data_context = f"Name: {preferred_name} ({address}) | Preferred language: {language} | Medicines: {medicine_schedule} | Reports: {reports_str} | Conditions: {conditions_str} | Family contact: {family_contact}"
+    user_data_context = f"Name: {preferred_name} ({address}) | Preferred language: {language} | Medicines: {medicine_schedule} | Conditions: {conditions_str} | Family contact: {family_contact}"
 
     profile_details = mem_ctx.get("profile_details") or f"Age: {recipient.age if recipient else 68}, Conditions: {conditions_str}"
     member_memory = mem_ctx.get("member_memory") or "No specific personal memories recorded yet."
@@ -387,8 +376,6 @@ DUTIES & TOOLS:
         "address": preferred_name,
         "language": language,
         "medicine_schedule": medicine_schedule,
-        "medicines": medicine_schedule,
-        "medical_reports": reports_str,
         "conditions": conditions_str,
         "family_contact": family_contact,
         "first_message": first_message,
@@ -578,3 +565,86 @@ async def handle_send_emergency_alert(
         "email_sent": email_sent,
         "recipient": recipient_name
     }
+
+
+def build_agent_dynamic_variables(recipient_id: int, db: Session) -> Dict[str, str]:
+    """
+    Builds the dynamic variables sent to the ElevenLabs agent ("Asha") at the start of
+    every conversation. Names must match the {{variables}} used in the agent's system
+    prompt and first message in the ElevenLabs dashboard.
+
+    Every value is always a string ("" when there is no data), because ElevenLabs can
+    refuse to start a conversation if a variable used in the prompt is missing.
+    """
+    from tables.users import CareRecipient
+
+    ctx = build_saathi_context(recipient_id, db)
+    mem_ctx: Dict[str, Any] = {}
+    try:
+        from services.saathi_memory_service import get_member_context
+        mem_ctx = get_member_context(ctx.get("recipient_id", recipient_id))
+    except Exception as e:
+        print(f"[ElevenLabs] Could not load saathi_db memory for recipient {recipient_id}: {e}")
+
+    recipient = db.query(CareRecipient).filter(CareRecipient.id == ctx.get("recipient_id")).first()
+
+    user_name = (ctx.get("preferred_name") or "").strip()
+
+    # Profile details (no phone numbers or e-mails, this is spoken context)
+    parts = []
+    if recipient:
+        # Real name as well as the name Asha calls them (e.g. "Geeta Devi", called "Dadi")
+        full = (recipient.full_name or "").strip()
+        if full and full.lower() != user_name.lower():
+            parts.append(f"full name {full} (called {user_name})")
+        if recipient.age:
+            parts.append(f"Age {recipient.age}")
+        if recipient.gender:
+            g = recipient.gender.value if hasattr(recipient.gender, "value") else str(recipient.gender)
+            parts.append(g)
+        if recipient.city:
+            parts.append(f"lives in {recipient.city}")
+        if getattr(recipient, "blood_group", None):
+            parts.append(f"blood group {recipient.blood_group}")
+    conditions = ctx.get("conditions") or ""
+    if conditions and conditions != "None recorded":
+        parts.append(f"health conditions: {conditions}")
+    if recipient and getattr(recipient, "doctor_remarks", None):
+        parts.append(f"doctor's advice: {recipient.doctor_remarks}")
+    profile_details = ", ".join(parts)
+
+    medicines = ctx.get("medicine_schedule") or ""
+    if medicines.startswith("No active"):
+        medicines = ""
+
+    caretaker_name = mem_ctx.get("caretaker_name") or ""
+    family_members = f"{caretaker_name} (caretaker)" if caretaker_name else ""
+
+    # Memory = personal facts + summaries of the last few calls
+    memory_parts = []
+    facts = mem_ctx.get("member_memory") or ""
+    if facts and not facts.startswith("No specific"):
+        memory_parts.append(facts)
+    past = mem_ctx.get("recent_session_summaries") or ""
+    if past and not past.startswith("No previous"):
+        memory_parts.append("Previous calls:\n" + past)
+    member_memory = "\n".join(memory_parts)
+
+    return {
+        # Variables used by the Asha system prompt / first message
+        "user_name": user_name,
+        "preferred_language": "Hinglish",
+        "profile_details": profile_details,
+        "medicines": medicines,
+        "family_members": family_members,
+        "caretaker_name": caretaker_name,
+        "member_memory": member_memory,
+        "last_summary": mem_ctx.get("last_summary") or "",
+        # Older names kept so any earlier prompt version still works
+        "name": user_name,
+        "address": user_name,
+        "medicine_schedule": medicines,
+        # Lets the post-call webhook map the call back to this patient
+        "recipient_id": str(ctx.get("recipient_id", recipient_id)),
+    }
+

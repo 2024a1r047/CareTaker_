@@ -80,6 +80,27 @@ if saathi_engine:
     except Exception as _e:
         print(f"[Saathi DB] Connection/Table creation notice: {_e}")
 
+    # One-time fix: an older member_memory table may point its source_message_id
+    # foreign key at the old conversation_messages table. Re-point it to member_messages.
+    try:
+        from sqlalchemy import text as _sql_text
+        with saathi_engine.begin() as _conn:
+            _conn.execute(_sql_text("""
+                DO $$
+                BEGIN
+                  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'member_memory') THEN
+                    ALTER TABLE member_memory DROP CONSTRAINT IF EXISTS member_memory_source_message_id_fkey;
+                    UPDATE member_memory SET source_message_id = NULL
+                      WHERE source_message_id IS NOT NULL
+                        AND source_message_id NOT IN (SELECT id FROM member_messages);
+                    ALTER TABLE member_memory ADD CONSTRAINT member_memory_source_message_id_fkey
+                      FOREIGN KEY (source_message_id) REFERENCES member_messages(id) ON DELETE SET NULL;
+                  END IF;
+                END $$;
+            """))
+    except Exception as _fk_e:
+        print(f"[Saathi DB] member_memory foreign key check notice: {_fk_e}")
+
 @asynccontextmanager
 async def lifespan(_app):
     from sqlalchemy import String, Text, Integer, Float, Boolean, Date, DateTime, Numeric
@@ -146,6 +167,15 @@ async def lifespan(_app):
         print("[OK] Disease dictionary seeded")
     except Exception as _e:
         print(f"[ERROR] Disease dictionary seeding failed: {_e}")
+
+    # Import prescribed medicines from already-uploaded reports into the Medication section
+    # (runs in the background; each report is imported only once).
+    try:
+        from services.report_medication_sync import start_backfill_in_background
+        start_backfill_in_background()
+        print("[OK] Report medicine import started in background")
+    except Exception as _e:
+        print(f"[ERROR] Report medicine import could not start: {_e}")
 
     try:
         from services.notification_scheduler import start_scheduler

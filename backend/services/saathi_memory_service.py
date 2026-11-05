@@ -66,7 +66,7 @@ def _to_valid_uuid(val: Union[str, uuid.UUID]) -> uuid.UUID:
 
 
 def _ensure_family_member_exists(s_db: Session, family_member_id: int, account_id: Optional[int] = None) -> FamilyMember:
-    """Ensures family_member record exists in saathi_db, syncing complete personal profile, medicines, and reports."""
+    """Ensures family_member record exists in saathi_db, syncing from care_recipients if needed."""
     member = s_db.query(FamilyMember).filter(FamilyMember.id == family_member_id).first()
     if member:
         return member
@@ -76,28 +76,6 @@ def _ensure_family_member_exists(s_db: Session, family_member_id: int, account_i
         recip = main_db.query(CareRecipient).filter(CareRecipient.id == family_member_id).first()
         if recip:
             act_id = account_id or recip.caretaker_id or 1
-            
-            # Fetch active medications
-            med_list = []
-            try:
-                from tables.medications import Medication, MedicationStatus
-                meds = main_db.query(Medication).filter(
-                    Medication.care_recipient_id == recip.id,
-                    Medication.status.in_([MedicationStatus.active, 'active'])
-                ).all()
-                med_list = [{"name": m.medicine_name, "dosage": m.dosage, "schedule": m.schedule_time} for m in meds]
-            except Exception:
-                pass
-
-            # Fetch uploaded reports
-            report_list = []
-            try:
-                from tables.medical_reports import MedicalReport
-                reps = main_db.query(MedicalReport).filter(MedicalReport.care_recipient_id == recip.id).order_by(MedicalReport.uploaded_at.desc()).limit(5).all()
-                report_list = [{"filename": r.filename, "summary": (r.analysis_summary or '')[:200]} for r in reps]
-            except Exception:
-                pass
-
             member = FamilyMember(
                 id=recip.id,
                 account_id=act_id,
@@ -108,12 +86,7 @@ def _ensure_family_member_exists(s_db: Session, family_member_id: int, account_i
                     "age": recip.age,
                     "gender": str(recip.gender) if recip.gender else None,
                     "city": recip.city,
-                    "blood_group": getattr(recip, 'blood_group', None),
-                    "emergency_contact": getattr(recip, 'emergency_contact', None),
-                    "doctor_remarks": getattr(recip, 'doctor_remarks', None),
                     "report_summary": recip.report_summary,
-                    "medications": med_list,
-                    "uploaded_reports": report_list
                 }
             )
             s_db.add(member)
@@ -134,6 +107,8 @@ def _ensure_family_member_exists(s_db: Session, family_member_id: int, account_i
     s_db.commit()
     s_db.refresh(member)
     return member
+
+
 
 
 def sync_member_profile(family_member_id: int) -> Dict[str, Any]:
@@ -199,7 +174,6 @@ def sync_member_profile(family_member_id: int) -> Dict[str, Any]:
             s_db.commit()
             return {"success": True, "profile": prof_dict}
 
-
 def start_session(account_id: int, family_member_id: int) -> uuid.UUID:
     """Creates a new conversation session in saathi_db."""
     with SaathiSessionLocal() as s_db:
@@ -224,6 +198,7 @@ def save_message_sync(
     language: str = "hi",
     audio_url: Optional[str] = None,
     max_retries: int = 3,
+    account_id: Optional[int] = None,
 ) -> Optional[uuid.UUID]:
     """Saves a conversation message in saathi_db with retries."""
     sess_uuid = _to_valid_uuid(session_id)
@@ -235,10 +210,10 @@ def save_message_sync(
                 # Ensure session exists
                 sess = s_db.query(ConversationSession).filter(ConversationSession.id == sess_uuid).first()
                 if not sess:
-                    _ensure_family_member_exists(s_db, family_member_id)
+                    member = _ensure_family_member_exists(s_db, family_member_id, account_id)
                     sess = ConversationSession(
                         id=sess_uuid,
-                        account_id=1,
+                        account_id=account_id or member.account_id,
                         family_member_id=family_member_id,
                         started_at=datetime.now(timezone.utc),
                     )
@@ -275,6 +250,7 @@ def save_message_async(
     content: str,
     language: str = "hi",
     audio_url: Optional[str] = None,
+    account_id: Optional[int] = None,
 ):
     """Fire-and-forget non-blocking message save so real-time voice latency is zero."""
     loop = None
@@ -293,12 +269,14 @@ def save_message_async(
             content,
             language,
             audio_url,
+            3,
+            account_id,
         )
     else:
         import threading
         t = threading.Thread(
             target=save_message_sync,
-            args=(session_id, family_member_id, role, content, language, audio_url),
+            args=(session_id, family_member_id, role, content, language, audio_url, 3, account_id),
             daemon=True,
         )
         t.start()
@@ -529,6 +507,7 @@ def get_member_context(family_member_id: int) -> Dict[str, Any]:
     full_name = "Family Member"
     profile_details = "Elderly family member"
     language = "Hindi and English"
+    caretaker_name = ""
 
     # 1. Read caretaker-given name from care_recipients (or saathi_db.family_members)
     with SessionLocal() as main_db:
@@ -539,7 +518,14 @@ def get_member_context(family_member_id: int) -> Dict[str, Any]:
             if recip.preferred_name and recip.preferred_name.strip():
                 preferred_name = recip.preferred_name.strip()
             else:
-                preferred_name = full_name.split()[0] if full_name else "ji"
+                # Commented out generic fallback; resolve strictly to full_name first name or caretaker username
+                # preferred_name = full_name.split()[0] if full_name else "ji"
+                if full_name and full_name != "Family Member":
+                    preferred_name = full_name.split()[0]
+                elif getattr(recip, "caretaker", None) and getattr(recip.caretaker, "username", None):
+                    preferred_name = recip.caretaker.username
+                else:
+                    preferred_name = "ji"
 
             details_parts = [f"Name: {full_name}"]
             if preferred_name and preferred_name != full_name:
@@ -561,6 +547,7 @@ def get_member_context(family_member_id: int) -> Dict[str, Any]:
                 details_parts.append(f"Phone: {recip.phone_number}")
 
             if getattr(recip, 'caretaker', None):
+                caretaker_name = recip.caretaker.full_name or recip.caretaker.username or ""
                 c_info = recip.caretaker.full_name or recip.caretaker.username
                 if getattr(recip.caretaker, 'phone_number', None):
                     c_info += f" (Phone: {recip.caretaker.phone_number})"
@@ -634,32 +621,12 @@ def get_member_context(family_member_id: int) -> Dict[str, Any]:
 
             if recip.report_summary:
                 details_parts.append(f"Health summary: {recip.report_summary}")
-
-            # Uploaded Medical Reports from DB
-            try:
-                from tables.medical_reports import MedicalReport
-                reports = main_db.query(MedicalReport).filter(
-                    MedicalReport.care_recipient_id == recip.id
-                ).order_by(MedicalReport.uploaded_at.desc()).limit(5).all()
-                rep_summaries = []
-                for r in reports:
-                    date_str = r.report_date.isoformat() if getattr(r, 'report_date', None) else (
-                        r.uploaded_at.strftime('%Y-%m-%d') if getattr(r, 'uploaded_at', None) else 'Recent'
-                    )
-                    sm = (r.analysis_summary or '').strip().replace('\n', ' ')
-                    if len(sm) > 250:
-                        sm = sm[:250] + "..."
-                    rep_summaries.append(f"{r.filename} ({date_str}): {sm or 'Processed'}")
-                if rep_summaries:
-                    details_parts.append(f"Uploaded Medical Reports: {'; '.join(rep_summaries)}")
-            except Exception:
-                pass
-
             profile_details = " | ".join(details_parts)
 
     # 2. Read memories & recent summaries from saathi_db
     memory_lines = []
     summaries = []
+    last_summary = ""
 
     with SaathiSessionLocal() as s_db:
         # Check and sync family_members preferred_name
@@ -675,7 +642,8 @@ def get_member_context(family_member_id: int) -> Dict[str, Any]:
         mems = (
             s_db.query(MemberMemory)
             .filter(MemberMemory.family_member_id == family_member_id)
-            .order_by(MemberMemory.category.asc(), MemberMemory.updated_at.desc())
+            .order_by(MemberMemory.updated_at.desc())
+            .limit(15)
             .all()
         )
         for m in mems:
@@ -689,9 +657,11 @@ def get_member_context(family_member_id: int) -> Dict[str, Any]:
                 ConversationSession.summary != None,
             )
             .order_by(ConversationSession.started_at.desc())
-            .limit(3)
+            .limit(5)
             .all()
         )
+        if recent_sessions:
+            last_summary = recent_sessions[0].summary or ""
         for s in recent_sessions:
             date_str = s.started_at.strftime("%b %d") if s.started_at else "Recently"
             summaries.append(f"- {date_str}: {s.summary}")
@@ -707,6 +677,8 @@ def get_member_context(family_member_id: int) -> Dict[str, Any]:
         "member_memory": member_memory_str,
         "recent_session_summaries": recent_summaries_str,
         "preferred_language": language,
+        "caretaker_name": caretaker_name,
+        "last_summary": last_summary,
     }
 
 
@@ -796,4 +768,3 @@ def build_agent_context(family_member_id: int) -> Dict[str, str]:
         "last_summary": str(last_sum),
         "medical_reports": str(reports_str),
     }
-

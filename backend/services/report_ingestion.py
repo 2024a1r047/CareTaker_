@@ -281,13 +281,17 @@ def extract_structured_report_map_reduce(text: str, report_date_hint: str = None
     all_medications = set()
     all_symptoms = set()
     all_notes = []
-    
+    all_med_details = {}
+
     print(f"[ingestion_v3] Clinical context map-reduce ({len(chunks)} chunks)")
     for i, chunk in enumerate(chunks):
         res = _extract_structured_report_single_chunk(chunk, report_date_hint)
         all_diagnoses.update(res.get("diagnoses", []))
         all_resolved.update(res.get("resolved_diagnoses", []))
-        all_medications.update(res.get("medications", []))
+        all_medications.update(m for m in res.get("medications", []) if isinstance(m, str))
+        for d in res.get("medication_details", []) or []:
+            if isinstance(d, dict) and d.get("name"):
+                all_med_details.setdefault(str(d["name"]).strip().lower(), d)
         all_symptoms.update(res.get("symptoms", []))
         if res.get("doctor_notes"):
             all_notes.append(res["doctor_notes"])
@@ -298,6 +302,7 @@ def extract_structured_report_map_reduce(text: str, report_date_hint: str = None
         "resolved_diagnoses": list(all_resolved),
         "lab_values":         {},
         "medications":        list(all_medications),
+        "medication_details": list(all_med_details.values()),
         "doctor_notes":       " | ".join(all_notes),
         "symptoms":           list(all_symptoms)
     }
@@ -344,11 +349,16 @@ Return a VALID JSON object with EXACTLY this structure (no markdown, no code fen
   "resolved_diagnoses": ["Past Disease"],
   "lab_values": {},
   "medications": ["Medication 1 with dose"],
+  "medication_details": [{"name": "Metformin", "dosage": "500 mg", "frequency": "twice daily", "timing": "after breakfast and dinner", "duration": "ongoing", "status": "active"}],
   "doctor_notes": "Brief clinical impressions",
   "symptoms": ["Symptom 1"]
 }
 
 RULES:
+0. medication_details: one entry per medicine the patient should take at home (prescription,
+   discharge medications, current medication list). Use "status": "stopped" for medicines marked
+   stopped/discontinued. Do NOT include drugs only given in hospital (IV/injections during admission).
+   Use "" for unknown fields.
 1. Leave lab_values as empty {} — they are handled separately
 2. Only include diagnoses explicitly mentioned or clearly implied
 3. Return null fields as empty lists/strings, NOT as null
@@ -362,7 +372,7 @@ Medical Report:
         data = call_gemini(
             {
                 "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"maxOutputTokens": 1000, "temperature": 0.05, "topP": 0.8},
+                "generationConfig": {"maxOutputTokens": 2000, "temperature": 0.05, "topP": 0.8},
             },
             timeout=60,
             caller="[ingestion_v2/gemini_context]",

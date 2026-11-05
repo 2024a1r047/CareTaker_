@@ -5,6 +5,38 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CareTaker Voice Assistant</title>
+    <script>
+        // Microphone access (needed by the ElevenLabs voice call) only works on https:// or localhost.
+        // If this page was opened via the PC's network address (e.g. http://10.253.14.59:50492),
+        // move to http://localhost on the same port and carry the login/session over, because
+        // browser storage is separate per address. The backend is at 127.0.0.1:8000, so the app
+        // already runs on this same computer.
+        (function () {
+            var KEYS = ['token', 'selectedRecipientId', 'userLanguage', 'fontSize'];
+            var host = location.hostname;
+            var isLocal = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+            var read = function (k) {
+                try { return sessionStorage.getItem(k) || localStorage.getItem(k); } catch (e) { return null; }
+            };
+            if (window.isSecureContext || isLocal) {
+                // Arrived from the redirect below: restore the carried session, then clean the URL.
+                if (location.hash.indexOf('#ct_session=') === 0) {
+                    try {
+                        var data = JSON.parse(decodeURIComponent(location.hash.slice('#ct_session='.length)));
+                        KEYS.forEach(function (k) {
+                            if (data[k]) { sessionStorage.setItem(k, data[k]); localStorage.setItem(k, data[k]); }
+                        });
+                    } catch (e) { console.warn('[CareTaker] Could not restore session after redirect:', e); }
+                    history.replaceState(null, '', location.pathname + location.search);
+                }
+                return;
+            }
+            var carry = {};
+            KEYS.forEach(function (k) { var v = read(k); if (v) carry[k] = v; });
+            location.replace('http://localhost:' + location.port + location.pathname + location.search +
+                '#ct_session=' + encodeURIComponent(JSON.stringify(carry)));
+        })();
+    </script>
     <link rel="icon" href="data:,">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -65,7 +97,8 @@
         }
     </script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@11labs/client/dist/index.umd.js"></script>
+    <!-- ElevenLabs SDK not needed: the page talks to ElevenLabs over a raw WebSocket (startElevenLabsSession).
+         The old @11labs/client/dist/index.umd.js URL returns 404, so it was removed. -->
     <style>
         :root {
             --bg: #f2e6d9;
@@ -875,7 +908,7 @@
                 <div class="relative z-10 flex items-center gap-2">
                     <button onclick="openVoiceSettingsModal()" title="Voice & Tone Settings"
                         class="p-2 text-[#756D70] hover:text-[#B97886] hover:bg-white/80 rounded-xl transition-all cursor-pointer">
-                        <i data-lucide="mic" class="w-4 h-4"></i>
+                        <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
                     </button>
                     <button id="saathi-assistant-btn" onclick="toggleVoiceAssistant()"
                         class="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#B97886] hover:bg-[#a36472] text-white rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer">
@@ -901,8 +934,8 @@
                 </div>
                 <div class="flex items-center gap-3">
                     <button id="mic-btn" onclick="toggleListening()"
-                        class="flex-shrink-0 w-12 h-12 rounded-full transition-all duration-300 bg-[#B97886] hover:bg-[#A86573] shadow-md shadow-[#B97886]/20 text-white cursor-pointer flex items-center justify-center">
-                        <i data-lucide="mic" class="h-5 w-5"></i>
+                        class="flex-shrink-0 w-12 h-12 rounded-full transition-all duration-300 bg-[#B97886] hover:bg-[#A86573] shadow-md shadow-[#B97886]/20 text-white cursor-pointer flex items-center justify-center" title="Click to speak">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
                     </button>
                     <form onsubmit="handleManualSubmit(event)" class="flex-1 min-w-0">
                         <div
@@ -1327,11 +1360,16 @@
                     : `😔 Direct playback is restricted. I'm opening "${bestVideo.name || 'music'}" in a separate window for you. 🎵`;
 
                 addUIMessage('bot', msg);
-                speakHindi(msg);
+                // During an ElevenLabs call Asha is the only voice; no browser TTS on top of her
+                if (!(typeof elevenLabsState !== 'undefined' && elevenLabsState.isConnected)) speakHindi(msg);
 
                 // Call the backend to trigger browser open
                 if (bestVidId) {
                     fetch(`http://127.0.0.1:8000/api/music/open-external?youtube_id=${bestVidId}`).catch(e => console.error(e));
+                    // Count it as playing so Asha stays quiet while it plays in the other window
+                    state.externalMusicPlaying = true;
+                    state.externalPaused = false;
+                    state.lastExternalVideoId = bestVidId;
                 }
 
                 if (!state.isSpecificSongRequest) {
@@ -1384,8 +1422,10 @@
                 ? (hindi ? `😔 क्षमा करें, मुझे "${query}" ऑनलाइन नहीं मिला।` : `😔 Sorry, I couldn't find "${query}" online.`)
                 : (hindi ? "यह गाना इंटरनेट पर नहीं मिला। स्थानीय लाइब्रेरी से बजा रहा हूं। 🎵" : "Couldn't find that online. Playing from local library. 🎵");
 
-            addUIMessage('bot', failMsg);
-            speakHindi(failMsg);
+            if (!silent) {
+                addUIMessage('bot', failMsg);
+                speakHindi(failMsg);
+            }
 
             if (!isSpecific) {
                 playlist = [...localPlaylist]; state.youtubeMode = false;
@@ -1417,6 +1457,21 @@
         function controlMusic(action) {
             const ppBtn = document.getElementById('play-pause-btn');
             const cinBtn = document.getElementById('cinema-play-btn');
+
+            // Video playing in a separate browser window (YouTube blocked embedding):
+            // pause/stop closes that window, resume re-opens the same video.
+            if (state.externalMusicPlaying && (action === 'pause' || action === 'stop' || action === 'toggle')) {
+                fetch('http://127.0.0.1:8000/api/music/close-external').catch(() => { });
+                state.externalMusicPlaying = false;
+                state.externalPaused = action !== 'stop';
+                if (action !== 'stop') return;
+            }
+            if (action === 'resume' && state.externalPaused && state.lastExternalVideoId && !state.youtubeMode) {
+                fetch(`http://127.0.0.1:8000/api/music/open-external?youtube_id=${state.lastExternalVideoId}`).catch(() => { });
+                state.externalMusicPlaying = true;
+                state.externalPaused = false;
+                return;
+            }
 
             if (action === 'pause') {
                 if (state.youtubeMode) {
@@ -1488,6 +1543,8 @@
                 audioPlayer.currentTime = 0;
                 state.musicPlaying = false;
                 state.youtubeMode = false;
+                state.externalMusicPlaying = false;
+                state.externalPaused = false;
                 document.getElementById('yt-container').classList.add('hidden');
                 document.getElementById('music-widget').classList.add('hidden');
                 playlist = [...localPlaylist];
@@ -1566,7 +1623,6 @@
         }
 
         async function speak(text, base64Audio = null) {
-            // Strictly enforce ONE voice: only ElevenLabs "Asha - Soft Care Voice" via connected call
             if (window.speechSynthesis) {
                 try { window.speechSynthesis.cancel(); } catch (e) {}
             }
@@ -1577,8 +1633,47 @@
                     state.currentAudio = null;
                 } catch (e) {}
             }
-            // Secondary browser voices and legacy audio pipelines are completely disabled.
-            return;
+
+            const cleanText = (text || '').replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
+            if (!cleanText) return;
+
+            // 1. Play natural Neural TTS base64 audio if provided
+            if (base64Audio) {
+                try {
+                    const audio = new Audio("data:audio/mp3;base64," + base64Audio);
+                    state.currentAudio = audio;
+                    setAvatarState('talking');
+                    audio.onended = () => { setAvatarState('idle'); state.currentAudio = null; };
+                    audio.onerror = () => { setAvatarState('idle'); state.currentAudio = null; };
+                    await audio.play();
+                    return;
+                } catch (e) {
+                    console.warn("[Speak] base64 playback fallback:", e);
+                }
+            }
+
+            // 2. Fallback: Browser speech synthesis
+            if ('speechSynthesis' in window) {
+                const u = new SpeechSynthesisUtterance(cleanText);
+                u.rate = 0.95;
+                u.pitch = 1.0;
+                setAvatarState('talking');
+                u.onend = () => setAvatarState('idle');
+                u.onerror = () => setAvatarState('idle');
+
+                const v = window.speechSynthesis.getVoices();
+                const hindiVoice = v.find(x => x.lang === 'hi-IN' || x.lang.startsWith('hi') || (x.name && x.name.toLowerCase().includes('hindi')) || (x.name && x.name.includes('Kalpana')) || (x.name && x.name.includes('Heera')));
+                const engVoice = v.find(x => x.lang === 'en-US' || (x.name && x.name.includes('Samantha')) || (x.name && x.name.includes('Google US English')));
+
+                if ((typeof isHindi === 'function' && isHindi(cleanText)) || state.userLanguage === 'hi') {
+                    u.lang = 'hi-IN';
+                    if (hindiVoice) u.voice = hindiVoice;
+                } else {
+                    u.lang = 'en-US';
+                    if (engVoice) u.voice = engVoice;
+                }
+                window.speechSynthesis.speak(u);
+            }
         }
 
         const speakHindi = speak;
@@ -1881,7 +1976,9 @@
             reconnectTimer: null,
             shouldAutoReconnect: false,
             wakeWordRecognizer: null,
-            isWakeWordActive: false
+            isWakeWordActive: false,
+            onHold: false,          // call put on hold while music plays (music time is not call time)
+            recentTurns: []         // last few lines of the chat, to continue after the hold
         };
 
         function updateAssistantUI(mode) {
@@ -1939,28 +2036,39 @@
         }
 
         async function toggleVoiceAssistant() {
-            if (elevenLabsState.isConnected) {
-                // If user clicks while active, cleanly disconnect or pause
+            // 1. ElevenLabs call active -> end it (also closes the Saathi session in saathi_db)
+            if (elevenLabsState.isConnected || elevenLabsState.onHold) {
                 elevenLabsState.shouldAutoReconnect = false;
                 await stopElevenLabsSession();
-            } else if (state.isListening) {
+                return;
+            }
+            // 2. Built-in engine active (e.g. after the credits-exhausted fallback) -> stop it
+            if (state.isListening) {
                 state.isListening = false;
                 if (typeof recognition !== 'undefined' && recognition) {
                     try { recognition.stop(); } catch(e) {}
                 }
                 setListening(false);
                 updateAssistantUI('idle');
-            } else {
-                elevenLabsState.shouldAutoReconnect = true;
-                elevenLabsState.reconnectAttempts = 0;
-                await startElevenLabsSession();
+                setAvatarState('idle');
+                return;
             }
+            // 3. Start the ElevenLabs "Asha" agent. The backend /signed-url sends the patient's
+            //    profile, medicines and memory from the database as dynamic variables.
+            //    Out of credits -> handleElevenLabsQuotaExceeded() switches to the built-in engine.
+            elevenLabsState.shouldAutoReconnect = true;
+            elevenLabsState.reconnectAttempts = 0;
+            await startElevenLabsSession();
         }
 
         // Maintain backward compatibility for any existing invocation
         const toggleElevenLabsSession = toggleVoiceAssistant;
 
         function toggleAssistantMute() {
+            if (elevenLabsState.onHold) {   // mic button during the music hold -> talk to Asha
+                pauseMusicToTalk("Saathi");
+                return;
+            }
             if (!elevenLabsState.isConnected) {
                 toggleVoiceAssistant();
                 return;
@@ -1976,9 +2084,64 @@
             }
         }
 
+        // ═══ CONVERSATION CONTINUITY (6 hours) ═══
+        // The last lines of the chat are kept in this browser per patient. If Asha reconnects
+        // (music hold, dropped call, page reload, Start Assistant again) within 6 hours,
+        // she continues the same conversation instead of greeting again.
+        const CONTINUE_WINDOW_MS = 6 * 60 * 60 * 1000;
+        function convStoreKey() { return `saathi_conv_${getRecipientId() || '1'}`; }
+
+        function rememberTurn(line) {
+            if (line.startsWith("Patient: ")) {
+                elevenLabsState.lastPatientText = line.slice(9);
+                elevenLabsState.lastPatientAt = Date.now();
+            }
+            elevenLabsState.recentTurns.push(line);
+            while (elevenLabsState.recentTurns.length > 30) elevenLabsState.recentTurns.shift();
+            elevenLabsState.lastTurnAt = Date.now();
+            try {
+                localStorage.setItem(convStoreKey(), JSON.stringify({ turns: elevenLabsState.recentTurns, at: elevenLabsState.lastTurnAt }));
+            } catch (e) {}
+        }
+
+        function loadSavedConversation() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(convStoreKey()) || 'null');
+                if (saved && Array.isArray(saved.turns) && saved.turns.length && Date.now() - saved.at < CONTINUE_WINDOW_MS) return saved;
+            } catch (e) {}
+            return null;
+        }
+
+        // Fetch the next connection (signed URL + profile + medical record) ahead of time
+        async function prefetchSignedSession() {
+            const rid = getRecipientId() || "1";
+            const token = getToken();
+            try {
+                const res = await fetch(`http://127.0.0.1:8000/api/elevenlabs/signed-url?recipient_id=${rid}`, {
+                    headers: token ? { "Authorization": `Bearer ${token}` } : {}
+                });
+                const data = await res.json();
+                if (res.ok && data.code === 200 && data.result?.signed_url && !data.result.quota_exceeded) {
+                    elevenLabsState.prefetched = { data, at: Date.now(), rid };
+                }
+            } catch (e) { console.warn("[Saathi] prefetch failed:", e); }
+        }
+
         async function startElevenLabsSession() {
             const rid = getRecipientId() || "1";
             const token = getToken();
+            elevenLabsState.connecting = true;
+            elevenLabsState.metadataDone = false;
+
+            // Same conversation within the last 6 hours? -> continue it, no new greeting
+            const savedConv = loadSavedConversation();
+            if (savedConv) {
+                if (!elevenLabsState.recentTurns.length) elevenLabsState.recentTurns = savedConv.turns.slice();
+                elevenLabsState.lastTurnAt = savedConv.at;
+                elevenLabsState.continueMode = true;
+            } else {
+                elevenLabsState.continueMode = false;
+            }
 
             updateAssistantUI('connecting');
 
@@ -1986,11 +2149,21 @@
                 elevenLabsState.recipientId = parseInt(rid);
                 elevenLabsState.sessionId = sessionId || ("conv_" + Date.now());
 
-                // 1. Fetch server-generated signed WebSocket URL with CareTaker JWT validation
-                const signRes = await fetch(`http://127.0.0.1:8000/api/elevenlabs/signed-url?recipient_id=${rid}`, {
-                    headers: token ? { "Authorization": `Bearer ${token}` } : {}
-                });
-                const signData = await signRes.json();
+                // 1. Fetch server-generated signed WebSocket URL with CareTaker JWT validation.
+                //    During the music hold one is fetched in advance, so Asha is back in about a second.
+                let signRes, signData;
+                const pre = elevenLabsState.prefetched;
+                elevenLabsState.prefetched = null;
+                if (pre && pre.rid === rid && Date.now() - pre.at < 8 * 60 * 1000) {
+                    signRes = { ok: true };
+                    signData = pre.data;
+                    console.log("[ElevenLabs ConvAI] Using pre-fetched connection (fast resume)");
+                } else {
+                    signRes = await fetch(`http://127.0.0.1:8000/api/elevenlabs/signed-url?recipient_id=${rid}`, {
+                        headers: token ? { "Authorization": `Bearer ${token}` } : {}
+                    });
+                    signData = await signRes.json();
+                }
 
                 if (!signRes.ok || signData.code !== 200 || !signData.result?.signed_url) {
                     throw new Error(signData.message || "Failed to acquire ElevenLabs signed conversation URL");
@@ -2004,6 +2177,12 @@
 
                 const { signed_url, voice_id, dynamic_variables, recipient_name, session_id } = signData.result;
                 if (session_id) elevenLabsState.sessionId = session_id;
+                // Patient profile + memory from the DB, re-sent to the agent once the call starts
+                elevenLabsState.profileVars = dynamic_variables || { user_name: recipient_name || "ji" };
+                // Uploaded reports + analysis, labs with normal ranges, vitals, BP/sugar guidance
+                elevenLabsState.medicalContext = signData.result.medical_context || "";
+                // Caretaker / emergency numbers for the call_* tools
+                elevenLabsState.contacts = signData.result.contacts || {};
                 elevenLabsState.voiceId = voice_id || "VQxh7q9EH7jUlfwkQI00";
 
                 // Close any existing WS before starting a fresh session
@@ -2019,6 +2198,9 @@
                 ws.onopen = async () => {
                     console.log("[ElevenLabs ConvAI] In-App Assistant connected with Asha cloned voice!");
                     elevenLabsState.isConnected = true;
+                    elevenLabsState.connecting = false;
+                    elevenLabsState.interruptedEventId = null;   // event ids restart in a new conversation
+                    elevenLabsState.lastAudioEventId = undefined;
                     elevenLabsState.reconnectAttempts = 0;
                     isElevenLabsActive = true;
                     updateAssistantUI('connected');
@@ -2032,11 +2214,27 @@
                             }
                         },
                         dynamic_variables: dynamic_variables || {
-                            name: recipient_name || "Dadaji",
-                            user_name: recipient_name || "Dadaji"
+                            // name: recipient_name || "Dadaji",
+                            // user_name: recipient_name || "Dadaji",
+                            name: recipient_name || "ji",
+                            user_name: recipient_name || "ji"
                         }
                     };
+                    // Coming back after the music hold, a dropped call, or a restart within 6 hours:
+                    // no fresh "Namaste, kaise hain aap?", Asha continues the same conversation
+                    if (elevenLabsState.silentStart || elevenLabsState.continueMode) {
+                        initPayload.conversation_config_override.agent = { first_message: "" };
+                    }
                     ws.send(JSON.stringify(initPayload));
+
+                    // Let Asha finish her opening greeting: the mic is held back until it has played
+                    // (otherwise room noise / echo "interrupts" her and the greeting is cut in half).
+                    elevenLabsState.greetingDone = false;
+                    elevenLabsState.greetingAudioSeen = false;
+                    clearTimeout(elevenLabsState.greetingTimer);
+                    elevenLabsState.greetingTimer = setTimeout(() => { elevenLabsState.greetingDone = true; }, 15000);
+                    setTimeout(() => { if (!elevenLabsState.greetingAudioSeen) elevenLabsState.greetingDone = true; }, 6000);
+                    if (elevenLabsState.silentStart || elevenLabsState.continueMode) elevenLabsState.greetingDone = true;
 
                     // Cancel any residual browser synthesis
                     if (window.speechSynthesis) {
@@ -2056,28 +2254,101 @@
 
                     if (data.type === "conversation_initiation_metadata") {
                         console.log("[ElevenLabs ConvAI] Initiation metadata:", data.conversation_initiation_metadata_event);
+                        // Give Asha the patient's profile, medicines and memory from the database.
+                        // contextual_update adds background knowledge without interrupting her greeting,
+                        // so she can answer "what is my name / which medicines do I take" correctly.
+                        try {
+                            ws.send(JSON.stringify({
+                                type: "contextual_update",
+                                text: buildSaathiProfileContext(elevenLabsState.profileVars || {})
+                            }));
+                            console.log("[ElevenLabs ConvAI] Patient profile sent to agent from database.");
+                            if (elevenLabsState.medicalContext) {
+                                ws.send(JSON.stringify({
+                                    type: "contextual_update",
+                                    text: elevenLabsState.medicalContext
+                                }));
+                                console.log("[ElevenLabs ConvAI] Medical reports, labs and vitals guidance sent to agent.");
+                            }
+                            // Today's date, the time, and which medicine is due now
+                            ws.send(JSON.stringify({ type: "contextual_update", text: buildTimeAndMedicineContext() }));
+                            elevenLabsState.lastTimeContextAt = Date.now();
+                            // Alarms / reminders already in the Reminders list
+                            if (state.reminders && state.reminders.length) {
+                                ws.send(JSON.stringify({ type: "contextual_update", text:
+                                    "REMINDERS ALREADY SET in the app (alarms ring at these times): " +
+                                    state.reminders.filter(r => r.is_active !== false)
+                                        .map(r => `${r.text} at ${r.time} (${r.recurrence})`).join("; ") +
+                                    ". To add a new alarm or reminder, use the set_reminder tool." }));
+                            }
+                            // Back from the music hold: give Asha the chat so far, then what the patient wants now
+                            if (elevenLabsState.silentStart || elevenLabsState.continueMode) {
+                                const wasHold = elevenLabsState.silentStart;
+                                elevenLabsState.silentStart = false;
+                                elevenLabsState.continueMode = false;
+                                const turns = (elevenLabsState.recentTurns || []).slice(-16).join("\n");
+                                const mins = Math.round((Date.now() - (elevenLabsState.lastTurnAt || Date.now())) / 60000);
+                                ws.send(JSON.stringify({ type: "contextual_update", text:
+                                    "This is the SAME conversation continuing" +
+                                    (wasHold ? " (the line was on hold while music played or reconnected)" : ` (last message ${mins} minute(s) ago)`) + ". " +
+                                    "Do NOT greet the patient again, do not say Namaste or ask 'kaise hain aap', and do not introduce yourself. " +
+                                    "Continue naturally from where the conversation left off. If the patient's last question was not answered yet, answer it now." +
+                                    (turns ? "\nConversation so far:\n" + turns : "") }));
+                                // The patient is still finishing their sentence (heard during music):
+                                // their words are sent the moment the browser has them, so nothing else here.
+                                const msg = elevenLabsState.resumeMessage || (elevenLabsState.awaitingForward ? null :
+                                    "[From the app, not spoken by the patient] The call has reconnected. Without any greeting, say ONE short sentence that continues from where the conversation left off (for example answer their last unanswered question, or ask about the last topic), then listen.");
+                                elevenLabsState.resumeMessage = null;
+                                if (msg && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "user_message", text: msg }));
+                            }
+                        } catch (e) {
+                            console.warn("[ElevenLabs ConvAI] Could not send patient profile:", e);
+                        }
+                        elevenLabsState.metadataDone = true;
                     } else if (data.type === "audio" && data.audio_event?.audio_base_64) {
                         // Play response audio chunk from Asha voice
-                        playPcm16Chunk(data.audio_event.audio_base_64);
+                        // Drop audio from a reply the patient has already interrupted
+                        const eid = data.audio_event.event_id;
+                        const cut = elevenLabsState.interruptedEventId;
+                        if (eid !== undefined && eid !== null && cut !== undefined && cut !== null && eid <= cut) return;
+                        playPcm16Chunk(data.audio_event.audio_base_64, eid);
                     } else if (data.type === "agent_response") {
                         const raw = data.agent_response_event?.agent_response;
-                        if (raw && raw.trim()) {
+                        // While music plays, Asha is muted: don't show/save what she would have said
+                        // "..." = a silent filler turn, nothing worth showing
+                        if (raw && raw.trim() && !/^[\s.…,!?-]*$/.test(raw) && !isSaathiMediaPlaying()) {
                             const cleanReply = raw.replace(/\[.*?\]/g, '').trim();
                             if (cleanReply) {
+                                rememberTurn("Asha: " + cleanReply);
                                 addUIMessage('bot', cleanReply);
                                 saveTurnToSaathiDB('bot', cleanReply);
+                                notePlayOfferFromAsha(cleanReply);
                             }
                         }
                     } else if (data.type === "user_transcript") {
                         const transcript = data.user_transcription_event?.user_transcript;
-                        if (transcript && transcript.trim()) {
+                        // "..." = ElevenLabs silence filler, not something the patient said
+                        const isFiller = !transcript || /^[\s.…,!?-]*$/.test(transcript);
+                        if (!isFiller && elevenLabsState.mediaCheckin) elevenLabsState.mediaCheckin.answered = true;
+                        if (!isFiller) elevenLabsState.lastUserSpeechAt = Date.now();
+                        // Talking about medicine: refresh the clock + due medicine for her follow-up replies
+                        if (!isFiller && /dawa|davai|dvai|medicine|tablet|goli|le li|nahi li|दवा|दवाई|दवाइ|गोली|ले ली|नहीं ली/i.test(transcript) &&
+                            Date.now() - (elevenLabsState.lastTimeContextAt || 0) > 60 * 1000) sendTimeContext();
+                        if (!isFiller) autoLogTakenMedicine(transcript);
+                        if (!isFiller) {
+                            rememberTurn("Patient: " + transcript);
                             addUIMessage('user', transcript);
                             saveTurnToSaathiDB('user', transcript);
                             setAvatarState('thinking');
                             handleVoiceMediaIntents(transcript);
+                            notePlayRequestFromPatient(transcript);
                         }
                     } else if (data.type === "interruption") {
                         console.log("[ElevenLabs ConvAI] Interruption: user spoke, stopping Asha playback");
+                        // Remember which reply was cut, so its remaining audio chunks are not played
+                        const ie = data.interruption_event && data.interruption_event.event_id;
+                        if (ie !== undefined && ie !== null) elevenLabsState.interruptedEventId = ie;
+                        else if (elevenLabsState.lastAudioEventId !== undefined) elevenLabsState.interruptedEventId = elevenLabsState.lastAudioEventId;
                         stopAgentPlayback();
                     } else if (data.type === "client_tool_call") {
                         // Handle function calling tools from ElevenLabs
@@ -2100,6 +2371,9 @@
                     const code = event ? event.code : 0;
                     const reason = event ? (event.reason || "") : "";
                     console.log("[ElevenLabs ConvAI] WebSocket closed. Code:", code, "Reason:", reason);
+                    if (elevenLabsState.ws === ws || !elevenLabsState.ws) elevenLabsState.connecting = false;
+                    // Closed on purpose for the music hold, or an older socket closing late: not the end of the call
+                    if (elevenLabsState.onHold || (elevenLabsState.ws && elevenLabsState.ws !== ws)) return;
 
                     const isQuotaExceeded = code === 3000 || reason.toLowerCase().includes("quota") || reason.toLowerCase().includes("credit");
                     if (isQuotaExceeded) {
@@ -2120,6 +2394,7 @@
 
             } catch (err) {
                 console.error("[ElevenLabs ConvAI] Failed to start in-app assistant:", err);
+                elevenLabsState.connecting = false;
                 if (elevenLabsState.shouldAutoReconnect && elevenLabsState.reconnectAttempts < elevenLabsState.maxReconnectAttempts) {
                     scheduleReconnect();
                 } else {
@@ -2128,6 +2403,272 @@
                     isElevenLabsActive = false;
                 }
             }
+        }
+
+        // Turns the /signed-url dynamic_variables (built from caretaker DB + saathi_db memory)
+        // into one background-context message for the ElevenLabs agent.
+        // ═══ CURRENT TIME + WHICH MEDICINE IS DUE ═══
+        // Asha has the medicine list with times, but not the clock. This tells her the patient's
+        // local date/time and which medicine is due now, so she never has to ask "kaun si dawai?".
+        function parseMedSchedule(medsStr) {
+            return String(medsStr || '').split(/;\s*/).map(s => s.trim()).filter(Boolean).map(item => {
+                const m = item.match(/^(.*?)\s*\((.*?),\s*scheduled:\s*(.*)\)\s*$/i);
+                if (!m) return { name: item, dose: '', times: [], sos: false };
+                const times = (m[3].match(/\b\d{1,2}:\d{2}\b/g) || []).map(t => t.padStart(5, '0'));
+                return { name: m[1].trim(), dose: m[2].trim(), times, sos: /sos|as needed|zarurat/i.test(m[3]) };
+            });
+        }
+
+        function fmt12(hhmm) {
+            const [h, m] = hhmm.split(':').map(Number);
+            return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+        }
+
+        function buildTimeAndMedicineContext() {
+            const now = new Date();
+            const nowMin = now.getHours() * 60 + now.getMinutes();
+            const dateStr = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            const timeStr = fmt12(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`);
+            const meds = parseMedSchedule((elevenLabsState.profileVars || {}).medicines || (elevenLabsState.profileVars || {}).medicine_schedule);
+            const dueNow = [], next = [], earlier = [], sos = [];
+            meds.forEach(md => {
+                if (md.sos && !md.times.length) { sos.push(`${md.name} ${md.dose}`.trim()); return; }
+                md.times.forEach(t => {
+                    const [h, m] = t.split(':').map(Number);
+                    const diff = h * 60 + m - nowMin;            // minutes from now (today)
+                    const label = `${md.name} ${md.dose} at ${fmt12(t)}`.replace(/\s+/g, ' ');
+                    if (diff >= -90 && diff <= 45) dueNow.push(label);
+                    else if (diff > 45) next.push({ diff, label });
+                    else earlier.push(label);
+                });
+            });
+            next.sort((a, b) => a.diff - b.diff);
+            let text = `CURRENT DATE AND TIME (patient's local time): ${dateStr}, ${timeStr}. `;
+            if (meds.length) {
+                text += dueNow.length
+                    ? `MEDICINE DUE NOW (scheduled within the last 90 minutes or the next 45 minutes): ${dueNow.join('; ')}. `
+                    : `No medicine is due right now. `;
+                if (next.length) text += `Next medicine(s) today: ${next.slice(0, 3).map(n => n.label).join('; ')}. `;
+                else text += `No more scheduled medicines today; tomorrow's first dose follows the same schedule. `;
+                if (earlier.length) text += `Earlier today (already scheduled): ${earlier.join('; ')}. `;
+                if (sos.length) text += `Only when needed (SOS): ${sos.join('; ')}. `;
+                text += "Use this to say exactly which medicine and dose it is (for example when the patient says 'haan le li' or 'nahi li'). " +
+                    "Never ask the patient which medicine it is.";
+            }
+            return text;
+        }
+
+        // Medicines whose dose time is now (90 min ago .. 45 min ahead)
+        function dueMedicinesNow() {
+            const now = new Date();
+            const nowMin = now.getHours() * 60 + now.getMinutes();
+            const out = [];
+            parseMedSchedule((elevenLabsState.profileVars || {}).medicines || (elevenLabsState.profileVars || {}).medicine_schedule)
+                .forEach(md => md.times.forEach(t => {
+                    const [h, m] = t.split(':').map(Number);
+                    const diff = h * 60 + m - nowMin;
+                    if (diff >= -90 && diff <= 45) out.push({ name: md.name, dose: md.dose, time: t });
+                }));
+            return out;
+        }
+
+        // Patient says "le li" / "kha li" while talking about medicine -> record the due doses in the
+        // dose log right away (Asha sometimes says "note kar liya" without calling her tool)
+        async function autoLogTakenMedicine(transcript) {
+            const t = (transcript || '').toLowerCase();
+            const took = /\b(le li|le liya|le lee|kha li|kha liya|kha lee|li hai|kha chuki|le chuki|le chuka)\b|ले ली|ले लिया|खा ली|खा लिया|ले चुकी|खा चुकी/i.test(t);
+            if (!took || /\b(nahi|nahin|na|no)\b|नहीं|ना /i.test(t)) return;
+            const recent = (elevenLabsState.recentTurns || []).slice(-5).join(' ');
+            const due = dueMedicinesNow();
+            if (!due.length) return;
+            const talkingMeds = /dawa|davai|dvai|medicine|tablet|goli|दवा|दवाई|दवाइ|गोली/i.test(recent + ' ' + t) ||
+                due.some(d => recent.toLowerCase().includes(d.name.toLowerCase().split(' ')[0]));
+            if (!talkingMeds) return;
+            const key = `${new Date().toDateString()}|${due.map(d => d.name + d.time).join(',')}`;
+            if (elevenLabsState.medLoggedKey === key) return;      // this dose is already logged
+            elevenLabsState.medLoggedKey = key;
+            elevenLabsState.medLoggedAt = Date.now();
+            const rid = getRecipientId() || "1";
+            for (const d of due) {
+                try {
+                    await fetch('http://127.0.0.1:8000/api/elevenlabs/tools/log-medicine-or-meal', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ recipient_id: parseInt(rid), item_type: 'medicine', item_name: `${d.name} ${d.dose}`.trim(), status: 'taken' })
+                    });
+                } catch (e) { console.warn('[Saathi] dose log failed:', e); }
+            }
+            addUIMessage('bot', `💊 Dose log: ${due.map(d => `${d.name} ${d.dose} (${fmt12(d.time)})`).join(', ')} — taken ✓`);
+            try { loadBackendData(); } catch (e) {}
+        }
+
+        function sendTimeContext() {
+            const ws = elevenLabsState.ws;
+            if (!ws || ws.readyState !== WebSocket.OPEN || !elevenLabsState.isConnected) return;
+            ws.send(JSON.stringify({ type: "contextual_update", text: buildTimeAndMedicineContext() }));
+            elevenLabsState.lastTimeContextAt = Date.now();
+        }
+        // Keep Asha's clock current during long calls
+        setInterval(() => {
+            if (elevenLabsState.isConnected && Date.now() - (elevenLabsState.lastTimeContextAt || 0) > 5 * 60 * 1000) sendTimeContext();
+        }, 30 * 1000);
+
+        function buildSaathiProfileContext(v) {
+            const f = (k, empty = "not on record") => {
+                const val = (v && v[k] != null) ? String(v[k]).trim() : "";
+                return val || empty;
+            };
+            const name = f('user_name', '') || f('name', 'ji');
+            return "PATIENT PROFILE from the CareTaker database (entered by their caretaker - you DO have access to it; " +
+                "use it whenever they ask about themselves, and never say you lack their personal information). " +
+                `Name to call them: ${name}. ` +
+                `Preferred language: ${f('preferred_language', 'Hinglish')}. ` +
+                `About them: ${f('profile_details')}. ` +
+                `Current medicines and schedule: ${f('medicines', '') || f('medicine_schedule')}. ` +
+                `Family / caretaker: ${f('family_members')}. ` +
+                `What you remember from earlier calls: ${f('member_memory')}. ` +
+                `Last call summary: ${f('last_summary')}. ` +
+                `Always address them as ${name}. If something is not on record, say so gently and do not invent it. ` +
+                buildCallContactsText(elevenLabsState.contacts || {}) + ' ' + buildMusicText();
+        }
+
+        function buildMusicText() {
+            const lib = (typeof localPlaylist !== 'undefined' ? localPlaylist : []).map(s => s.title);
+            const favs = (state.favoriteSongs || []).map(s => s.title || s.query).filter(Boolean);
+            return "MUSIC AND VIDEOS: you CAN play music and videos with your tools. play_music(song_name) plays a song " +
+                "(from the app library, their saved favourites, or YouTube); play_youtube_video(query) plays any YouTube video " +
+                "(bhajans, old songs, news, comedy, kirtan, stories); media_control(action) pauses, resumes, stops, skips or changes volume. " +
+                `Songs in the app library: ${lib.join(', ') || 'none'}. ` +
+                `Their saved favourite songs: ${favs.join(', ') || 'none yet'}. ` +
+                "When they ask for a song or video, play it straight away with the tool; never say you cannot play music.";
+        }
+
+        function buildCallContactsText(c) {
+            const ct = c.caretaker_name ? `${c.caretaker_name}${c.caretaker_phone ? ' (' + c.caretaker_phone + ')' : ''}` : 'not on record';
+            return "CALLING: you CAN place calls with your tools. Caretaker: " + ct + " -> tool call_caretaker. " +
+                `Emergency contact: ${c.emergency_contact || 'not on record'} -> tool call_emergency_contact. ` +
+                "Emergency services 112 -> tool call_emergency_services. " +
+                "MESSAGING: when they want to send a message to their caretaker, always say yes and use tool message_caretaker " +
+                "(it reaches the caretaker's dashboard, with WhatsApp/SMS on screen). Never say you cannot message or call. " +
+                "Before calling, always ASK first (e.g. 'Kya main " +
+                (c.caretaker_name || 'aapke caretaker') + " ko call karun?') and only call after they say yes, " +
+                "except a life-threatening emergency where you tell them you are calling now. Never tell the patient to make " +
+                "the call themselves, and never say a call was made unless the tool result confirms it.";
+        }
+
+        // Opens the phone dialer on this device (one tap on phones) and shows a call card.
+        function showCallScreen(name, phone, subtitle) {
+            let ov = document.getElementById('saathi-call-overlay');
+            if (!ov) {
+                ov = document.createElement('div');
+                ov.id = 'saathi-call-overlay';
+                ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+                document.body.appendChild(ov);
+            }
+            const tel = (phone || '').replace(/[^\d+]/g, '');
+            ov.innerHTML = `
+                <div style="background:#fff;border-radius:20px;padding:24px;max-width:360px;width:100%;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.3);font-family:inherit">
+                    <div style="font-size:42px">📞</div>
+                    <h3 style="margin:8px 0 4px;font-size:20px;font-weight:700;color:#443744">Calling ${name}</h3>
+                    <p style="margin:0 0 4px;color:#756D70;font-size:15px">${tel || 'No phone number saved'}</p>
+                    <p style="margin:0 0 16px;color:#9a8f93;font-size:12px">${subtitle || ''}</p>
+                    ${tel ? `<a id="saathi-call-now" href="tel:${tel}" style="display:block;background:#16a34a;color:#fff;padding:14px;border-radius:14px;font-size:18px;font-weight:700;text-decoration:none">Call now</a>` : ''}
+                    <button id="saathi-call-close" style="margin-top:10px;width:100%;padding:10px;border-radius:12px;border:none;background:#f1f5f9;color:#334155;font-weight:600;cursor:pointer">Close</button>
+                </div>`;
+            ov.hidden = false;
+            ov.style.display = 'flex';
+            document.getElementById('saathi-call-close').onclick = () => { ov.style.display = 'none'; };
+            if (tel) {
+                // Try to open the dialer straight away; the big button is the one-tap fallback.
+                try { document.getElementById('saathi-call-now').click(); } catch (e) {}
+            }
+            return !!tel;
+        }
+
+        // message_caretaker tool: always delivered to the caretaker's dashboard, plus one-tap WhatsApp / SMS.
+        async function sendSaathiMessage(message, urgent) {
+            const rid = getRecipientId() || "1";
+            const c = elevenLabsState.contacts || {};
+            let data = {};
+            try {
+                const res = await fetch('http://127.0.0.1:8000/api/elevenlabs/tools/message-caretaker', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ recipient_id: parseInt(rid), message: message || '', urgent: !!urgent })
+                });
+                data = (await res.json()).result || {};
+            } catch (e) { console.warn('[Saathi Message] failed:', e); }
+
+            const name = data.caretaker_name || c.caretaker_name || 'your caretaker';
+            const phone = (data.caretaker_phone || c.caretaker_phone || '').replace(/[^\d+]/g, '');
+            const text = `${data.patient_name || 'Your family member'} (via Saathi): ${data.message || message || ''}`;
+            const intl = phone.startsWith('+') ? phone.slice(1) : (phone.length === 10 ? '91' + phone : phone);
+
+            let ov = document.getElementById('saathi-call-overlay');
+            if (!ov) {
+                ov = document.createElement('div');
+                ov.id = 'saathi-call-overlay';
+                ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+                document.body.appendChild(ov);
+            }
+            const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+            ov.innerHTML = `
+                <div style="background:#fff;border-radius:20px;padding:24px;max-width:380px;width:100%;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.3);font-family:inherit">
+                    <div style="font-size:40px">💬</div>
+                    <h3 style="margin:8px 0 4px;font-size:19px;font-weight:700;color:#443744">Message for ${esc(name)}</h3>
+                    <p style="margin:0 0 12px;color:#475569;font-size:14px;background:#f8fafc;border-radius:12px;padding:10px">"${esc(data.message || message || '')}"</p>
+                    <p style="margin:0 0 14px;color:#16a34a;font-size:13px;font-weight:600">${data.delivered_to_dashboard ? '✓ Sent to ' + esc(name) + "'s CareTaker dashboard" : ''}</p>
+                    ${intl ? `<a href="https://wa.me/${intl}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener" style="display:block;background:#25D366;color:#fff;padding:12px;border-radius:14px;font-size:16px;font-weight:700;text-decoration:none;margin-bottom:8px">Send on WhatsApp</a>
+                    <a href="sms:${phone}?body=${encodeURIComponent(text)}" style="display:block;background:#0ea5e9;color:#fff;padding:12px;border-radius:14px;font-size:16px;font-weight:700;text-decoration:none">Send SMS</a>` : ''}
+                    <button id="saathi-call-close" style="margin-top:10px;width:100%;padding:10px;border-radius:12px;border:none;background:#f1f5f9;color:#334155;font-weight:600;cursor:pointer">Close</button>
+                </div>`;
+            ov.style.display = 'flex';
+            document.getElementById('saathi-call-close').onclick = () => { ov.style.display = 'none'; };
+            addUIMessage('bot', `💬 Message sent to ${name}: "${data.message || message || ''}"`);
+
+            if (data.delivered_to_dashboard) {
+                return `Message delivered to ${name} on the CareTaker dashboard: "${data.message || message}".` +
+                    (intl ? ` A WhatsApp/SMS button is also on the patient's screen to send it to ${name}'s phone with one tap.` : '');
+            }
+            return intl
+                ? `The message is ready on the patient's screen; tapping "Send on WhatsApp" or "Send SMS" sends it to ${name}. Offer to call ${name} as well.`
+                : `Could not save the message right now. Offer to call ${name} with call_caretaker instead.`;
+        }
+
+        // Shared by the call_* tools: alert the caretaker dashboard + open the dialer.
+        async function placeSaathiCall(kind, reason) {
+            const c = elevenLabsState.contacts || {};
+            const rid = getRecipientId() || "1";
+            let name, phone, label;
+            if (kind === 'caretaker') { name = c.caretaker_name || 'Caretaker'; phone = c.caretaker_phone; label = 'caretaker'; }
+            else if (kind === 'emergency_contact') { name = 'Emergency contact'; phone = c.emergency_contact; label = 'emergency contact'; }
+            else { name = 'Emergency Services'; phone = c.emergency_services || '112'; label = 'emergency services'; }
+
+            let alerted = false;
+            try {
+                const res = await fetch('http://127.0.0.1:8000/api/elevenlabs/tools/send-emergency-alert', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        recipient_id: parseInt(rid),
+                        reason: `Saathi is calling the ${label} at the patient's request. ${reason || ''}`.trim(),
+                        severity: kind === 'emergency_services' ? 'critical' : 'high'
+                    })
+                });
+                alerted = res.ok;
+            } catch (e) { console.warn('[Saathi Call] alert failed:', e); }
+
+            const dialed = showCallScreen(name, phone, alerted ? `${c.caretaker_name || 'Caretaker'} has also been alerted on the CareTaker dashboard.` : '');
+            if (kind !== 'caretaker') toggleEmergencyMode(true);
+            addUIMessage('bot', dialed ? `📞 Calling ${name} (${phone})…` : `📞 No phone number saved for ${name}.`);
+
+            if (dialed) {
+                return `Call screen opened on the patient's phone for ${name} (${phone}); the patient only needs to tap "Call now" if it did not start automatically.` +
+                    (alerted ? ` ${c.caretaker_name || 'The caretaker'} has also been alerted on the CareTaker dashboard.` : '');
+            }
+            return `No phone number is saved for the ${label}.` +
+                (alerted ? ` An alert was sent to ${c.caretaker_name || 'the caretaker'} on the CareTaker dashboard instead.` : '') +
+                (kind !== 'emergency_services' ? ' Offer to call emergency services (112) if it is urgent.' : '');
         }
 
         function scheduleReconnect() {
@@ -2151,6 +2692,17 @@
                     await elevenLabsState.audioCtx.resume();
                 }
 
+                // Browsers only allow the microphone on https:// or http://localhost pages.
+                // Opening the app via a LAN IP (e.g. http://10.x.x.x:50492) hides navigator.mediaDevices.
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    const localUrl = `http://localhost:${location.port}${location.pathname}${location.search}`;
+                    console.error(`[ElevenLabs ConvAI] Microphone unavailable: page is not a secure context (${location.origin}). Open ${localUrl}`);
+                    alert(`Microphone is blocked on ${location.origin}.\n\nBrowsers only allow the microphone on localhost or https.\nPlease open:\n${localUrl}`);
+                    elevenLabsState.shouldAutoReconnect = false;
+                    await stopElevenLabsSession();
+                    return;
+                }
+
                 if (!elevenLabsState.mediaStream) {
                     elevenLabsState.mediaStream = await navigator.mediaDevices.getUserMedia({
                         audio: {
@@ -2172,6 +2724,17 @@
 
                 processor.onaudioprocess = (e) => {
                     if (!elevenLabsState.isListening || elevenLabsState.isMuted || !elevenLabsState.ws || elevenLabsState.ws.readyState !== WebSocket.OPEN) {
+                        return;
+                    }
+                    // While a song / bhajan / video plays, don't send the mic to Asha: the speakers'
+                    // music would be heard as the patient talking and she would sing along.
+                    // Voice commands during music are handled by the media command listener.
+                    if (isSaathiMediaPlaying()) {
+                        return;
+                    }
+                    // (No mic hold during the greeting: the patient can always interrupt Asha.)
+                    // The words spoken during the music are being passed on as text: don't send them twice as audio
+                    if (elevenLabsState.awaitingForward) {
                         return;
                     }
                     const inputBuffer = e.inputBuffer.getChannelData(0);
@@ -2232,7 +2795,13 @@
             setAvatarState('idle');
         }
 
-        function playPcm16Chunk(base64Str) {
+        function playPcm16Chunk(base64Str, eventId) {
+            if (!elevenLabsState.greetingDone) elevenLabsState.greetingAudioSeen = true;
+            // Asha stays silent while a song / bhajan / video is playing,
+            // except to finish the sentence she was already saying when it started
+            if (isSaathiMediaPlaying() && !allowSpeechDuringMusic(eventId)) return;
+            if (eventId !== undefined && eventId !== null) elevenLabsState.lastAudioEventId = eventId;
+            elevenLabsState.lastAudioAt = Date.now();
             try {
                 if (!elevenLabsState.playbackCtx || elevenLabsState.playbackCtx.state === 'closed') {
                     elevenLabsState.playbackCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
@@ -2278,6 +2847,12 @@
                     if (elevenLabsState.activeSources.length === 0 && elevenLabsState.playbackCtx.currentTime >= elevenLabsState.nextPlaybackTime - 0.1) {
                         setAvatarState(elevenLabsState.isListening && !elevenLabsState.isMuted ? 'listening' : 'idle');
                         duckMediaAudio(false); // Restore background music smoothly
+                        // Greeting finished (allow for short gaps between streamed chunks) -> open the mic
+                        if (!elevenLabsState.greetingDone) {
+                            setTimeout(() => {
+                                if (elevenLabsState.activeSources.length === 0) elevenLabsState.greetingDone = true;
+                            }, 900);
+                        }
                     }
                 };
             } catch (err) {
@@ -2295,6 +2870,359 @@
             setAvatarState(elevenLabsState.isListening && !elevenLabsState.isMuted ? 'listening' : 'idle');
         }
 
+        // ═══════════════════════════════════════════
+        // QUIET MODE WHILE MUSIC / BHAJAN / VIDEO PLAYS
+        // ═══════════════════════════════════════════
+        function isSaathiMediaPlaying() {
+            return !!(state && (state.musicPlaying || state.externalMusicPlaying));
+        }
+
+        // Asha may finish the sentence she was speaking when the music started
+        // ("Haan bilkul, main bhajan chala deti hoon"), or answer when the patient called her during music.
+        function allowSpeechDuringMusic(eventId) {
+            const g = elevenLabsState.musicGrace;
+            if (!g || Date.now() > g.until) return false;
+            if (g.any) return true;
+            return eventId === undefined || eventId === null || eventId === g.eventId;
+        }
+
+        // Did the patient ask for music, name a bhajan/song, or say yes to Asha's offer in the last 90 s?
+        function patientAskedForMusic() {
+            const t = (elevenLabsState.lastPatientText || '').toLowerCase();
+            if (!t || Date.now() - (elevenLabsState.lastPatientAt || 0) > 90 * 1000) return false;
+            if (/\b(nahi|nahin|mat|na|no|band|roko|ruko|rehne do)\b|नहीं|मत|बंद|रोको|रुको|रहने दो/i.test(t) &&
+                !(PLAY_VERB.test(t) && (PLAY_WORD.test(t) || playTopicFrom(t)))) return false;   // "nahi", "band karo"
+            return PLAY_WORD.test(t) || PLAY_VERB.test(t) || !!playTopicFrom(t) || ANY_OK.test(t) ||
+                /\b(haan|han|ha|haanji|ji|jee|theek hai|thik hai|bilkul|zaroor|jaroor|jarur|ok|okay|yes|chalo|wahi|same|dusra|doosra|koi aur)\b|हाँ|हां|जी|ठीक है|बिल्कुल|ज़रूर|जरूर|चलो|वही|दूसरा|कोई और/i.test(t);
+        }
+
+        // One request = one track: ignore a second play tool / page trigger fired for the same request
+        function isDuplicatePlayRequest() {
+            return Date.now() - (elevenLabsState.lastPlayRequestAt || 0) < 25000 &&
+                (elevenLabsState.playLoading || isSaathiMediaPlaying());
+        }
+
+        // Words that mean the patient is talking to Asha (not media commands, not song lyrics)
+        function isTalkingToAsha(text) {
+            const t = (text || '').toLowerCase();
+            const care = ((elevenLabsState.contacts || {}).caretaker_name || '').toLowerCase().split(/\s+/)[0];
+            if (care && care.length > 2 && t.includes(care)) return true;
+            if (/dawa|davai|dvai|dwai|medicine|tablet|goli|yaad dila|दवा|दवाई|दवाइ|गोली|याद दिला/i.test(t)) return true;
+            return /\b(ruko|rukiye|ruk jao|ek minute|saathi|sathi|asha|aasha|suno|sunno|suniye|dawai|dawa|davai|medicine|tablet|goli|bp|pressure|sugar|dard|pain|chakkar|ghabrahat|tabiyat|tabeeyat|doctor|daktar|call|phone|message|help|madad|bachao|emergency|ambulance|hospital|baat karni|sawal)\b|रुको|रुकिए|रुक जाओ|एक मिनट|साथी|आशा|सुनो|सुनिए|दवा|दवाई|गोली|बीपी|शुगर|दर्द|चक्कर|घबराहट|तबीयत|डॉक्टर|फोन|कॉल|मैसेज|मदद|बचाओ|अस्पताल|बात करनी|सवाल/i.test(t);
+        }
+
+        // A request for different music, said while music plays. Needs a bhajan / song name or word
+        // AND a clear request word, so the song's own lyrics ("Radha rani...") don't trigger it.
+        function isMusicChangeRequest(text) {
+            const t = (text || '').toLowerCase();
+            const hasTopic = !!playTopicFrom(t) || PLAY_WORD.test(t);
+            const asks = /\b(ruko|rukiye|ruk jao|nahi|nahin|badlo|badal do|dusra|doosra|koi aur|chahiye|lagao|laga do|lagaiye|chalao|chala do|chalaiye|sunna|sunne|sunni|sunao|sunaiye|bajao|baja do)\b|रुको|रुकिए|रुक जाओ|नहीं|बदलो|बदल दो|दूसरा|कोई और|चाहिए|लगाओ|लगा दो|लगाइए|चलाओ|चला दो|चलाइए|सुनना|सुनने|सुननी|सुनाओ|सुनाइए|बजाओ|बजा दो/i.test(t);
+            return hasTopic && asks;
+        }
+
+        // Patient spoke to Asha during music: pause it, pass on what they said, resume later
+        function pauseMusicToTalk(text) {
+            const ws = elevenLabsState.ws;
+            controlMusic('pause');
+            elevenLabsState.talkPause = { at: Date.now() };
+            elevenLabsState.lastUserSpeechAt = Date.now();
+            elevenLabsState.musicGrace = { until: Date.now() + 15000, any: true };
+            stopMediaCommandListener();
+            const onlyWake = /^(\s*(saathi|sathi|asha|aasha|suno|sunno|suniye|ji|haan|साथी|आशा|सुनो|सुनिए|जी)\s*)+$/i.test(text);
+            if (!onlyWake) addUIMessage('user', text);
+            const msg = onlyWake
+                ? "[The patient called you while the music was playing; the music is paused now] Reply in a few words, like 'Haanji, boliye', and listen."
+                : `[Said by the patient while the music was playing; the music is paused now] ${text}`;
+            if (!onlyWake) {
+                saveTurnToSaathiDB('user', text);
+                rememberTurn("Patient: " + text);
+            }
+            // Medicine question: show the list on screen at once, Asha says it as soon as she is back
+            if (/dawa|dawai|davai|dvai|dwai|medicine|tablet|goli|दवा|दवाई|दवाइ|गोली/i.test(text)) showMedicinesNow();
+            forwardToAsha(msg);
+        }
+
+        // Deliver the patient's words to Asha as fast as possible (connection may still be coming up)
+        function forwardToAsha(msg) {
+            if (wakeFromHold(msg)) { elevenLabsState.awaitingForward = false; return; }   // reconnect carries it
+            const cur = elevenLabsState.ws;
+            if (cur && cur.readyState === WebSocket.OPEN && elevenLabsState.metadataDone) {
+                cur.send(JSON.stringify({ type: "user_message", text: msg }));
+                elevenLabsState.awaitingForward = false;
+                return;
+            }
+            // Still connecting (early wake) or the call dropped: the connection's start-up
+            // (metadata handler) delivers resumeMessage as soon as Asha is back
+            elevenLabsState.resumeMessage = msg;
+            elevenLabsState.silentStart = true;
+            if (!elevenLabsState.connecting && !(cur && cur.readyState <= WebSocket.OPEN)) {
+                if (elevenLabsState.reconnectTimer) clearTimeout(elevenLabsState.reconnectTimer);
+                elevenLabsState.shouldAutoReconnect = true;
+                elevenLabsState.reconnectAttempts = 0;
+                startElevenLabsSession();
+            }
+            elevenLabsState.awaitingForward = false;
+        }
+
+        // The moment the patient starts talking to Asha during music (interim speech result):
+        // pause the music and start reconnecting while they are still finishing the sentence.
+        function earlyWakeForTalk() {
+            if (!elevenLabsState.onHold || elevenLabsState.awaitingForward) return;
+            console.log("[Saathi] Patient is talking: pausing music and reconnecting early");
+            elevenLabsState.awaitingForward = true;   // mic to Asha waits until their words are forwarded
+            clearTimeout(elevenLabsState.awaitingForwardTimer);
+            elevenLabsState.awaitingForwardTimer = setTimeout(() => {
+                if (!elevenLabsState.awaitingForward) return;
+                elevenLabsState.awaitingForward = false;   // nothing final came: just let Asha listen normally
+                stopMediaCommandListener();
+            }, 8000);
+            controlMusic('pause');
+            elevenLabsState.talkPause = { at: Date.now() };
+            elevenLabsState.lastUserSpeechAt = Date.now();
+            wakeFromHold(null);
+        }
+
+        function showMedicinesNow() {
+            const meds = ((elevenLabsState.profileVars || {}).medicines || '').trim();
+            if (!meds) return;
+            const list = meds.split(/;\s*/).filter(Boolean).map(m => `• ${m}`).join('<br>');
+            addUIMessage('bot', `💊 Aapki dawaiyan:<br>${list}`);
+        }
+
+        // ═══ MUSIC HOLD: music time is not call time ═══
+        // A few seconds after a song / bhajan / video starts, the ElevenLabs call is put on hold
+        // (socket closed, mic released) so the minutes of music are not billed as call time.
+        // The browser keeps listening for "Saathi", questions and media commands; then the call
+        // reconnects silently (no new greeting) and Asha continues with the chat so far.
+        const MUSIC_HOLD_AFTER_MS = 6000;
+        let holdStopTicks = 0;
+
+        function holdCallForMusic() {
+            const ws = elevenLabsState.ws;
+            if (elevenLabsState.onHold || !ws) return;
+            console.log("[Saathi] Music playing: call on hold, so music time is not counted as call time");
+            elevenLabsState.onHold = true;
+            holdStopTicks = 0;
+            elevenLabsState.ws = null;
+            try { ws.close(1000, "music hold"); } catch (e) {}
+            stopAgentPlayback();
+            stopElevenLabsMicrophone();
+            elevenLabsState.isConnected = false;
+            const avatarStatus = document.getElementById('avatar-status-text');
+            if (avatarStatus) avatarStatus.innerHTML = `Music on · say "Saathi" to talk <span class="text-emerald-500">♪</span>`;
+            prefetchSignedSession();   // next connection ready in advance -> fast resume
+        }
+
+        function wakeFromHold(msg) {
+            if (!elevenLabsState.onHold) return false;
+            console.log("[Saathi] Taking the call off hold");
+            elevenLabsState.onHold = false;
+            elevenLabsState.silentStart = true;      // no fresh greeting
+            elevenLabsState.resumeMessage = msg || null;
+            elevenLabsState.shouldAutoReconnect = true;
+            elevenLabsState.reconnectAttempts = 0;
+            startElevenLabsSession();
+            return true;
+        }
+
+        // After this long of continuous music, Asha checks in once and waits for an answer
+        const MEDIA_CHECKIN_MS = 10 * 60 * 1000;   // 10 minutes
+        const MEDIA_CHECKIN_WAIT_MS = 60 * 1000;   // no answer -> music continues
+
+        function askAboutMusicCheckin() {
+            const ws = elevenLabsState.ws;
+            const onHold = elevenLabsState.onHold;
+            if (!onHold && (!ws || ws.readyState !== WebSocket.OPEN)) return;
+            elevenLabsState.mediaStartedAt = null;
+            const checkin = { at: Date.now(), answered: false };
+            elevenLabsState.mediaCheckin = checkin;
+            const checkinMsg =
+                "[Music check-in from the app, not spoken by the patient] The music has been playing for 10 minutes and is paused now. " +
+                "Ask the patient in ONE short sentence whether they want to keep listening to the same one, hear a different song or bhajan, or stop. " +
+                "Then wait for their answer and do only what they say: same -> media_control resume, different -> play_music or play_youtube_video, stop -> media_control stop.";
+            if (onHold) wakeFromHold(checkinMsg);   // reconnect first; the message is sent once connected
+            controlMusic('pause');   // pause so Asha can be heard and the patient's answer is clear
+            if (!onHold) setTimeout(() => {
+                if (!ws || ws.readyState !== WebSocket.OPEN) return;
+                // A user_message makes Asha speak now; she then waits for the answer
+                ws.send(JSON.stringify({ type: "user_message", text: checkinMsg }));
+            }, 1500);
+            // No answer: the music stays paused until the patient asks for it (never restarts by itself)
+        }
+
+        let mediaCmdRecognizer = null;
+        let mediaCmdActive = false;
+        let mediaWasPlaying = false;
+
+        function startMediaCommandListener() {
+            const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRec || mediaCmdActive) return;
+            try {
+                // Only one browser speech recognizer can run at a time
+                if (elevenLabsState.wakeWordRecognizer) { try { elevenLabsState.wakeWordRecognizer.stop(); } catch (e) {} }
+                const rec = new SpeechRec();
+                rec.continuous = true;
+                rec.interimResults = true;   // react while the patient is still speaking
+                rec.lang = 'hi-IN';
+                rec.onresult = (event) => {
+                    const res = event.results[event.results.length - 1];
+                    if (!res || !res[0]) return;
+                    const text = res[0].transcript.trim();
+                    if (!res.isFinal) {
+                        // First words of "meri dawai yaad dilao" / "Saathi..." -> pause the music and start
+                        // reconnecting now; the full sentence is passed on as soon as it is final
+                        if (text && (isTalkingToAsha(text) || isMusicChangeRequest(text))) earlyWakeForTalk();
+                        return;
+                    }
+                    console.log("[Media commands] heard:", text);
+                    // 0) Asking for a different bhajan / song while one plays:
+                    //    "ruko, mujhe Radha Krishna ke bhajan sunne hain", "Hanuman Chalisa nahi, Shiv bhajan lagao"
+                    //    -> pause, let Asha hear it and switch (the page switches itself if she doesn't)
+                    if (isMusicChangeRequest(text)) {
+                        console.log("[Media commands] change request:", text);
+                        pauseMusicToTalk(text);
+                        const topic = playTopicLatest(text);
+                        if (topic) {
+                            // Safety net: once the call is back, play it from the page if Asha doesn't within 6 s
+                            elevenLabsState.pendingPlay = null;
+                            const t0 = Date.now();
+                            const armWhenConnected = () => {
+                                if (elevenLabsState.isConnected) armPlayFallback(topic, 6000);
+                                else if (Date.now() - t0 < 12000) setTimeout(armWhenConnected, 300);
+                            };
+                            armWhenConnected();
+                        }
+                        return;
+                    }
+                    // 1) roko / band karo / awaaz badhao / agla gaana ... handled directly
+                    if (handleVoiceMediaIntents(text)) { elevenLabsState.awaitingForward = false; return; }
+                    // 2) "Saathi" / "Asha" / a question or need (dawai, BP, dard, call, message ...)
+                    //    -> pause the music and let Asha hear and answer it
+                    if (isTalkingToAsha(text) || elevenLabsState.awaitingForward) { pauseMusicToTalk(text); return; }
+                    // anything else is most likely the song's own lyrics -> ignored
+                };
+                rec.onerror = () => {};
+                rec.onend = () => {
+                    mediaCmdActive = false;
+                    if ((isSaathiMediaPlaying() && (elevenLabsState.isConnected || elevenLabsState.onHold)) || elevenLabsState.awaitingForward) {
+                        setTimeout(startMediaCommandListener, 150);
+                    }
+                };
+                rec.start();
+                mediaCmdRecognizer = rec;
+                mediaCmdActive = true;
+                console.log("[Media commands] listening for 'roko', 'band karo', 'Saathi' while music plays");
+            } catch (e) {
+                console.warn("[Media commands] could not start:", e);
+            }
+        }
+
+        function stopMediaCommandListener() {
+            if (mediaCmdRecognizer) {
+                const rec = mediaCmdRecognizer;
+                mediaCmdRecognizer = null;
+                rec.onend = null;
+                try { rec.stop(); } catch (e) {}
+            }
+            mediaCmdActive = false;
+        }
+
+        // Watches music state during an ElevenLabs call
+        setInterval(() => {
+            const musicNow = isSaathiMediaPlaying();
+            // On hold, wait 3 s before treating a gap as "music stopped" (track changes, buffering)
+            if (elevenLabsState.onHold) holdStopTicks = musicNow ? 0 : holdStopTicks + 1;
+            const playing = (elevenLabsState.isConnected || elevenLabsState.onHold) &&
+                (musicNow || (elevenLabsState.onHold && holdStopTicks < 3));
+            const ws = elevenLabsState.ws;
+            if (playing && !mediaWasPlaying) {
+                // Music just started: Asha stops talking and stays silent; 10-minute check-in timer starts
+                elevenLabsState.mediaStartedAt = Date.now();
+                elevenLabsState.musicOnSince = Date.now();
+                elevenLabsState.mediaCheckin = null;
+                elevenLabsState.talkPause = null;
+                elevenLabsState.playLoading = false;
+                // Don't cut Asha off mid-sentence: let the sentence she is speaking right now finish
+                // (the music is ducked meanwhile); anything she says after that stays muted.
+                const speakingNow = elevenLabsState.activeSources.length > 0 || Date.now() - (elevenLabsState.lastAudioAt || 0) < 1500;
+                elevenLabsState.musicGrace = speakingNow
+                    ? { until: Date.now() + 12000, eventId: elevenLabsState.lastAudioEventId }
+                    : null;
+                if (!speakingNow) stopAgentPlayback();
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: "contextual_update",
+                        text: "MUSIC IS NOW PLAYING on the patient's screen. Stay completely silent: do not talk and do not sing along. Wait until the patient speaks to you again." }));
+                }
+                startMediaCommandListener();
+            } else if (!playing && mediaWasPlaying) {
+                // keep listening if the patient is mid-sentence (early wake): their words are still coming
+                if (!elevenLabsState.awaitingForward) stopMediaCommandListener();
+                if (elevenLabsState.onHold) {
+                    // Music ended or was stopped while the call was on hold: bring Asha back
+                    wakeFromHold("[From the app, not spoken by the patient] The music has finished. In one short sentence, ask the patient if they would like anything else.");
+                } else if (ws && ws.readyState === WebSocket.OPEN && elevenLabsState.isConnected) {
+                    ws.send(JSON.stringify({ type: "contextual_update",
+                        text: "The music has stopped. You can talk with the patient again." }));
+                }
+            }
+            if (playing) {
+                if (!mediaCmdActive) startMediaCommandListener();
+                if (elevenLabsState.mediaStartedAt && Date.now() - elevenLabsState.mediaStartedAt >= MEDIA_CHECKIN_MS) {
+                    askAboutMusicCheckin();
+                }
+                // Tell ElevenLabs the patient is still here so Asha doesn't try to re-engage
+                if (ws && ws.readyState === WebSocket.OPEN && Date.now() % 5000 < 1000) {
+                    ws.send(JSON.stringify({ type: "user_activity" }));
+                }
+                // Keep a fresh connection ready during long music (signed links expire after ~15 min)
+                if (elevenLabsState.onHold && !elevenLabsState.prefetching &&
+                    (!elevenLabsState.prefetched || Date.now() - elevenLabsState.prefetched.at > 7 * 60 * 1000)) {
+                    elevenLabsState.prefetching = true;
+                    prefetchSignedSession().finally(() => { elevenLabsState.prefetching = false; });
+                }
+                // Once Asha has finished her sentence, put the call on hold for the rest of the music
+                if (musicNow && !elevenLabsState.onHold && ws && ws.readyState === WebSocket.OPEN &&
+                    !elevenLabsState.playLoading && !elevenLabsState.mediaCheckin &&
+                    Date.now() - (elevenLabsState.musicOnSince || 0) > MUSIC_HOLD_AFTER_MS &&
+                    elevenLabsState.activeSources.length === 0 &&
+                    Date.now() - (elevenLabsState.lastAudioAt || 0) > 4000) {
+                    holdCallForMusic();
+                }
+            }
+            // Once paused (by the patient or because they started talking), the music stays paused
+            // until the patient asks for it again: no automatic resume mid-conversation.
+            mediaWasPlaying = playing;
+        }, 1000);
+
+        // ElevenLabs expects tool_call_id / result / is_error at the top level of the event.
+        // (Nesting them under "client_tool_result" makes ElevenLabs close the call with 1008.)
+        function sendElevenLabsToolResult(callId, result, isError) {
+            if (!callId || !elevenLabsState.ws || elevenLabsState.ws.readyState !== WebSocket.OPEN) return;
+            elevenLabsState.ws.send(JSON.stringify({
+                type: "client_tool_result",
+                tool_call_id: callId,
+                result: String(result || "Done"),
+                is_error: !!isError
+            }));
+        }
+
+        // Let Asha finish "Main abhi bhajan chalati hoon" before the music starts.
+        // Her sentence may still be streaming when the tool call arrives, so first give it a
+        // moment to begin, then wait until the last queued chunk has played (max ~10 s).
+        async function waitForAshaToFinish(maxMs = 10000) {
+            if (!elevenLabsState.isConnected) return;
+            const sleep = ms => new Promise(r => setTimeout(r, ms));
+            const start = Date.now();
+            const speaking = () => {
+                const ctx = elevenLabsState.playbackCtx;
+                const queued = ctx && ctx.state !== 'closed' ? elevenLabsState.nextPlaybackTime - ctx.currentTime : 0;
+                return elevenLabsState.activeSources.length > 0 || queued > 0.05;
+            };
+            while (Date.now() - start < 1500 && !speaking() && Date.now() - (elevenLabsState.lastAudioAt || 0) > 1500) await sleep(100);
+            while (Date.now() - start < maxMs && (speaking() || Date.now() - (elevenLabsState.lastAudioAt || 0) < 600)) await sleep(100);
+            await sleep(250);
+        }
+
         async function handleElevenLabsToolCall(toolCall) {
             if (!toolCall) return;
             const toolName = toolCall.tool_name;
@@ -2303,8 +3231,36 @@
             const rid = getRecipientId() || "1";
 
             let resultMsg = "Executed";
+            // Asha sometimes calls play_music AND play_youtube_video for one request:
+            // play only the first, so the track starts once.
+            if (toolName === "play_music" || toolName === "play_youtube_video") {
+                // Music only when the patient asked for it (or said yes) just now — never on Asha's own
+                if (!patientAskedForMusic()) {
+                    console.log(`[Saathi] ${toolName} refused: the patient did not ask for music`);
+                    sendElevenLabsToolResult(callId, "Not played: the patient has not asked for music right now. Do not play anything on your own. Continue the conversation. If you feel music would help, ASK first (for example 'Kya main ek bhajan lagaun?') and play only after they say yes.", false);
+                    return;
+                }
+                if (isDuplicatePlayRequest()) {
+                    console.log(`[Saathi] ${toolName} ignored: a track was already started for this request`);
+                    sendElevenLabsToolResult(callId, `"${elevenLabsState.lastPlayTitle || 'The song'}" is already playing on screen. Do not start it again and do not say anything more; stay silent while it plays.`, false);
+                    return;
+                }
+                elevenLabsState.lastPlayRequestAt = Date.now();
+                elevenLabsState.pendingPlay = null;   // Asha did it herself: no page fallback needed
+                elevenLabsState.lastPlayTitle = params.song_name || params.query || 'music';
+                elevenLabsState.playLoading = true;
+                elevenLabsState.talkPause = null;
+                setTimeout(() => { elevenLabsState.playLoading = false; }, 15000);
+            }
+            if (toolName === "media_control" && params.action !== "resume" && !/volume/.test(params.action || "")) {
+                elevenLabsState.talkPause = null;   // patient chose stop / next: don't auto-resume
+            }
             try {
-                if (toolName === "log_medicine_or_meal") {
+                if (toolName === "log_medicine_or_meal" && (params.item_type || "medicine") === "medicine" &&
+                    Date.now() - (elevenLabsState.medLoggedAt || 0) < 3 * 60 * 1000) {
+                    // The page already logged this dose a moment ago: don't log it twice
+                    resultMsg = "Already recorded in the dose log as taken.";
+                } else if (toolName === "log_medicine_or_meal") {
                     const res = await fetch('http://127.0.0.1:8000/api/elevenlabs/tools/log-medicine-or-meal', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -2332,23 +3288,45 @@
                     toggleEmergencyMode(true);
                     resultMsg = "Emergency alert sent to family contacts.";
                     addUIMessage('bot', `🚨 ${resultMsg}`);
+                } else if (toolName === "set_reminder") {
+                    resultMsg = await setReminderFromAsha(params);
+                } else if (toolName === "message_caretaker") {
+                    resultMsg = await sendSaathiMessage(params.message, params.urgent === true || params.urgent === 'true');
+                } else if (toolName === "call_caretaker") {
+                    resultMsg = await placeSaathiCall('caretaker', params.reason);
+                } else if (toolName === "call_emergency_contact") {
+                    resultMsg = await placeSaathiCall('emergency_contact', params.reason);
+                } else if (toolName === "call_emergency_services") {
+                    resultMsg = await placeSaathiCall('emergency_services', params.reason);
                 } else if (toolName === "play_music") {
+                    await waitForAshaToFinish();
                     const songName = (params.song_name || "").toLowerCase();
+                    // 1) app library (music folder)  2) favourites saved in the DB  3) YouTube search
+                    const fav = (state.favoriteSongs || []).filter(s => s && (s.title || s.query))
+                        .find(s => !songName || (s.title || s.query).toLowerCase().includes(songName) || songName.includes((s.title || s.query).toLowerCase()));
                     if (songName) {
-                        const idx = localPlaylist.findIndex(s => s.title.toLowerCase().includes(songName));
+                        const idx = localPlaylist.findIndex(s => s.title.toLowerCase().includes(songName) || songName.includes(s.title.toLowerCase()));
                         if (idx !== -1) {
                             playlist = [...localPlaylist];
                             playSong(idx);
-                            resultMsg = `Playing ${localPlaylist[idx].title} from library`;
+                            resultMsg = `Now playing "${localPlaylist[idx].title}" from the music library.`;
                         } else {
-                            await playYouTubeSong(params.song_name);
-                            resultMsg = `Playing ${params.song_name} on YouTube`;
+                            // silent=true: Asha announces it, so no second (browser) voice talks over her
+                            const ok = await playYouTubeSong(fav ? (fav.query || fav.title) : params.song_name, '🎵 Now Playing', true, true);
+                            resultMsg = ok
+                                ? `Now playing "${params.song_name}" on YouTube.`
+                                : `Could not find "${params.song_name}" on YouTube. Offer another song or one from the library: ${localPlaylist.map(s => s.title).join(', ')}.`;
                         }
+                    } else if (fav) {
+                        const ok = await playYouTubeSong(fav.query || fav.title, '🎵 Favourite', true, true);
+                        resultMsg = ok ? `Now playing their favourite "${fav.title}".` : "Playing music from the library.";
+                        if (!ok) { playlist = [...localPlaylist]; playSong(0); }
                     } else {
                         playlist = [...localPlaylist];
                         playSong(0);
                         resultMsg = "Playing music from library";
                     }
+                    elevenLabsState.playLoading = false;
                     addUIMessage('bot', `🎵 ${resultMsg}`);
                 } else if (toolName === "media_control") {
                     const action = params.action || "toggle";
@@ -2364,60 +3342,201 @@
                     }
                 } else if (toolName === "play_youtube_video") {
                     const q = params.query || "soothing old hindi melodies";
-                    await playYouTubeSong(q);
-                    resultMsg = `Playing ${q} on YouTube player`;
-                    addUIMessage('bot', `🎬 ${resultMsg}`);
+                    await waitForAshaToFinish();
+                    const ok = await playYouTubeSong(q, '🎬 Now Playing', true, true);
+                    elevenLabsState.playLoading = false;
+                    resultMsg = ok ? `Now playing "${q}" on the YouTube player on screen.` : `Could not find "${q}" on YouTube. Offer something similar.`;
+                    addUIMessage('bot', `🎬 ${ok ? 'Now playing: ' + q : 'Not found: ' + q}`);
                 }
 
-                if (elevenLabsState.ws && elevenLabsState.ws.readyState === WebSocket.OPEN) {
-                    elevenLabsState.ws.send(JSON.stringify({
-                        type: "client_tool_result",
-                        client_tool_result: {
-                            tool_call_id: callId,
-                            result: resultMsg
-                        }
-                    }));
-                }
+                sendElevenLabsToolResult(callId, resultMsg, false);
             } catch (err) {
                 console.warn("[ElevenLabs Tool Execution error]", err);
+                // Always answer the tool call, otherwise the agent waits and the call can drop
+                sendElevenLabsToolResult(callId, `The action could not be completed (${err && err.message ? err.message : 'error'}). Offer an alternative, such as calling the caretaker.`, true);
             }
+        }
+
+        // ═══ PLAY SAFETY NET ═══
+        // If the patient asks for a bhajan / song / video (or says "koi bhi laga do") and Asha only
+        // *talks* about playing (or asks "kaunsa lagaun?") without calling her play tool,
+        // the page starts it itself after a few seconds, so the patient is never asked twice.
+        const PLAY_TOPICS = [
+            [/radha|राधा/i, 'Radha Krishna bhajan'],
+            [/hanuman|bajrang|हनुमान|बजरंग/i, 'Hanuman Chalisa'],
+            [/krishna|krishn|kanha|shyam|govind|कृष्ण|कान्हा|श्याम|गोविंद/i, 'Krishna bhajan'],
+            [/\bram\b|shri ram|siya ram|राम/i, 'Shri Ram bhajan'],
+            [/shiv|bhole|mahadev|शिव|भोले|महादेव/i, 'Shiv bhajan'],
+            [/\bsai\b|साईं|साई/i, 'Sai Baba bhajan'],
+            [/ganesh|ganpati|गणेश|गणपति/i, 'Ganesh aarti'],
+            [/durga|\bmata\b|sherawali|vaishno|दुर्गा|माता|शेरावाली/i, 'Mata Rani bhajan'],
+            [/gurbani|shabad|waheguru|गुरबाणी|शबद|वाहेगुरु/i, 'Gurbani shabad kirtan'],
+            [/punjabi|पंजाबी/i, 'old Punjabi songs'],
+            [/lata|लता/i, 'Lata Mangeshkar songs'],
+            [/kishore|किशोर/i, 'Kishore Kumar songs'],
+            [/rafi|रफ़ी|रफी/i, 'Mohammed Rafi songs'],
+            [/aarti|आरती/i, 'aarti'],
+            [/kirtan|कीर्तन/i, 'kirtan']
+        ];
+        const PLAY_WORD = /(bhajan|gaana|gana|gaane|gane|geet|song|music|video|kirtan|chalisa|aarti|shabad|भजन|गाना|गाने|गीत|संगीत|वीडियो|कीर्तन|चालीसा|आरती|शबद)/i;
+        // Only clear requests ("lagao", "suna do", "sunna hai"), not talk about music ("kal bhajan suna tha")
+        const PLAY_VERB = /\b(lagao|laga do|lagado|lagaiye|chalao|chala do|chalaiye|sunao|suna do|sunaiye|suna sakti|bajao|baja do|bajaiye|play karo|play kar do|sunna hai|sunne hain|sunne hai|sunna chahti|sunna chahta|gaa sakti|ga sakti|gao)\b|लगाओ|लगा दो|लगाइए|चलाओ|चला दो|चलाइए|सुनाओ|सुना दो|सुनाइए|सुना सकती|बजाओ|बजा दो|बजाइए|सुनना है|सुनने हैं|सुनने है|सुनना चाहती|सुनना चाहता|गा सकती|गाओ|प्ले कर/i;
+        const ANY_OK = /(koi bhi|kuch bhi|jo bhi|jo marzi|aapki marzi|aap hi chun|haan laga|haan chala|haan baja|कोई भी|कुछ भी|जो भी|आपकी मर्ज़ी|आपकी मर्जी|हां लगा|हाँ लगा|हां चला|हाँ चला)/i;
+        const STOPISH = /\b(roko|band karo|band kar do|stop|ruko|mat lagao|nahi chahiye)\b|बंद|रोको|मत लगा|नहीं चाहिए/i;
+        let playFallbackToken = 0;
+
+        function playTopicFrom(text) {
+            for (const [re, q] of PLAY_TOPICS) if (re.test(text || '')) return q;
+            return null;
+        }
+
+        // The bhajan named LAST wins: "Hanuman Chalisa nahi, Shiv bhajan lagao" -> Shiv bhajan.
+        // ("Radha Krishna" stays Radha Krishna: on a tie the earlier list entry wins.)
+        function playTopicLatest(text) {
+            let best = null, bestEnd = -1;
+            for (const [re, q] of PLAY_TOPICS) {
+                const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
+                let m, end = -1;
+                while ((m = g.exec(text || '')) !== null) { end = m.index + m[0].length; if (!m[0]) g.lastIndex++; }
+                if (end > bestEnd + 8) { best = q; bestEnd = end; }   // must be clearly later, not "radha krishna"
+            }
+            return best;
+        }
+
+        function armPlayFallback(query, delay) {
+            const p = elevenLabsState.pendingPlay;
+            const at = (p && Date.now() - p.at < 15000) ? p.at : Date.now();
+            elevenLabsState.pendingPlay = { query, at };
+            const token = ++playFallbackToken;
+            clearTimeout(elevenLabsState.playFallbackTimer);
+            elevenLabsState.playFallbackTimer = setTimeout(async () => {
+                if (token !== playFallbackToken || !elevenLabsState.pendingPlay || !elevenLabsState.isConnected) return;
+                // Asha did call play_music / play_youtube_video, or something is already playing -> nothing to do
+                if ((elevenLabsState.lastPlayRequestAt || 0) >= at || isSaathiMediaPlaying() || elevenLabsState.playLoading) {
+                    elevenLabsState.pendingPlay = null;
+                    return;
+                }
+                elevenLabsState.pendingPlay = null;
+                console.log("[Saathi] Asha did not start the music; playing it from the page:", query);
+                elevenLabsState.lastPlayRequestAt = Date.now();
+                elevenLabsState.lastPlayTitle = query;
+                elevenLabsState.playLoading = true;
+                // She asked "kaunsa lagaun?" -> cut the question; she said "main abhi bhajan chalati hoon" -> let her finish
+                if (/\?/.test(elevenLabsState.lastAshaReply || '')) stopAgentPlayback();
+                else await waitForAshaToFinish();
+                const ok = await playYouTubeSong(query, '🎵 Now Playing', true, true);
+                elevenLabsState.playLoading = false;
+                addUIMessage('bot', ok ? `🎵 Now playing: ${query}` : `🎵 Playing music from the library`);
+                if (!ok) { playlist = [...localPlaylist]; playSong(Math.floor(Math.random() * localPlaylist.length)); }
+                const ws = elevenLabsState.ws;
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: "contextual_update", text:
+                        `The app has already started playing "${ok ? query : 'a song from the library'}" for the patient. Do not ask which song or bhajan; stay silent while it plays.` }));
+                }
+            }, delay);
+        }
+
+        // Patient's words: "Radha Krishna ke bhajan lagao", "koi bhi laga do", "video chalao"
+        function notePlayRequestFromPatient(text) {
+            if (!elevenLabsState.isConnected || !text) return;
+            const t = text.toLowerCase();
+            if (STOPISH.test(t)) { elevenLabsState.pendingPlay = null; playFallbackToken++; return; }
+            const pending = elevenLabsState.pendingPlay;
+            if (PLAY_WORD.test(t) && PLAY_VERB.test(t)) {
+                const q = playTopicFrom(t) || (pending && pending.query) ||
+                    (/(bhajan|भजन|kirtan|कीर्तन)/i.test(t) ? 'bhakti bhajan' : /(video|वीडियो)/i.test(t) ? text.replace(/[?।.!]/g, ' ').trim() : 'old Hindi songs');
+                armPlayFallback(q, 6000);
+            } else if (pending && Date.now() - pending.at < 3 * 60 * 1000 && (ANY_OK.test(t) || playTopicFrom(t))) {
+                armPlayFallback(playTopicFrom(t) || pending.query, 2500);
+            }
+        }
+
+        // Asha's words: "main YouTube par 'Radha Krishna Bhajan' chalati hoon" (with or without a question)
+        function notePlayOfferFromAsha(reply) {
+            if (!elevenLabsState.isConnected || !reply) return;
+            elevenLabsState.lastAshaReply = reply;
+            const r = reply.toLowerCase();
+            const offering = /(chala|laga|baja|suna)\w*\s*(de)?(ti|ta|rahi|raha)?\s*(hoon|hun|hu)\b|search kar|play kar/.test(r);
+            if (!offering || !PLAY_WORD.test(r)) return;
+            // Only back up a request the PATIENT made in the last 2 minutes; Asha merely
+            // suggesting or mentioning a bhajan never starts music
+            const pending = elevenLabsState.pendingPlay;
+            if (!pending || Date.now() - pending.at > 2 * 60 * 1000) return;
+            const quoted = reply.match(/["“']([^"”']{3,60})["”']/);
+            const q = (pending && pending.query && pending.query !== 'bhakti bhajan' && pending.query !== 'old Hindi songs' ? pending.query : null) ||
+                (quoted && quoted[1]) || playTopicFrom(r) || (pending && pending.query) || 'bhakti bhajan';
+            armPlayFallback(q, 5000);
         }
 
         function handleVoiceMediaIntents(rawText) {
             if (!rawText) return false;
-            const t = rawText.toLowerCase().trim();
-            // Direct volume controls
-            if (t.includes('volume up') || t.includes('volume badhao') || t.includes('awaz badhao')) {
+            const t = rawText.toLowerCase().replace(/[.,!?।]/g, ' ').replace(/\s+/g, ' ').trim();
+            // Safety net for ElevenLabs: the patient's spoken media commands are handled here directly,
+            // so music stops / changes volume even if the agent only *says* it did.
+            const SONG = '(gaana|gana|gaane|gane|geet|song|songs|music|bhajan|video|गाना|गाने|गीत|संगीत|भजन|वीडियो)';
+            const VOL = '(volume|awaaz|awaz|aawaz|avaaz|आवाज़|आवाज|वॉल्यूम)';
+            const has = re => new RegExp(re, 'i').test(t);
+            const mediaActive = () => !!(state.musicPlaying || state.youtubeMode || (audioPlayer && audioPlayer.src && !audioPlayer.ended));
+
+            // Volume
+            if (has(`${VOL}.{0,15}(badhao|badha|badhai|tez|zyada|jyada|up|ooncha|unchi|बढ़ाओ|बढ़ा|तेज़|तेज|ऊंची)`) || has('(volume up|louder)')) {
                 changeMediaVolume(0.15);
                 return true;
             }
-            if (t.includes('volume down') || t.includes('volume kam karo') || t.includes('awaz kam karo')) {
+            if (has(`${VOL}.{0,15}(kam|dheema|dheemi|dhire|halka|down|neeche|कम|धीमी|धीमा)`) || has('(volume down|quieter)')) {
                 changeMediaVolume(-0.15);
                 return true;
             }
-            // Pause / Stop controls
-            if (t === 'pause' || t.includes('pause music') || t.includes('gana roko') || t.includes('gana pause') || t.includes('gana band karo') || t === 'stop music') {
+            // Stop / pause
+            if (has(`${SONG}.{0,15}(roko|rok do|rokdo|band|ruko|stop|pause|रोको|रोक|बंद|रुको)`) || has('^(stop|pause|ruko|roko|band karo|बंद करो|रोको|रुको)( music| please)?$') || t.includes('pause music') || t === 'stop music') {
+                elevenLabsState.talkPause = null;   // stopped on purpose: don't auto-resume
                 controlMusic('pause');
                 return true;
             }
-            // Resume controls
-            if (t.includes('resume music') || t.includes('gana bajao') || t.includes('gana shuru karo') || t.includes('play music') || t === 'gana sunao') {
-                controlMusic('resume');
-                return true;
-            }
-            // Next / Prev controls
-            if (t.includes('next song') || t.includes('agla gana') || t.includes('agla video')) {
+            // Next / previous
+            if (has(`(agla|agli|next|dusra|doosra|dusri|badlo|change|अगला|दूसरा|बदलो).{0,12}${SONG}`) || has(`${SONG}.{0,12}(badlo|change|next|agla|बदलो)`)) {
                 controlMusic('next');
                 return true;
             }
-            if (t.includes('previous song') || t.includes('pichhla gana')) {
+            if (t.includes('previous song') || has(`(pichhla|pichla|पिछला).{0,10}${SONG}`)) {
                 controlMusic('prev');
+                return true;
+            }
+            // Resume / generic "play a song" (no specific song named -> Asha's play_music handles named songs)
+            if ((has('(resume|chalu karo|phir se chalao|dobara chalao|फिर से चलाओ)') ||
+                 (elevenLabsState.mediaCheckin && has('(chalne do|chalta rahne do|chalte rehne do|chalao|wahi|vahi|same|continue|haan sunna|sunte hain|चलने दो|वही)') && !has('(dusra|doosra|koi aur|badlo|change|band|stop|दूसरा|बदलो|बंद)')))
+                && (mediaActive() || state.externalPaused)) {
+                controlMusic('resume');
+                return true;
+            }
+            if (has(`^(kya |aap |tum |please |mere liye |hamare liye |koi |ek |achha |accha |thoda |kuch |purana |purane |old )*${SONG}( bhi)?( baja| bajao| bajaiye| sunao| sunaiye| chalao| chala do| lagao| laga do| play| बजाओ| सुनाओ| चलाओ| लगाओ)`) || t === 'play music' || t.includes('resume music')) {
+                if (mediaActive() && !state.musicPlaying) controlMusic('resume');
+                else if (!state.musicPlaying && !state.youtubeMode) {
+                    const playRandom = () => { playlist = [...localPlaylist]; playSong(Math.floor(Math.random() * localPlaylist.length)); };
+                    if (elevenLabsState.isConnected) {
+                        // Asha normally starts the song herself with play_music; only step in if she didn't,
+                        // so the patient never gets two tracks for one request.
+                        const askedAt = Date.now();
+                        setTimeout(() => {
+                            if ((elevenLabsState.lastPlayRequestAt || 0) < askedAt && !isSaathiMediaPlaying() && !elevenLabsState.playLoading) {
+                                elevenLabsState.lastPlayRequestAt = Date.now();
+                                elevenLabsState.lastPlayTitle = 'a song from the library';
+                                playRandom();
+                            }
+                        }, 7000);
+                    } else {
+                        playRandom();
+                    }
+                }
                 return true;
             }
             // Specific local songs check
             for (let i = 0; i < localPlaylist.length; i++) {
                 const titleLower = localPlaylist[i].title.toLowerCase();
                 if (t.includes(titleLower) || (titleLower.includes('pal pal') && t.includes('pal pal')) || (titleLower.includes('roop tera') && t.includes('roop tera')) || (titleLower.includes('zindagi ka') && t.includes('zindagi ka'))) {
+                    if (isDuplicatePlayRequest()) return true;   // already started for this request
+                    elevenLabsState.lastPlayRequestAt = Date.now();
+                    elevenLabsState.lastPlayTitle = localPlaylist[i].title;
                     playlist = [...localPlaylist];
                     playSong(i);
                     return true;
@@ -2452,6 +3571,10 @@
 
         async function stopElevenLabsSession() {
             elevenLabsState.shouldAutoReconnect = false;
+            elevenLabsState.onHold = false;
+            elevenLabsState.silentStart = false;
+            elevenLabsState.recentTurns = [];
+            stopMediaCommandListener();
             if (elevenLabsState.reconnectTimer) clearTimeout(elevenLabsState.reconnectTimer);
 
             stopAgentPlayback();
@@ -2933,10 +4056,80 @@
                 });
             }
 
+            // A one-time alarm set by Asha ("once") is removed from the list after it has rung
+            if (r.recurrence === 'once' && r.id) {
+                setTimeout(() => deleteReminder(r.id), 90 * 1000);
+            }
+
+            // During an Asha (ElevenLabs) call, Asha announces the alarm in her own voice
+            const alarmMsg = `[Alarm from the app, not spoken by the patient] It is now ${r.time || ''}, time for: "${rText}". ` +
+                "Remind the patient about it warmly in one or two short sentences (pause any music first with media_control if it is playing).";
+            const elWs = elevenLabsState.ws;
+            if (elevenLabsState.onHold || (elevenLabsState.isConnected && elWs && elWs.readyState === WebSocket.OPEN)) {
+                playReminderBeep().then(() => {
+                    if (isSaathiMediaPlaying()) controlMusic('pause');
+                    if (!wakeFromHold(alarmMsg) && elevenLabsState.ws && elevenLabsState.ws.readyState === WebSocket.OPEN) {
+                        elevenLabsState.ws.send(JSON.stringify({ type: "user_message", text: alarmMsg }));
+                    }
+                });
+                return;
+            }
+
             // Play the reminder beep tone FIRST, then speak the voice announcement
             playReminderBeep().then(() => {
                 speak(spokenMsg);
             });
+        }
+
+        // "7 baje", "7:30 PM", "19:30", "shaam 7", "subah 8:15" -> "HH:MM" (24 h); null if not understood
+        function normalizeReminderTime(raw) {
+            if (!raw) return null;
+            const s = String(raw).toLowerCase().trim();
+            const m = s.match(/(\d{1,2})(?:[:.](\d{2}))?/);
+            if (!m) return null;
+            let h = parseInt(m[1], 10);
+            const min = m[2] ? parseInt(m[2], 10) : 0;
+            const pm = /\bpm\b|p\.m|shaam|sham|raat|dopahar|dopehar|evening|night|afternoon|शाम|रात|दोपहर/.test(s);
+            const am = /\bam\b|a\.m|subah|savere|morning|सुबह/.test(s);
+            if (pm && h < 12 && !(/dopahar|dopehar|afternoon|दोपहर/.test(s) && h === 12)) h += 12;
+            if (/raat|night|रात/.test(s) && h === 24) h = 0;
+            if (am && h === 12) h = 0;
+            if (h > 23 || min > 59) return null;
+            return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+        }
+
+        // set_reminder tool: saves the alarm in the same Reminders list as the form on the left
+        async function setReminderFromAsha(params) {
+            const text = (params.reminder_text || params.text || '').trim() || 'Reminder';
+            let time = normalizeReminderTime(params.time);
+            if (!time && params.minutes_from_now) {
+                const d = new Date(Date.now() + parseInt(params.minutes_from_now, 10) * 60000);
+                time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            }
+            if (!time) return `The time "${params.time || ''}" was not clear. Ask the patient what time they want the reminder (for example "shaam 7 baje").`;
+            const types = ['medicine', 'food', 'water', 'exercise', 'custom'];
+            let type = String(params.reminder_type || '').toLowerCase();
+            if (type === 'meal') type = 'food';
+            if (!types.includes(type)) type = 'custom';
+            const recurrence = String(params.repeat || params.recurrence || 'daily').toLowerCase() === 'once' ? 'once' : 'daily';
+
+            const token = getToken();
+            const rid = getRecipientId() || '1';
+            const res = await fetch(`http://127.0.0.1:8000/api/voice-bot/reminders`, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ recipient_id: parseInt(rid), reminder_type: type, reminder_text: text, scheduled_time: time, recurrence })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.code !== 200) {
+                throw new Error(data.message || `reminder not saved (${res.status})`);
+            }
+            await fetchReminders();
+            const [hh, mm] = time.split(':').map(Number);
+            const nice = `${((hh + 11) % 12) + 1}:${String(mm).padStart(2, '0')} ${hh < 12 ? 'AM' : 'PM'}`;
+            addUIMessage('bot', `⏰ Reminder set: ${text} at ${nice} (${recurrence === 'once' ? 'one time' : 'every day'})`);
+            return `Reminder saved and shown in the Reminders list: "${text}" at ${time} (${nice}), ${recurrence === 'once' ? 'one time only' : 'every day'}. ` +
+                `The alarm will ring at that time. Confirm this to the patient in one short sentence.`;
         }
 
         // ═══════════════════════════════════════════
@@ -4288,6 +5481,7 @@
                         updateSentimentStrip(resData.sentiment);
                     }
 
+                    // addUIMessage('bot', resData.reply);
                     addUIMessage('bot', resData.reply);
                     speak(resData.reply, resData.audio_base64);
 
@@ -4578,6 +5772,25 @@
             document.getElementById('rec-card-area').classList.add('hidden');
             document.getElementById('sentiment-strip').classList.add('hidden');
             renderMessages(); // show empty state
+
+            // Chat deleted -> forget the saved conversation, so Asha starts fresh with her greeting
+            try { localStorage.removeItem(convStoreKey()); } catch (e) { }
+            elevenLabsState.recentTurns = [];
+            elevenLabsState.lastTurnAt = null;
+            elevenLabsState.continueMode = false;
+            elevenLabsState.silentStart = false;
+            elevenLabsState.resumeMessage = null;
+            elevenLabsState.prefetched = null;
+            // A call is running (or on hold for music): restart it now so she greets again
+            if (elevenLabsState.isConnected || elevenLabsState.onHold || elevenLabsState.connecting) {
+                (async () => {
+                    if (isSaathiMediaPlaying()) controlMusic('stop');
+                    await stopElevenLabsSession();
+                    elevenLabsState.shouldAutoReconnect = true;
+                    elevenLabsState.reconnectAttempts = 0;
+                    await startElevenLabsSession();
+                })();
+            }
         }
 
         async function loadPersistedConversation() {
@@ -4826,39 +6039,56 @@
             state.isListening = status;
             const indicator = document.getElementById('listening-indicator');
             const btn = document.getElementById('mic-btn');
-            if (status) {
-                indicator.classList.remove('hidden');
-                btn.classList.add('bg-red-500', 'hover:bg-red-600', 'shadow-red-200', 'scale-110');
-                btn.innerHTML = '<i data-lucide="mic-off" class="h-6 w-6"></i>';
-                setAvatarState('listening');
-            } else {
-                indicator.classList.add('hidden');
-                btn.classList.remove('bg-red-500', 'hover:bg-red-600', 'shadow-red-200', 'scale-110');
-                btn.innerHTML = '<i data-lucide="mic" class="h-6 w-6"></i>';
-                setAvatarState('idle');
+            if (btn) {
+                if (status) {
+                    if (indicator) indicator.classList.remove('hidden');
+                    btn.classList.add('bg-red-500', 'hover:bg-red-600', 'shadow-red-200', 'scale-110');
+                    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6"><line x1="2" x2="22" y1="2" y2="22"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/><line x1="12" x2="12" y1="19" y2="22"/></svg>';
+                    setAvatarState('listening');
+                } else {
+                    if (indicator) indicator.classList.add('hidden');
+                    btn.classList.remove('bg-red-500', 'hover:bg-red-600', 'shadow-red-200', 'scale-110');
+                    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>';
+                    setAvatarState('idle');
+                }
             }
-            lucide.createIcons();
+            if (window.lucide && typeof lucide.createIcons === 'function') {
+                try { lucide.createIcons(); } catch(e) {}
+            }
         }
 
         function toggleListening() {
-            // Direct connection to real-time ElevenLabs "Saathi" agent with "Asha - Soft Care Voice"
+            // Round mic button -> same real-time ElevenLabs "Saathi" agent as "Start Assistant"
             if (typeof toggleElevenLabsSession === 'function') {
                 toggleElevenLabsSession();
                 return;
             }
-
-            if (!recognition) { alert("Speech recognition not supported in this browser."); return; }
-            initVAD(); // Initialize or resume AudioContext on user click
-            if (synth.speaking) synth.cancel();
+            if (!recognition) {
+                if (typeof startBuiltinVoiceAssistant === 'function') {
+                    startBuiltinVoiceAssistant();
+                    return;
+                }
+                alert("Speech recognition not supported in this browser. Please use Google Chrome or Microsoft Edge.");
+                return;
+            }
+            initVAD();
+            if (window.speechSynthesis && window.speechSynthesis.speaking) {
+                try { window.speechSynthesis.cancel(); } catch(e) {}
+            }
 
             if (state.isListening) {
                 state.isListening = false;
-                recognition.stop();
+                try { recognition.stop(); } catch(e) {}
                 setListening(false);
             } else {
-                state.isListening = true;
-                recognition.start();
-                setListening(true);
+                try {
+                    state.isListening = true;
+                    recognition.start();
+                    setListening(true);
+                } catch(e) {
+                    console.warn("[toggleListening] recognition start:", e);
+                    setListening(true);
+                }
             }
         }
 
@@ -4923,7 +6153,9 @@
                         updateSentimentStrip(resData.sentiment);
                     }
 
+                    // addUIMessage('bot', resData.reply);
                     addUIMessage('bot', resData.reply);
+                    speak(resData.reply, resData.audio_base64);
 
                     if (resData.recommendation) {
                         showRecommendationCard(resData.recommendation, mood);

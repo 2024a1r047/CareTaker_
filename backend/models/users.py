@@ -21,6 +21,7 @@ class GenderEnum(str, Enum):
 # ---------- CareRecipient Input Model ----------
 class CareRecipientCreate(BaseModel):
     full_name: str = Field(..., example="Alice Smith")
+    preferred_name: Optional[str] = Field(None, example="Amma")  # name Saathi/Asha uses to call them
     email: EmailStr = Field(..., example="alice@example.com")
     phone_number: str = Field(..., min_length=10, max_length=10, example="9876543210")
     age: int = Field(..., example=70)
@@ -77,6 +78,7 @@ class TokenResponse(BaseModel):
 # --- Update Models ---
 class RecipientUpdate(BaseModel):
     full_name: Optional[str] = None
+    preferred_name: Optional[str] = None
     email: Optional[str] = None
     phone_number: Optional[str] = None
     age: Optional[int] = None

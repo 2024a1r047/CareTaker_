@@ -285,12 +285,21 @@ def generate_system_prompt(name: str, context: dict, language: str = "en", senti
     if preferred_name and str(preferred_name).strip():
         address = str(preferred_name).strip()
         first_name = address
-    elif gender == "male":
-        address = "Dadaji" if age >= 65 else "Nanaji" if age >= 75 else "Uncle ji"
-    elif gender == "female":
-        address = "Dadiji" if age >= 65 else "Naniji" if age >= 75 else "Aunty ji"
     else:
-        address = first_name or "ji"
+        # Commented out legacy generic age-based titles to strictly bind to database username
+        # elif gender == "male":
+        #     address = "Dadaji" if age >= 65 else "Nanaji" if age >= 75 else "Uncle ji"
+        # elif gender == "female":
+        #     address = "Dadiji" if age >= 65 else "Naniji" if age >= 75 else "Aunty ji"
+        # else:
+        #     address = first_name or "ji"
+        db_user_name = (
+            (first_name if first_name and first_name not in ("Senior", "Dadaji", "ji") else None)
+            or (recip.get("caretaker_name") if recip and recip.get("caretaker_name") else None)
+            or "ji"
+        )
+        address = db_user_name
+        first_name = db_user_name
 
     # ── Sentiment context ──
     current_mood = "neutral"
@@ -554,9 +563,11 @@ def save_message(recipient_id: int, sender: SenderEnum, text: str, mood: MoodEnu
                     s_recip = SaathiRecipient(
                         recipient_id=target_id,
                         caretaker_username=(recip.caretaker.username if recip and recip.caretaker else "caretaker"),
-                        full_name=recip.full_name if recip else "Dadaji",
+                        # full_name=recip.full_name if recip else "Dadaji",
+                        # address_form="Dadaji"
+                        full_name=recip.full_name if (recip and recip.full_name) else (recip.preferred_name if (recip and recip.preferred_name) else "Senior"),
                         preferred_language="hi",
-                        address_form="Dadaji"
+                        address_form=recip.preferred_name if (recip and recip.preferred_name) else (recip.full_name.split()[0] if (recip and recip.full_name) else "Senior")
                     )
                     s_db.add(s_recip)
                     s_db.commit()

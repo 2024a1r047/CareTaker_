@@ -86,8 +86,14 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
 
                     # Resolve recipient name
                     recipient = db.query(CareRecipient).filter(CareRecipient.id == recipient_id).first()
-                    recipient_name = recipient.full_name if recipient else ""
-                    name_part = f"{recipient_name} ji" if recipient_name else "ji"
+                    # Commented out legacy fallback to strictly resolve DB user name or username
+                    # recipient_name = recipient.full_name if recipient else ""
+                    # name_part = f"{recipient_name} ji" if recipient_name else "ji"
+                    recipient_name = (
+                        recipient.preferred_name.strip() if (recipient and getattr(recipient, "preferred_name", None) and recipient.preferred_name.strip())
+                        else (recipient.full_name.split()[0] if (recipient and recipient.full_name) else (caretaker.username if caretaker else "ji"))
+                    )
+                    name_part = recipient_name
 
                     # Build full context
                     proactive_ctx = build_proactive_context(recipient_id, db, lang)
@@ -117,7 +123,12 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
                     save_message(recipient_id, SenderEnum.bot, reply_text, MoodEnum.neutral,
                                  TriggerTypeEnum.proactive_checkin, session_id, db, intent=intent)
 
-                    audio_base64 = None  # Only ElevenLabs Asha voice is permitted
+                    # audio_base64 = None  # Only ElevenLabs Asha voice is permitted
+                    audio_base64 = None
+                    try:
+                        audio_base64 = await generate_speech_base64_async(reply_text, lang)
+                    except Exception as _t_err:
+                        print(f"[WS proactive TTS] {_t_err}")
 
                     await websocket.send_json({
                         "type": "bot_response",
@@ -164,6 +175,12 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
                 mood_str = sentiment.get("current_mood", "neutral")
                 mood_enum = MoodEnum(mood_str) if mood_str in [m.value for m in MoodEnum] else MoodEnum.neutral
                 save_message(recipient_id, SenderEnum.user, user_text, mood_enum, trigger_type, session_id, db)
+                # Sync user turn to saathi_db.conversation_messages
+                try:
+                    from services.saathi_memory_service import save_message_sync
+                    save_message_sync(session_id, recipient_id, 'user', user_text, language=lang)
+                except Exception:
+                    pass
 
                 # 2. Context & Gemini
                 context = build_conversation_context(recipient_id, db)
@@ -228,11 +245,22 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
                         recommendation = None
 
                     save_message(recipient_id, SenderEnum.bot, reply_text, MoodEnum.neutral, trigger_type, session_id, db, intent=intent)
+                    # Sync bot turn to saathi_db.conversation_messages
+                    try:
+                        from services.saathi_memory_service import save_message_sync
+                        save_message_sync(session_id, recipient_id, 'assistant', reply_text, language=lang)
+                    except Exception:
+                        pass
 
                     if not recommendation and mood_str not in ("neutral",):
                         recommendation = get_content_recommendation(mood_str)
 
-                    audio_base64 = None  # Only ElevenLabs Asha voice is permitted
+                    # audio_base64 = None  # Only ElevenLabs Asha voice is permitted
+                    audio_base64 = None
+                    try:
+                        audio_base64 = await generate_speech_base64_async(reply_text, lang)
+                    except Exception as _t_err:
+                        print(f"[WS chat TTS] {_t_err}")
 
                     await websocket.send_json({
                         "type": "bot_response",
@@ -259,7 +287,18 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
                     fallback_mood = dialogue_res.get("mood_detected", mood_str)
 
                     save_message(recipient_id, SenderEnum.bot, reply_text, MoodEnum.neutral, trigger_type, session_id, db, intent=intent)
-                    fallback_audio = None  # Only ElevenLabs Asha voice is permitted
+                    # Sync bot turn to saathi_db.conversation_messages
+                    try:
+                        from services.saathi_memory_service import save_message_sync
+                        save_message_sync(session_id, recipient_id, 'assistant', reply_text, language=lang)
+                    except Exception:
+                        pass
+                    # fallback_audio = None  # Only ElevenLabs Asha voice is permitted
+                    fallback_audio = None
+                    try:
+                        fallback_audio = await generate_speech_base64_async(reply_text, lang)
+                    except Exception as _t_err:
+                        print(f"[WS fallback TTS] {_t_err}")
                     await websocket.send_json({
                         "type": "bot_response",
                         "message_id": payload.get("message_id"),

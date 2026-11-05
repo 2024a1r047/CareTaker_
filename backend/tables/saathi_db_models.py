@@ -1,5 +1,10 @@
 """
-SQLAlchemy models for saathi_db database:
+SQLAlchemy models for saathi_db database (used by the ElevenLabs voice agent memory):
+
+NOTE: tables are named member_sessions / member_messages so they do not clash with the
+older conversation_sessions / conversation_messages tables defined in tables/saathi_history.py
+(both files create tables in the same saathi_db).
+
 - FamilyMember
 - ConversationSession
 - ConversationMessage
@@ -35,26 +40,24 @@ class FamilyMember(SaathiBase):
 
 
 class ConversationSession(SaathiBase):
-    __tablename__ = "conversation_sessions"
+    __tablename__ = "member_sessions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     account_id = Column(BigInteger, nullable=False, index=True)
     family_member_id = Column(BigInteger, ForeignKey("family_members.id", ondelete="CASCADE"), nullable=False, index=True)
-    elevenlabs_conversation_id = Column(String(255), unique=True, nullable=True, index=True)
     started_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     ended_at = Column(DateTime(timezone=True), nullable=True)
     summary = Column(Text, nullable=True)
 
     family_member = orm_relationship("FamilyMember", back_populates="sessions")
     messages = orm_relationship("ConversationMessage", back_populates="session", cascade="all, delete-orphan", order_by="ConversationMessage.created_at")
-    memories = orm_relationship("MemberMemory", back_populates="source_session")
 
 
 class ConversationMessage(SaathiBase):
-    __tablename__ = "conversation_messages"
+    __tablename__ = "member_messages"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    session_id = Column(UUID(as_uuid=True), ForeignKey("conversation_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("member_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
     family_member_id = Column(BigInteger, ForeignKey("family_members.id", ondelete="CASCADE"), nullable=False)
     role = Column(String(20), nullable=False)  # 'user' | 'assistant'
     content = Column(Text, nullable=False)
@@ -66,7 +69,7 @@ class ConversationMessage(SaathiBase):
     family_member = orm_relationship("FamilyMember", back_populates="messages")
 
     __table_args__ = (
-        Index("idx_conv_messages_member_created", "family_member_id", "created_at"),
+        Index("idx_member_messages_member_created", "family_member_id", "created_at"),
     )
 
 
@@ -77,14 +80,12 @@ class MemberMemory(SaathiBase):
     family_member_id = Column(BigInteger, ForeignKey("family_members.id", ondelete="CASCADE"), nullable=False)
     category = Column(String(50), nullable=False)  # 'health' | 'medicine' | 'family' | 'likes' | 'dislikes' | 'routine' | 'mood'
     fact = Column(Text, nullable=False)
-    source_message_id = Column(UUID(as_uuid=True), ForeignKey("conversation_messages.id", ondelete="SET NULL"), nullable=True)
-    source_session_id = Column(UUID(as_uuid=True), ForeignKey("conversation_sessions.id", ondelete="SET NULL"), nullable=True)
+    source_message_id = Column(UUID(as_uuid=True), ForeignKey("member_messages.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     family_member = orm_relationship("FamilyMember", back_populates="memories")
     source_message = orm_relationship("ConversationMessage")
-    source_session = orm_relationship("ConversationSession", back_populates="memories")
 
     __table_args__ = (
         Index("idx_member_memory_member_cat", "family_member_id", "category"),

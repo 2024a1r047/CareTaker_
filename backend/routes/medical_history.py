@@ -487,6 +487,13 @@ def reprocess_report(
             bg_db.commit()
             print(f"[reprocess] Report {report_id} reprocessed successfully")
 
+            # Prescribed medicines -> Medication section (skips anything already imported)
+            try:
+                from services.report_medication_sync import sync_report_medications
+                sync_report_medications(bg_report, bg_db, text=text)
+            except Exception as _me:
+                print(f"[reprocess] medication import failed: {_me}")
+
         except Exception as e:
             print(f"[reprocess] Error: {e}")
             bg_db.rollback()

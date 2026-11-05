@@ -603,6 +603,11 @@
                         <input type="text" id="rName" required>
                     </div>
                     <div class="input-group">
+                        <label>Name Saathi should call them by</label>
+                        <input type="text" id="rPreferredName" placeholder="e.g. Amma, Papa ji, Sharma Uncle">
+                        <small style="opacity:0.7">The voice assistant will greet and address them with exactly this name. Leave empty to use their first name.</small>
+                    </div>
+                    <div class="input-group">
                         <label>Email</label>
                         <input type="email" id="rEmail">
                     </div>
@@ -772,6 +777,7 @@
                 const r = recipients.find(x => x.id === id);
                 if (r) {
                     document.getElementById('rName').value = r.full_name;
+                    document.getElementById('rPreferredName').value = r.preferred_name || '';
                     document.getElementById('rEmail').value = r.email || '';
                     document.getElementById('rAge').value = r.age;
                     document.getElementById('rGender').value = r.gender || 'Male';
@@ -802,6 +808,7 @@
 
             const payload = {
                 full_name: document.getElementById('rName').value,
+                preferred_name: document.getElementById('rPreferredName').value.trim(),
                 email: document.getElementById('rEmail').value,
                 age: parseInt(document.getElementById('rAge').value),
                 gender: document.getElementById('rGender').value,

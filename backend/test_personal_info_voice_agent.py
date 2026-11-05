@@ -50,7 +50,9 @@ def run_tests():
 
     # 1. Setup Caretaker and Profile in Main Database
     with SessionLocal() as db:
-        caretaker = db.query(CareTaker).first()
+        # Use a dedicated test account only. Never take .first(): that is a real user, and this
+        # test overwrites the member's preferred_name ("Bauji"), blood group and doctor remarks.
+        caretaker = db.query(CareTaker).filter(CareTaker.username == "raman_care").first()
         if not caretaker:
             caretaker = CareTaker(
                 username="raman_care",
