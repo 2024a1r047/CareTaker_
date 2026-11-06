@@ -1146,6 +1146,32 @@
         let originalAudioVolume = 1.0;
         let isMediaDucked = false;
 
+        // ── Real YouTube player state (playing / paused / ended) ──
+        // The page used to assume a video kept playing; if it ended, failed or was paused on the
+        // player itself, Asha's mic stayed muted. YouTube reports its state once we "listen".
+        window.addEventListener('message', (ev) => {
+            if (!/youtube(-nocookie)?\.com$/.test((ev.origin || '').replace(/^https?:\/\/(www\.)?/, ''))) return;
+            let d = ev.data;
+            try { if (typeof d === 'string') d = JSON.parse(d); } catch (e) { return; }
+            const ps = d && d.info && typeof d.info === 'object' ? d.info.playerState : undefined;
+            if (typeof ps === 'number') {
+                state.ytPlayerState = ps;        // 1 playing, 3 buffering, 2 paused, 0 ended, -1 unstarted
+                state.ytStateAt = Date.now();
+            } else if (d && d.event === 'onStateChange' && typeof d.info === 'number') {
+                state.ytPlayerState = d.info;
+                state.ytStateAt = Date.now();
+            }
+        });
+        setInterval(() => {
+            if (!state.youtubeMode) return;
+            ['yt-player', 'cinema-player'].forEach(id => {
+                const f = document.getElementById(id);
+                if (f && f.src && f.src.includes('youtube') && f.contentWindow) {
+                    try { f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id, channel: 'widget' }), '*'); } catch (e) { }
+                }
+            });
+        }, 2000);
+
         function controlYouTube(command, args = []) {
             const msg = JSON.stringify({ event: 'command', func: command, args: args });
             const mainIframe = document.getElementById('yt-player');
@@ -1229,6 +1255,7 @@
                     state.musicPlaying = false;
                     if (cinBtn) { cinBtn.innerHTML = '<i data-lucide="play" class="h-6 w-6"></i>'; lucide.createIcons(cinBtn); }
                 } else {
+                    state.ytPlayerState = undefined;   // resuming: wait for YouTube to report "playing"
                     controlYouTube('playVideo');
                     state.musicPlaying = true;
                     if (cinBtn) { cinBtn.innerHTML = '<i data-lucide="pause" class="h-6 w-6"></i>'; lucide.createIcons(cinBtn); }
@@ -1296,6 +1323,8 @@
         function loadYouTubeTrack(idx, widgetTitle) {
             const track = state.videoQueue[idx];
             if (!track) return false;
+            state.ytPlayerState = undefined;   // new video: wait for its own state reports
+            state.ytLoadedAt = Date.now();
 
             audioPlayer.pause();
             audioPlayer.currentTime = 0;
@@ -1487,6 +1516,7 @@
 
             if (action === 'resume') {
                 if (state.youtubeMode) {
+                    state.ytPlayerState = undefined;   // resuming: wait for YouTube to report "playing"
                     controlYouTube('playVideo');
                 } else {
                     audioPlayer.play().catch(() => { });
@@ -2200,6 +2230,7 @@
                     elevenLabsState.isConnected = true;
                     elevenLabsState.connecting = false;
                     elevenLabsState.interruptedEventId = null;   // event ids restart in a new conversation
+                    elevenLabsState.replyScript = null;          // re-send the script hint in this new conversation
                     elevenLabsState.lastAudioEventId = undefined;
                     elevenLabsState.reconnectAttempts = 0;
                     isElevenLabsActive = true;
@@ -2273,6 +2304,8 @@
                             // Today's date, the time, and which medicine is due now
                             ws.send(JSON.stringify({ type: "contextual_update", text: buildTimeAndMedicineContext() }));
                             elevenLabsState.lastTimeContextAt = Date.now();
+                            // Continuing a Hindi conversation -> keep writing in Devanagari
+                            if (elevenLabsState.lastPatientText) sendScriptHint(elevenLabsState.lastPatientText);
                             // Alarms / reminders already in the Reminders list
                             if (state.reminders && state.reminders.length) {
                                 ws.send(JSON.stringify({ type: "contextual_update", text:
@@ -2335,6 +2368,7 @@
                         if (!isFiller && /dawa|davai|dvai|medicine|tablet|goli|le li|nahi li|दवा|दवाई|दवाइ|गोली|ले ली|नहीं ली/i.test(transcript) &&
                             Date.now() - (elevenLabsState.lastTimeContextAt || 0) > 60 * 1000) sendTimeContext();
                         if (!isFiller) autoLogTakenMedicine(transcript);
+                        if (!isFiller) { sendScriptHint(transcript); handleYesToOffer(transcript); }
                         if (!isFiller) {
                             rememberTurn("Patient: " + transcript);
                             addUIMessage('user', transcript);
@@ -2500,6 +2534,73 @@
             }
             addUIMessage('bot', `💊 Dose log: ${due.map(d => `${d.name} ${d.dose} (${fmt12(d.time)})`).join(', ')} — taken ✓`);
             try { loadBackendData(); } catch (e) {}
+        }
+
+        // ═══ REPLY SCRIPT: Hindi (Devanagari) when the patient speaks Hindi ═══
+        function scriptOf(text) {
+            if (/[ऀ-ॿ]/.test(text || '')) return 'deva';
+            if (/[a-z]/i.test(text || '')) return 'roman';
+            return null;
+        }
+        // Full English ("what is the time now please") vs Hinglish in Roman letters ("abhi time kya hua")
+        function isFullEnglish(text) {
+            const low = (text || '').toLowerCase();
+            // Asked for English explicitly ("English mein batao", "speak in English")
+            if (/english (mein|me|main|men)|in english|speak english|angrezi|अंग्रेज़ी|अंग्रेजी/.test(low)) return true;
+            const words = low.match(/[a-z']+/g) || [];
+            if (words.length < 4) return false;
+            // Hindi words that are not also common English words ("the", "do", "main", "par" are left out)
+            const HINDI = /^(hai|hain|hoon|hun|tha|thi|kya|kaise|kaisa|kab|kyun|kahan|kaun|kitne|kitna|mera|meri|mere|mujhe|aap|aapka|aapki|tum|hum|nahi|nahin|haan|ji|ka|ki|ke|ko|mein|aur|bhi|abhi|kal|aaj|batao|bataiye|karo|kar|dena|lena|liya|raha|rahi|rahe|gaya|gayi|chahiye|wala|wali|yeh|ye|woh|wo|accha|achha|theek|thik|bahut|thoda|dawai|dawa|baje|samay|din|raat|subah|shaam|beta|beti|dadi)$/;
+            const hindiCount = words.filter(w => HINDI.test(w)).length;
+            return hindiCount === 0;
+        }
+
+        function sendScriptHint(text) {
+            let scr = scriptOf(text);
+            if (scr === 'roman' && isFullEnglish(text)) scr = 'english';
+            const ws = elevenLabsState.ws;
+            if (!scr || scr === elevenLabsState.replyScript || !ws || ws.readyState !== WebSocket.OPEN) return;
+            elevenLabsState.replyScript = scr;
+            ws.send(JSON.stringify({ type: "contextual_update", text: scr === 'deva'
+                ? "LANGUAGE: the patient is speaking Hindi, written in Devanagari script. From now on write every reply fully in Hindi using Devanagari script (Hindi letters), with numbers as digits (236, 8.2%, 140/90). Medicine and test names may stay in English letters. Keep doing this until the patient switches to Roman letters."
+                : (isFullEnglish(text)
+                    ? "LANGUAGE: the patient is now speaking full English sentences. Reply in simple English until they speak Hindi again."
+                    : "LANGUAGE: the patient is speaking Hindi/Hinglish in Roman letters. Reply in Roman Hinglish (Hindi words in Roman letters), NOT in English. English words inside their sentence do not mean they want English.") }));
+        }
+
+        // ═══ "HAAN" AFTER AN OFFER ═══
+        // Asha asked "Palak ji ko message bhej doon?" / "call kar doon?" and the patient said yes:
+        // if she doesn't use her tool within a few seconds, the page does it (never twice).
+        const YES_ONLY = /^\s*(haan|haa|han|ha|haanji|haan ji|ji|jee|ji haan|bilkul|zaroor|jarur|ok|okay|theek hai|thik hai|bhej do|bhejo|kar do|karo|laga do|हाँ|हां|हा|जी|हाँ जी|हां जी|जी हाँ|बिल्कुल|ज़रूर|जरूर|ठीक है|भेज दो|भेजो|कर दो|करो|लगा दो)\s*[.!।,]*\s*$/i;
+        function handleYesToOffer(transcript) {
+            if (!YES_ONLY.test(transcript || '')) return;
+            const offer = elevenLabsState.lastAshaReply || '';
+            if (!/\?|？/.test(offer)) return;
+            const wantsMsg = /message|मैसेज|मेसेज|msg/i.test(offer);
+            const wantsCall = !wantsMsg && /call|कॉल|फोन|phone/i.test(offer);
+            if (!wantsMsg && !wantsCall) return;
+            const askedAt = Date.now();
+            setTimeout(async () => {
+                const calls = elevenLabsState.lastToolCalls || {};
+                if (wantsMsg && (calls.message_caretaker || 0) < askedAt - 2000) {
+                    // the message = what Asha just explained, without her question
+                    const body = offer.replace(/\[.*?\]/g, '').split(/(?<=[.!।?])\s+/)
+                        .filter(s => !/\?|？/.test(s)).join(' ').trim().slice(0, 400) || offer.slice(0, 400);
+                    const urgent = /high|low|serious|kam|zyada|jyada|गंभीर|ज़्यादा|ज्यादा|कम|हाई|लो/i.test(offer);
+                    console.log("[Saathi] Patient said yes; Asha did not send the message, sending it from the page");
+                    elevenLabsState.lastToolCalls = { ...calls, message_caretaker: Date.now() };
+                    const result = await sendSaathiMessage(body, urgent);
+                    const ws = elevenLabsState.ws;
+                    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "contextual_update",
+                        text: `The app has already sent the message to the caretaker as the patient agreed: ${result} Tell the patient briefly that it is sent; do not send it again and do not repeat the report.` }));
+                } else if (wantsCall && (calls.call_caretaker || 0) < askedAt - 2000) {
+                    elevenLabsState.lastToolCalls = { ...calls, call_caretaker: Date.now() };
+                    const result = await placeSaathiCall('caretaker', 'Patient agreed to call the caretaker');
+                    const ws = elevenLabsState.ws;
+                    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "contextual_update",
+                        text: `The app has already started the call to the caretaker as the patient agreed: ${result} Tell the patient briefly; do not call again.` }));
+                }
+            }, 6000);
         }
 
         function sendTimeContext() {
@@ -2874,7 +2975,19 @@
         // QUIET MODE WHILE MUSIC / BHAJAN / VIDEO PLAYS
         // ═══════════════════════════════════════════
         function isSaathiMediaPlaying() {
-            return !!(state && (state.musicPlaying || state.externalMusicPlaying));
+            if (!state) return false;
+            if (state.externalMusicPlaying) return true;          // separate window: can't observe it
+            if (!state.musicPlaying) return false;
+            if (!state.youtubeMode) {
+                // library song: trust the real <audio> element (finished / paused -> not playing)
+                return !!(typeof audioPlayer !== 'undefined' && audioPlayer && !audioPlayer.paused);
+            }
+            // YouTube: use the live player state once it reports (paused/ended -> Asha listens again)
+            const ps = state.ytPlayerState;
+            if (ps === undefined) return true;                          // no report yet: assume playing
+            if (ps === 1 || ps === 3) return true;                      // playing / buffering
+            if (ps === -1 || ps === 5) return Date.now() - (state.ytLoadedAt || 0) < 20000;   // still starting
+            return false;                                               // paused (2) or ended (0)
         }
 
         // Asha may finish the sentence she was speaking when the music started
@@ -3231,6 +3344,15 @@
             const rid = getRecipientId() || "1";
 
             let resultMsg = "Executed";
+            // Was this already done by the page a moment ago (patient said "haan")? Then don't do it twice.
+            const prevCalls = elevenLabsState.lastToolCalls || {};
+            if ((toolName === "message_caretaker" || toolName === "call_caretaker") && Date.now() - (prevCalls[toolName] || 0) < 60 * 1000) {
+                sendElevenLabsToolResult(callId, toolName === "message_caretaker"
+                    ? "Already sent to the caretaker a moment ago. Just confirm to the patient; do not send again."
+                    : "The call to the caretaker was already started a moment ago. Just confirm to the patient.", false);
+                return;
+            }
+            elevenLabsState.lastToolCalls = { ...prevCalls, [toolName]: Date.now() };
             // Asha sometimes calls play_music AND play_youtube_video for one request:
             // play only the first, so the track starts once.
             if (toolName === "play_music" || toolName === "play_youtube_video") {
@@ -3288,6 +3410,11 @@
                     toggleEmergencyMode(true);
                     resultMsg = "Emergency alert sent to family contacts.";
                     addUIMessage('bot', `🚨 ${resultMsg}`);
+                } else if (toolName === "get_current_time") {
+                    // The real time from this device (never the patient's guess)
+                    resultMsg = buildTimeAndMedicineContext() +
+                        " Tell the patient this exact time if they asked. If they said a different time, gently give the correct one.";
+                    elevenLabsState.lastTimeContextAt = Date.now();
                 } else if (toolName === "set_reminder") {
                     resultMsg = await setReminderFromAsha(params);
                 } else if (toolName === "message_caretaker") {

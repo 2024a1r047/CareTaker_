@@ -152,6 +152,32 @@ def _reports_section(recipient_id: int, db: Session) -> str:
     return "\n".join(f"- {l}" for l in lines)
 
 
+# Values outside these limits are physically impossible for a living patient and come from a
+# misread report (e.g. Hemoglobin "1"). They are never given to Asha as real results.
+PLAUSIBLE_LIMITS: Dict[str, Tuple[float, float]] = {
+    "Hemoglobin": (3, 25), "Fasting Glucose": (20, 800), "Postprandial Glucose": (20, 1000),
+    "Random Glucose": (20, 1000), "HbA1c": (3, 20), "Creatinine": (0.1, 20), "eGFR": (2, 200),
+    "Total Cholesterol": (50, 700), "LDL": (10, 500), "HDL": (5, 150), "Triglycerides": (20, 3000),
+    "Vitamin D": (1, 200), "Vitamin B12": (50, 5000), "Calcium": (4, 15), "Potassium": (1.5, 9),
+    "Sodium": (100, 180), "TSH": (0.005, 150), "Urea": (2, 400), "Uric Acid": (0.5, 20),
+}
+
+
+def _num(lv) -> Optional[float]:
+    v = lv.normalized_value if lv.normalized_value is not None else lv.metric_value
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _plausible(metric: str, value: Optional[float]) -> bool:
+    if value is None:
+        return False
+    lim = PLAUSIBLE_LIMITS.get(metric)
+    return not lim or lim[0] <= value <= lim[1]
+
+
 def _labs_section(recipient_id: int, db: Session, gender: str) -> Tuple[str, str]:
     from tables.medical_conditions import LabValue
     rows = (
@@ -168,9 +194,20 @@ def _labs_section(recipient_id: int, db: Session, gender: str) -> Tuple[str, str
 
     lines, abnormal = [], []
     for metric in sorted(history):
+        # Skip misread values (e.g. Hemoglobin "1"): use the latest believable reading instead
+        misread = [lv for lv in history[metric] if not _plausible(metric, _num(lv))]
+        good = [lv for lv in history[metric] if _plausible(metric, _num(lv))]
+        if not good:
+            bad = _num(misread[0]) if misread else None
+            lines.append(f"{metric}: the value in the uploaded report could not be read correctly"
+                         + (f" (it reads {bad:g}, which is not possible)" if bad is not None else "")
+                         + "; say it is unclear in the report and should be checked on the original report or with the doctor")
+            continue
+        if misread and misread[0] is history[metric][0]:
+            lines.append(f"{metric}: the newest report value could not be read correctly; using the last clear reading below")
+        history[metric] = good
         latest = history[metric][0]
-        value = latest.normalized_value if latest.normalized_value is not None else latest.metric_value
-        value = round(float(value), 2)
+        value = round(_num(latest), 2)
         unit =(latest.normalized_unit or latest.unit or "").replace("²", "2").replace("³", "3")
         rng, note = _range_for(metric, unit, gender)
         if not rng and latest.reference_range_low is not None and latest.reference_range_high is not None:
