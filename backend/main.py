@@ -538,6 +538,10 @@ async def get_current_weather(recipient_id: Optional[int] = None, db: Session = 
     
     try:
         data = weather_model.fetch_data(city=target_city)
+        if not data and target_city:
+            # Recipient's city not recognised — fall back to the default city
+            target_city = None
+            data = weather_model.fetch_data()
         if not data:
             return {
                 "error": "Failed to fetch weather data. Please try again later.",
@@ -551,12 +555,19 @@ async def get_current_weather(recipient_id: Optional[int] = None, db: Session = 
                 "status": "error"
             }
             
+        aqi_index = (current.get('air_quality') or {}).get('us-epa-index', 0)
+        aqi_labels = {1: "Good", 2: "Moderate", 3: "Unhealthy for Sensitive", 4: "Unhealthy", 5: "Very Unhealthy", 6: "Hazardous"}
         return {
             "temperature": current.get('temp_c', 'N/A'),
             "humidity": current.get('humidity', 'N/A'),
-            "aqi": current.get('air_quality', {}).get('us-epa-index', 0),
+            "aqi": aqi_index,
+            "aqi_label": aqi_labels.get(aqi_index, "Unknown"),
+            "pm2_5": (current.get('air_quality') or {}).get('pm2_5'),
+            "feels_like": current.get('feelslike_c'),
             "condition": current.get('condition', {}).get('text', 'Unknown'),
+            "icon": current.get('condition', {}).get('icon'),
             "location": data.get('location', {}).get('name', target_city or weather_model.city),
+            "region": data.get('location', {}).get('region'),
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "status": "success"
         }

@@ -984,8 +984,115 @@ async def run_recommendation_pipeline(
         except Exception as e:
             print(f"[insights_engine] {target_model} failed: {e}")
 
+    # ── FALLBACK: deterministic rule-engine cards ────────────────────────────
+    # If Gemini is unavailable (bad/missing key, quota, network) or returned nothing,
+    # turn the already-triggered clinical rules into recommendation cards so the
+    # Clinical AI tab never sits empty while real abnormalities exist.
+    if not all_generated and triggered_rules:
+        try:
+            fallback = build_rule_based_cards(triggered_rules)
+            if fallback.get("cards"):
+                for rec in merge_ai_output(fallback, "rule_engine", pid, triggered_rules):
+                    rec.source = "rule_engine"
+                    rec_dict = {"condition_group": rec.condition_group, "urgency": rec.severity}
+                    if not is_duplicate(rec_dict, pid, db):
+                        db.add(rec)
+                        all_generated.append(rec)
+                print(f"[insights_engine] Rule-engine fallback produced {len(all_generated)} card(s) for {pid}")
+        except Exception as e:
+            print(f"[insights_engine] Rule fallback failed: {e}")
+
     db.commit()
     return all_generated
+
+
+_GROUP_LABELS = {
+    "cardiovascular": "Heart & Blood Pressure",
+    "diabetes": "Blood Sugar",
+    "kidney": "Kidney Function",
+    "liver": "Liver Function",
+    "vitals": "Vital Signs",
+    "environment": "Home Environment",
+    "general": "General Health",
+}
+
+
+def _strip_disclaimer(msg: str) -> str:
+    msg = (msg or "").strip()
+    cut = msg.lower().find("please consult a qualified doctor")
+    return msg[:cut].strip() if cut > 0 else msg
+
+
+def build_rule_based_cards(triggered_groups: list) -> dict:
+    """Convert grouped static-rule hits into the v3 'cards' schema used by merge_ai_output."""
+    sev_to_urgency = {"critical": "act_now", "high": "today", "medium": "medium", "low": "suggestion", "suggestion": "suggestion"}
+    sev_to_window = {"critical": "Now", "high": "Today", "medium": "This week", "low": "This month", "suggestion": "This month"}
+    sev_to_next = {
+        "critical": "Within the next few hours",
+        "high": "Later today",
+        "medium": "In 2–3 days",
+        "low": "At the next routine check",
+        "suggestion": "At the next routine check",
+    }
+    action_order = {"doctor_visit": 0, "medication": 1, "diet": 2, "lifestyle": 3, "monitor": 4, "home_remedy": 9}
+    cards = []
+
+    for g in triggered_groups:
+        rules = sorted(g.get("rules") or [], key=lambda r: PRIORITY.get(r.get("severity", "low"), 0), reverse=True)
+        if not rules:
+            continue
+        severity = g.get("severity") or rules[0].get("severity", "medium")
+        group_key = str(g.get("metric", "general")).lower()
+        label = _GROUP_LABELS.get(group_key, group_key.title())
+        top = rules[0]
+
+        findings = []
+        for r in rules:
+            val = r.get("value")
+            ref = r.get("reference")
+            ref_s = str(ref).strip() if ref is not None else ""
+            if not ref_s or ref_s in ("N/A", "-", "None"):
+                ref_txt = ""
+            elif ref_s.startswith("-"):
+                ref_txt = f" (normal below {ref_s.lstrip('-').replace('.0', '')})"
+            else:
+                ref_txt = f" (normal {ref_s})"
+            findings.append(f"{r.get('metric')}: {val}{ref_txt}" if val is not None else str(r.get("metric")))
+
+        actions, seen = [], set()
+        for r in rules:
+            for a in sorted(r.get("actions") or [], key=lambda a: action_order.get(a.get("type"), 5)):
+                text = (a.get("text") or "").strip()
+                if not text or text.lower() in seen:
+                    continue
+                if a.get("type") == "home_remedy":
+                    text = f"{text} (traditional remedy — check with doctor first)"
+                seen.add(text.lower())
+                actions.append(text)
+        doctor_first = next((t for t in actions if "doctor" in t.lower() or "physician" in t.lower()), None)
+
+        names = ", ".join(dict.fromkeys(str(r.get("metric")) for r in rules))
+        cards.append({
+            "condition_group": label,
+            "urgency": sev_to_urgency.get(severity, "medium"),
+            "title": f"{_strip_disclaimer(top.get('message')).rstrip('.') or label + ' needs attention'}",
+            "caregiver_message": " ".join(_strip_disclaimer(r.get("message")) for r in rules),
+            "do_this_now": doctor_first or (actions[0] if actions else f"Review {names} with the doctor."),
+            "today_actions": actions[:5],
+            "why_this_matters": "Flagged from latest readings — " + "; ".join(findings),
+            "time_window": sev_to_window.get(severity, "This week"),
+            "call_doctor": severity in ("critical", "high"),
+            "call_ambulance": False,
+            "confidence": 0.9,
+            "action": "consult" if severity in ("critical", "high") else "monitor",
+            "next_check": {
+                "when": sev_to_next.get(severity, "In 2–3 days"),
+                "look_for": f"Updated {names} values and how they feel",
+                "if_worse": "Call their doctor" if severity != "critical" else "Seek urgent medical care",
+            },
+        })
+
+    return {"cards": cards, "overall_today": f"{len(cards)} health area(s) need attention based on recent readings."}
 
 
 def get_active_recommendations(

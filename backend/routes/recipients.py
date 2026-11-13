@@ -165,6 +165,14 @@ def _run_medical_history_pipeline_v2(recipient_id: int, report_id: int, filename
         except Exception as e:
             print(f"[pipeline_v2] medication import failed: {e}")
 
+        # ── 8c. Allergies mentioned in the report -> Allergies section ───────
+        try:
+            from services.report_allergy_sync import sync_report_allergies
+            sync_report_allergies(report, db, text=text)
+        except Exception as e:
+            db.rollback()
+            print(f"[pipeline_v2] allergy import failed: {e}")
+
         # ── 9. Aggregate summary ──────────────────────────────────────────────
         try:
             _recalculate_aggregate_summary(db, recipient_id)
@@ -265,6 +273,12 @@ def _run_medical_history_pipeline_v1_legacy(recipient_id: int, report_id: int, f
             sync_report_medications(report, db, text=text)
         except Exception as e:
             print(f"[pipeline_v1] medication import failed: {e}")
+        try:
+            from services.report_allergy_sync import sync_report_allergies
+            sync_report_allergies(report, db, text=text)
+        except Exception as e:
+            db.rollback()
+            print(f"[pipeline_v1] allergy import failed: {e}")
         try:
             _recalculate_aggregate_summary(db, recipient_id)
         except Exception:
@@ -968,7 +982,7 @@ async def get_care_recipient_profile(
     ]
 
     # 9. Vitals (Recent 30)
-    vitals_raw = db.query(VitalSign).filter(VitalSign.care_recipient_id == recipient_id).order_by(VitalSign.recorded_at.desc()).limit(30).all()
+    vitals_raw = db.query(VitalSign).filter(VitalSign.care_recipient_id == recipient_id).order_by(VitalSign.recorded_at.desc()).limit(120).all()
     vitals = [
         {
             "recorded_at": str(v.recorded_at) if v.recorded_at else None,
@@ -1173,16 +1187,39 @@ async def toggle_auto_order(recipient_id: int, med_id: int, payload: dict, autho
 
 
 # Allergies
+_ALLERGY_TYPE_ALIASES = {
+    "food": "food",
+    "drug": "drug", "medication": "drug", "medicine": "drug",
+    "environment": "environment", "environmental": "environment",
+    "other": "other",
+}
+
+
+def _normalize_allergy_type(value):
+    """Map UI labels (e.g. 'Food', 'Medication', 'Environmental') to the AllergyType enum."""
+    from tables.allergies import AllergyType
+    key = str(value or "other").strip().lower()
+    return AllergyType(_ALLERGY_TYPE_ALIASES.get(key, "other"))
+
+
+def _normalize_allergy_status(value):
+    from tables.allergies import AllergyStatus
+    key = str(value or "active").strip().lower()
+    return AllergyStatus.resolved if key == "resolved" else AllergyStatus.active
+
+
 @router.post("/care-recipients/{recipient_id}/allergies", response_model=ResponseSchema)
 async def add_allergy(recipient_id: int, data: AllergyInput, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
     from tables.allergies import Allergy, AllergyType, AllergyStatus
+    if not (data.allergen or "").strip():
+        raise HTTPException(400, "Allergen name is required")
     allg = Allergy(
         care_recipient_id=recipient_id,
-        allergen=data.allergen,
-        allergy_type=AllergyType(data.allergy_type),
+        allergen=data.allergen.strip(),
+        allergy_type=_normalize_allergy_type(data.allergy_type),
         reaction=data.reaction,
-        severity=data.severity,
-        status=AllergyStatus(data.status)
+        severity=(data.severity or "moderate").lower(),
+        status=_normalize_allergy_status(data.status)
     )
     db.add(allg)
     db.commit()
@@ -1195,12 +1232,26 @@ async def update_allergy(recipient_id: int, all_id: int, data: AllergyInput, aut
     if not allg: raise HTTPException(404, "Allergy not found")
     
     allg.allergen = data.allergen
-    allg.allergy_type = AllergyType(data.allergy_type)
+    allg.allergy_type = _normalize_allergy_type(data.allergy_type)
     allg.reaction = data.reaction
-    allg.severity = data.severity
-    allg.status = AllergyStatus(data.status)
+    allg.severity = (data.severity or "moderate").lower()
+    allg.status = _normalize_allergy_status(data.status)
     db.commit()
     return {"code": 200, "status": "success", "message": "Allergy updated"}
+
+
+@router.post("/care-recipients/{recipient_id}/allergies/import-from-reports", response_model=ResponseSchema)
+async def import_allergies_from_reports(recipient_id: int, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    """Scan all of this recipient's uploaded reports and add any allergies they mention (existing ones are kept)."""
+    username = _get_username_from_auth(authorization)
+    if not username:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid token")
+    from services.report_allergy_sync import sync_recipient_allergies_from_reports
+    result = sync_recipient_allergies_from_reports(recipient_id, db)
+    added = result["added"]
+    msg = (f"Imported {len(added)} allerg{'y' if len(added) == 1 else 'ies'} from {result['reports_scanned']} report(s)"
+           if added else f"No new allergies found in {result['reports_scanned']} report(s)")
+    return {"code": 200, "status": "success", "message": msg, "result": result}
 
 # Recommendations
 @router.get("/care-recipients/{recipient_id}/recommendations", response_model=ResponseSchema)
@@ -1209,7 +1260,8 @@ async def get_recommendations(recipient_id: int, authorization: Optional[str] = 
     from services.insights_engine import get_active_recommendations
     
     # Use the unified query function from insights_engine
-    recs = get_active_recommendations(str(recipient_id), db, hours=48)
+    # 7-day window so unresolved cards don't silently vanish after 2 days
+    recs = get_active_recommendations(str(recipient_id), db, hours=24 * 7)
     
     results = []
     for r in recs:

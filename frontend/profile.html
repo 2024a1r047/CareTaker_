@@ -799,13 +799,55 @@
         }
 
         /* Lab Analytics Redesign (Image 1 style) */
+        /* ---- Trend cards (Vitals + Labs) ---- */
+        .trend-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+        .trend-title { font-size: 1.4rem; font-weight: 800; color: #B97886; margin: 0; }
+        .trend-sub { color: var(--text-muted); margin: 2px 0 0; font-size: 0.85rem; font-weight: 500; }
+        .trend-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+        .trend-card { background: #fff; border: 1px solid var(--border-light); border-radius: 18px; padding: 16px 16px 12px; display: flex; flex-direction: column; min-width: 0; }
+        .trend-card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .trend-name { font-weight: 700; font-size: 0.9rem; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .trend-name i { color: #B97886; margin-right: 4px; }
+        .trend-value { font-size: 1.6rem; font-weight: 800; color: var(--text-main); margin: 6px 0 4px; font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+        .trend-value small { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); }
+        .trend-delta { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-left: auto; }
+        .trend-chart { position: relative; height: 170px; }
+        .trend-empty { height: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; color: #94A3B8; font-size: 0.85rem; background: #FAF7F4; border-radius: 12px; }
+        .trend-foot { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 0.72rem; color: var(--text-muted); margin-top: 8px; }
+        .trend-badge { font-size: 0.7rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+        .trend-badge.ok { background: #EEF4EC; color: #4F6B48; }
+        .trend-badge.high, .trend-badge.low { background: #FBEDEA; color: #A04A36; }
+        .trend-badge.na { background: #F1F5F9; color: #64748B; }
+        .trend-table { margin-top: 6px; font-size: 0.75rem; color: var(--text-muted); }
+        .trend-table summary { cursor: pointer; font-weight: 600; }
+        .trend-table table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+        .trend-table td { padding: 3px 0; border-bottom: 1px solid #F1ECE7; color: var(--text-main); }
+        .trend-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+        .trend-empty-block { grid-column: 1 / -1; text-align: center; padding: 40px 16px; color: var(--text-muted); }
+        .trend-empty-block i { font-size: 2rem; color: #D8C7CC; margin-bottom: 8px; }
+        .range-toggle { display: inline-flex; background: #F6F1EC; border-radius: 12px; padding: 3px; }
+        .range-toggle button { border: none; background: transparent; padding: 6px 12px; border-radius: 9px; font-weight: 700; font-size: 0.8rem; color: var(--text-muted); cursor: pointer; }
+        .range-toggle button.active { background: #fff; color: #B97886; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+        .lab-search { border: 1px solid var(--border-light); border-radius: 12px; padding: 8px 12px; font-size: 0.85rem; min-width: 180px; background: #fff; }
+        .lab-showall { font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; cursor: pointer; }
+        .lab-summary { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; }
+        .lab-summary strong { color: var(--text-main); }
+        .lab-summary .sum-flag, .lab-summary .sum-flag strong { color: #A04A36; }
+        .lab-summary .sum-ok i { color: #6E8C66; }
+        .lab-pill .pill-count { font-size: 0.68rem; opacity: 0.65; font-weight: 600; }
+        .lab-pill.flagged:not(.active) { border-color: #E9B9AD; }
+        .lab-pill .pill-flag { color: #C96B55; font-size: 0.7rem; }
+        .lab-pill.active .pill-flag { color: #fff; }
+        @media (max-width: 480px) { .trend-grid { grid-template-columns: 1fr; } .lab-search { min-width: 0; width: 100%; } }
+
         .lab-pill-group {
             display: flex;
-            flex-wrap: nowrap;
-            overflow-x: auto;
-            gap: 10px;
-            margin-bottom: 24px;
-            padding-bottom: 8px;
+            flex-wrap: wrap;
+            max-height: 132px;
+            overflow-y: auto;
+            gap: 8px;
+            margin-bottom: 20px;
+            padding-bottom: 4px;
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
@@ -815,6 +857,7 @@
         }
 
         .lab-pill {
+            font-family: inherit;
             flex-shrink: 0;
             background: rgba(255, 255, 255, 0.6);
             border: 1px solid var(--border-light);
@@ -1977,38 +2020,46 @@
 
                 <!-- TAB: VITALS -->
                 <div id="tab-vitals" class="tab-pane">
-                    <div class="card">
-                        <div class="card-header">
-                            <h2><i class="fas fa-heartbeat"></i> Vital Signs Historical Trends</h2>
+                    <div class="card" style="padding: 24px;">
+                        <div class="trend-head">
+                            <div>
+                                <h2 class="trend-title">Vital Signs Trends</h2>
+                                <p class="trend-sub" id="vitalsSubtitle">Loading…</p>
+                            </div>
+                            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                                <div class="range-toggle" id="vitalsRange" role="group" aria-label="Time range">
+                                    <button type="button" data-range="7">7D</button>
+                                    <button type="button" data-range="30" class="active">30D</button>
+                                    <button type="button" data-range="all">All</button>
+                                </div>
+                                <button class="btn btn-sm" onclick="openVitalsModal()"
+                                    style="background:var(--normal); color:white; border:none;"><i class="fas fa-plus"></i> Log Vitals</button>
+                            </div>
                         </div>
-                        <div class="chart-container">
-                            <canvas id="vitalChart"></canvas>
-                        </div>
+                        <div id="vitalTrendGrid" class="trend-grid"></div>
                     </div>
                 </div>
 
                 <!-- TAB: LABS -->
                 <div id="tab-labs" class="tab-pane">
                     <div class="card" style="padding: 24px;">
-                        <div
-                            style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
+                        <div class="trend-head">
                             <div>
-                                <h2 style="font-size:1.4rem; font-weight:800; color:#B97886; margin:0;">Clinical Lab
-                                    Analytics</h2>
-                                <p style="color:var(--text-muted); margin:2px 0 0; font-size:0.9rem; font-weight:500;">
-                                    Temporal trend mapping for metabolic markers</p>
+                                <h2 class="trend-title">Clinical Lab Analytics</h2>
+                                <p class="trend-sub">Each marker on its own scale · shaded band = reference range · red points are out of range</p>
                             </div>
-                            <div class="list-item-actions">
-                                <button class="btn btn-sm btn-outline" style="border-radius:12px;"><i
-                                        class="fas fa-filter"></i></button>
+                            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                                <input type="search" class="lab-search" placeholder="Search markers…"
+                                    oninput="labState.search = this.value; renderLabSelector();">
+                                <label class="lab-showall"><input type="checkbox"
+                                        onchange="labState.showAll = this.checked; renderLabSelector();"> Show all extracted</label>
                             </div>
                         </div>
 
+                        <div id="labSummary" class="lab-summary"></div>
                         <div id="labMetricSelector" class="lab-pill-group"></div>
 
-                        <div class="chart-container">
-                            <canvas id="labChart"></canvas>
-                        </div>
+                        <div id="labTrendGrid" class="trend-grid"></div>
 
                         <div id="labInsightsContainer" class="insight-container" style="margin-top:20px;"></div>
                     </div>
@@ -2050,9 +2101,14 @@
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
                                 <h2 style="font-size:1.5rem; font-weight:800; color:#B97886; margin:0;"><i
                                         class="fas fa-allergies"></i> Allergies & Sensitivities</h2>
-                                <button class="btn btn-sm" onclick="showAddModal('allergy')"
-                                    style="background:var(--normal); color:white; border:none;"><i
-                                        class="fas fa-plus"></i> Add Allergy</button>
+                                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                    <button class="btn btn-sm btn-outline" id="importAllergiesBtn"
+                                        onclick="importAllergiesFromReports()"><i class="fas fa-file-medical"></i>
+                                        Import from Reports</button>
+                                    <button class="btn btn-sm" onclick="showAddModal('allergy')"
+                                        style="background:var(--normal); color:white; border:none;"><i
+                                            class="fas fa-plus"></i> Add Allergy</button>
+                                </div>
                             </div>
                             <div id="allergiesList" class="dashboard-grid"></div>
                         </div>
@@ -2795,8 +2851,7 @@
             document.getElementById(tabId).classList.add('active');
 
             // Fix Chart.js rendering issues in hidden containers
-            if (tabId === 'tab-vitals' && charts.vitals) charts.vitals.resize();
-            if (tabId === 'tab-labs' && charts.labs) charts.labs.resize();
+            if (tabId === 'tab-vitals' || tabId === 'tab-labs') requestAnimationFrame(resizeTrendCharts);
             if (tabId === 'tab-reports') {
                 fetchRecipientReports();
             }
@@ -3483,6 +3538,12 @@
                 const items = data.result || [];
 
                 if (!items.length) {
+                    // First time with nothing on file: run the analysis once automatically
+                    if (!window._recsAutoRefreshed) {
+                        window._recsAutoRefreshed = true;
+                        refreshRecommendations();
+                        return;
+                    }
                     emptyState.style.display = 'block';
                     zUrgent.innerHTML = ''; zMonitor.innerHTML = ''; zHistory.innerHTML = '';
                     return;
@@ -3586,12 +3647,15 @@
 
         async function refreshRecommendations() {
             const btn = document.getElementById('btnRefreshRecs');
-            const el = document.getElementById('recommendationsList');
+            // Older markup used #recommendationsList; the v3 hub renders into #zone-urgent-recs
+            const el = document.getElementById('recommendationsList') || document.getElementById('zone-urgent-recs');
             if (!btn) return;
 
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
-            el.innerHTML = '<div class="empty-state"><i class="fas fa-brain fa-pulse"></i> AI is reviewing recent vitals and audio events...</div>';
+            const emptyState = document.getElementById('recsEmptyState');
+            if (emptyState) emptyState.style.display = 'none';
+            if (el) el.innerHTML = '<div class="empty-state"><i class="fas fa-brain fa-pulse"></i> AI is reviewing recent labs, vitals and audio events...</div>';
 
             try {
                 const res = await fetch(`${API_BASE}/care-recipients/${recipientId}/recommendations/refresh`, {
@@ -3608,7 +3672,7 @@
                 alert('Analysis failed. Please check backend connection.');
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
+                btn.innerHTML = '<i class="fas fa-sync-alt"></i> Force AI Refresh';
             }
         }
 
@@ -3675,7 +3739,8 @@
                 document.getElementById('allergyModalTitle').innerText = 'Update Allergy';
                 document.getElementById('allId').value = item.id || item.allergy_id;
                 document.getElementById('allName').value = item.allergen;
-                document.getElementById('allType').value = item.type || item.allergy_type || 'other';
+                const _allTypeMap = { food: 'Food', drug: 'Medication', medication: 'Medication', environment: 'Environmental', environmental: 'Environmental', other: 'Other' };
+                document.getElementById('allType').value = _allTypeMap[String(item.type || item.allergy_type || 'other').toLowerCase()] || 'Other';
                 document.getElementById('allReaction').value = item.reaction || '';
                 document.getElementById('allSeverity').value = (item.severity || 'moderate').toLowerCase();
                 document.getElementById('allStatus').value = item.status || 'active';
@@ -3741,6 +3806,28 @@
 
             await handleManagementSubmit(url, method, data, 'allergyModal');
         };
+
+        async function importAllergiesFromReports() {
+            const btn = document.getElementById('importAllergiesBtn');
+            const original = btn ? btn.innerHTML : '';
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scanning reports…'; }
+            try {
+                const res = await fetch(`${API_BASE}/care-recipients/${recipientId}/allergies/import-from-reports`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const body = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(body.detail || 'Import failed');
+                const added = (body.result && body.result.added) || [];
+                alert(body.message + (added.length ? ':\n• ' + added.join('\n• ') : '.'));
+                if (added.length) fetchProfileData();
+            } catch (err) {
+                console.error('Allergy import error:', err);
+                alert('Could not import allergies: ' + err.message);
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = original; }
+            }
+        }
 
         async function handleManagementSubmit(url, method, data, modalId) {
             try {
@@ -3846,222 +3933,413 @@
         //  CHARTING LOGIC (Chart.js)
         // ============================================
 
-        function renderVitalCharts() {
-            let vitals = profileData.vitals || [];
-            if (!vitals.length) return;
+        // ---------- Shared trend-card engine (small multiples, one axis per metric) ----------
+        const TREND_SERIES = ['#B0566B', '#2F72B8']; // validated pair (CVD-safe)
+        const TREND_CRITICAL = '#C96B55';
+        charts.vitalTrends = [];
+        charts.labTrends = [];
 
-            vitals = [...vitals].sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
-            const labels = vitals.map(v => new Date(v.recorded_at).toLocaleDateString([], { month: 'short', day: 'numeric' }));
+        function escHtml(s) {
+            return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
 
-            const hrData = vitals.map(v => v.heart_rate);
-            const trend = calculateTrend(hrData);
-            const trendLabel = trend === 'up' ? '↑ Increasing' : (trend === 'down' ? '↓ Decreasing' : '→ Stable');
+        function parseDateSafe(v) {
+            if (!v || v === 'None' || v === 'null') return null;
+            const d = new Date(String(v).replace(' ', 'T'));
+            return isNaN(d.getTime()) ? null : d;
+        }
 
-            const ctx = document.getElementById('vitalChart').getContext('2d');
-            if (charts.vitals) charts.vitals.destroy();
+        function fmtNum(v) {
+            if (v == null || isNaN(v)) return '--';
+            const n = Number(v);
+            return Math.abs(n) >= 100 ? String(Math.round(n)) : String(+n.toFixed(2));
+        }
 
-            charts.vitals = new Chart(ctx, {
+        function rangeStatus(value, low, high) {
+            if (value == null) return null;
+            if (high != null && value > high) return 'high';
+            if (low != null && low > 0 && value < low) return 'low';
+            return 'normal';
+        }
+
+        function statusBadge(status) {
+            if (status === 'high') return '<span class="trend-badge high"><i class="fas fa-arrow-up"></i> High</span>';
+            if (status === 'low') return '<span class="trend-badge low"><i class="fas fa-arrow-down"></i> Low</span>';
+            if (status === 'abnormal') return '<span class="trend-badge high"><i class="fas fa-exclamation"></i> Abnormal</span>';
+            if (status === 'normal') return '<span class="trend-badge ok"><i class="fas fa-check"></i> Normal</span>';
+            return '<span class="trend-badge na">No range</span>';
+        }
+
+        // Draws the shaded normal/reference range behind the line
+        const refBandPlugin = {
+            id: 'refBand',
+            beforeDatasetsDraw(chart, args, opts) {
+                if (!opts || (opts.low == null && opts.high == null)) return;
+                const { ctx, chartArea: { left, right, top, bottom }, scales: { y } } = chart;
+                const yHigh = opts.high != null ? y.getPixelForValue(opts.high) : top;
+                const yLow = opts.low != null && opts.low > 0 ? y.getPixelForValue(opts.low) : bottom;
+                const t = Math.max(top, Math.min(yHigh, yLow));
+                const b = Math.min(bottom, Math.max(yHigh, yLow));
+                ctx.save();
+                if (b > t) {
+                    ctx.fillStyle = 'rgba(145, 170, 138, 0.16)';
+                    ctx.fillRect(left, t, right - left, b - t);
+                }
+                ctx.strokeStyle = 'rgba(110, 140, 102, 0.55)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 4]);
+                [opts.high != null ? yHigh : null, opts.low != null && opts.low > 0 ? yLow : null].forEach(py => {
+                    if (py == null || py < top || py > bottom) return;
+                    ctx.beginPath(); ctx.moveTo(left, py); ctx.lineTo(right, py); ctx.stroke();
+                });
+                ctx.restore();
+            }
+        };
+
+        /**
+         * cfg: { title, icon, unit, low, high, points:[{date:Date, value, abnormal?}],
+         *        extraSeries?: {label, points, low, high}, seriesLabel?, footNote? }
+         */
+        function buildTrendCard(container, cfg) {
+            const pts = cfg.points.filter(p => p.value != null && !isNaN(p.value));
+            const card = document.createElement('div');
+            card.className = 'trend-card';
+
+            const latest = pts[pts.length - 1];
+            const prev = pts[pts.length - 2];
+            let status = latest ? rangeStatus(latest.value, cfg.low, cfg.high) : null;
+            if (latest && (cfg.low == null && cfg.high == null)) status = latest.abnormal ? 'abnormal' : null;
+            if (cfg.extraSeries && latest) {
+                const ex = cfg.extraSeries.points.filter(p => p.value != null);
+                const exS = ex.length ? rangeStatus(ex[ex.length - 1].value, cfg.extraSeries.low, cfg.extraSeries.high) : null;
+                if (status === 'normal' && exS && exS !== 'normal') status = exS;
+            }
+
+            let deltaHtml = '';
+            if (latest && prev) {
+                const d = latest.value - prev.value;
+                const arrow = Math.abs(d) < 1e-9 ? '→' : (d > 0 ? '▲' : '▼');
+                deltaHtml = `<span class="trend-delta">${arrow} ${fmtNum(Math.abs(d))} vs previous</span>`;
+            }
+
+            const exLatest = cfg.extraSeries ? cfg.extraSeries.points.filter(p => p.value != null).slice(-1)[0] : null;
+            const valueText = latest ? (exLatest ? `${fmtNum(latest.value)}/${fmtNum(exLatest.value)}` : fmtNum(latest.value)) : '--';
+            const rangeText = (cfg.low != null || cfg.high != null)
+                ? `Normal ${cfg.low != null && cfg.low > 0 ? fmtNum(cfg.low) : '<'}${cfg.low != null && cfg.low > 0 ? '–' : ''}${cfg.high != null ? fmtNum(cfg.high) : '+'} ${escHtml(cfg.unit || '')}`
+                : 'No reference range on file';
+
+            const fmtDate = d => d.toLocaleDateString([], { day: 'numeric', month: 'short', year: '2-digit' });
+            const tableRows = pts.slice().reverse().map((p, i) => {
+                const ex = cfg.extraSeries ? cfg.extraSeries.points[pts.length - 1 - i] : null;
+                const v = ex && ex.value != null ? `${fmtNum(p.value)}/${fmtNum(ex.value)}` : fmtNum(p.value);
+                return `<tr><td>${fmtDate(p.date)}</td><td>${v} ${escHtml(cfg.unit || '')}</td></tr>`;
+            }).join('');
+
+            card.innerHTML = `
+                <div class="trend-card-head">
+                    <span class="trend-name"><i class="fas ${cfg.icon || 'fa-vial'}"></i> ${escHtml(cfg.title)}</span>
+                    ${latest ? statusBadge(status) : ''}
+                </div>
+                <div class="trend-value">${valueText} <small>${escHtml(cfg.unit || '')}</small> ${deltaHtml}</div>
+                <div class="trend-chart">${pts.length ? '<canvas></canvas>' : '<div class="trend-empty"><i class="fas fa-chart-line"></i> No readings in this period</div>'}</div>
+                <div class="trend-foot">
+                    <span>${rangeText}</span>
+                    <span>${pts.length} reading${pts.length === 1 ? '' : 's'}${pts.length === 1 ? ' · add more to see a trend' : ''}</span>
+                </div>
+                ${pts.length ? `<details class="trend-table"><summary>View data</summary><table><tbody>${tableRows}</tbody></table></details>` : ''}
+            `;
+            container.appendChild(card);
+            if (!pts.length) return null;
+
+            const labels = pts.map(p => p.date.toLocaleDateString([], { day: 'numeric', month: 'short' }));
+            const allVals = pts.map(p => p.value)
+                .concat(cfg.extraSeries ? cfg.extraSeries.points.map(p => p.value).filter(v => v != null) : []);
+            const bandVals = [cfg.low, cfg.high].filter(v => v != null && v > 0);
+            const lo = Math.min(...allVals, ...bandVals), hi = Math.max(...allVals, ...bandVals);
+            const pad = (hi - lo) * 0.15 || Math.abs(hi) * 0.1 || 1;
+
+            const pointColor = (p, low, high) => {
+                const s = rangeStatus(p.value, low, high);
+                return (s === 'high' || s === 'low' || (low == null && high == null && p.abnormal)) ? TREND_CRITICAL : null;
+            };
+            const mkDataset = (label, points, color, low, high) => ({
+                label,
+                data: points.map(p => p.value),
+                borderColor: color,
+                backgroundColor: color,
+                borderWidth: 2,
+                tension: 0.3,
+                spanGaps: true,
+                pointRadius: points.length > 40 ? 2 : 4,
+                pointHoverRadius: 6,
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointBackgroundColor: points.map(p => pointColor(p, low, high) || color),
+                datalabels: { display: false }
+            });
+
+            const datasets = [mkDataset(cfg.seriesLabel || cfg.title, pts, TREND_SERIES[0], cfg.low, cfg.high)];
+            if (cfg.extraSeries) {
+                datasets.push(mkDataset(cfg.extraSeries.label, cfg.extraSeries.points, TREND_SERIES[1], cfg.extraSeries.low, cfg.extraSeries.high));
+            }
+
+            return new Chart(card.querySelector('canvas').getContext('2d'), {
                 type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: 'Heart Rate',
-                            data: hrData,
-                            borderColor: CHART_THEME.colors.primary,
-                            fill: false,
-                            tension: 0.4,
-                            borderWidth: 2,
-                            pointRadius: 0
-                        },
-                        {
-                            label: 'SpO2',
-                            data: vitals.map(v => v.oxygen_saturation),
-                            borderColor: CHART_THEME.colors.secondary,
-                            fill: false,
-                            borderWidth: 2,
-                            tension: 0.4,
-                            pointRadius: 0
-                        },
-                        {
-                            label: 'Temperature',
-                            data: vitals.map(v => v.temperature),
-                            borderColor: CHART_THEME.colors.tertiary,
-                            fill: false,
-                            borderWidth: 2,
-                            tension: 0.4,
-                            pointRadius: 0
-                        }
-                    ]
-                },
+                plugins: [refBandPlugin],
+                data: { labels, datasets },
                 options: {
-                    ...CHART_THEME.baseOptions,
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 400 },
+                    interaction: { mode: 'index', intersect: false },
+                    layout: { padding: { top: 6, right: 6 } },
                     plugins: {
-                        ...CHART_THEME.baseOptions.plugins,
-                        subtitle: {
-                            display: true,
-                            text: `Recent Trend: ${trendLabel}`,
-                            align: 'start',
-                            font: { size: 12, weight: '700' },
-                            color: trend === 'up' ? '#C96B55' : '#91AA8A',
-                            padding: { bottom: 10 }
+                        refBand: { low: cfg.low, high: cfg.high },
+                        datalabels: { display: false },
+                        legend: {
+                            display: !!cfg.extraSeries,
+                            position: 'top', align: 'start',
+                            labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, font: { size: 11, weight: '600' }, color: '#443744' }
+                        },
+                        tooltip: {
+                            ...CHART_THEME.baseOptions.plugins.tooltip,
+                            callbacks: {
+                                title: items => fmtDate(pts[items[0].dataIndex].date),
+                                label: item => {
+                                    const isExtra = item.datasetIndex === 1 && cfg.extraSeries;
+                                    const low = isExtra ? cfg.extraSeries.low : cfg.low;
+                                    const high = isExtra ? cfg.extraSeries.high : cfg.high;
+                                    const s = rangeStatus(item.raw, low, high);
+                                    const tag = (low == null && high == null) ? '' : (s === 'high' ? '  ▲ High' : s === 'low' ? '  ▼ Low' : '  ✓ Normal');
+                                    return ` ${item.dataset.label}: ${fmtNum(item.raw)} ${cfg.unit || ''}${tag}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { size: 10, weight: '600' }, color: '#94A3B8', maxRotation: 0, autoSkip: true, maxTicksLimit: 6 }
+                        },
+                        y: {
+                            suggestedMin: lo - pad,
+                            suggestedMax: hi + pad,
+                            grid: { color: 'rgba(148, 163, 184, 0.15)' },
+                            border: { display: false },
+                            ticks: { font: { size: 10, weight: '600' }, color: '#94A3B8', maxTicksLimit: 5 }
                         }
                     }
                 }
             });
         }
 
-        function initLabCharts() {
-            const labs = profileData.lab_values || [];
-            const selector = document.getElementById('labMetricSelector');
-            if (!selector) return;
+        // ---------- VITAL TRENDS ----------
+        let vitalsRange = '30';
 
-            const grouped = {};
-            labs.forEach(l => {
-                if (!grouped[l.test_name]) grouped[l.test_name] = [];
-                grouped[l.test_name].push(l);
-            });
-            Object.values(grouped).forEach(arr => arr.sort((a, b) => new Date(a.test_date) - new Date(b.test_date)));
+        function setVitalsRange(r) {
+            vitalsRange = r;
+            document.querySelectorAll('#vitalsRange button').forEach(b => b.classList.toggle('active', b.dataset.range === r));
+            renderVitalCharts();
+        }
 
-            const metrics = Object.keys(grouped).sort();
+        function renderVitalCharts() {
+            const grid = document.getElementById('vitalTrendGrid');
+            if (!grid) return;
+            charts.vitalTrends.forEach(c => c && c.destroy());
+            charts.vitalTrends = [];
+            grid.innerHTML = '';
 
-            const colors = ['#B97886', '#B97886', '#91AA8A', '#E8B89A'];
+            let vitals = (profileData.vitals || [])
+                .map(v => ({ ...v, _d: parseDateSafe(v.recorded_at) }))
+                .filter(v => v._d)
+                .sort((a, b) => a._d - b._d);
 
-            selector.innerHTML = metrics.map((m, idx) => `
-                <div class="lab-pill" data-metric="${m}" onclick="toggleMetric('${m}')">
-                    <i class="fas fa-circle" style="color:${colors[idx % colors.length]}"></i> ${m}
-                </div>
-            `).join('');
-
-            // Default selection: HbA1c, Glucose if present
-            const defaults = ['HbA1c', 'Fasting Glucose', 'ALT', 'Glucose', 'AST'].filter(m => metrics.includes(m));
-            if (defaults.length) {
-                defaults.slice(0, 4).forEach(m => {
-                    const el = selector.querySelector(`[data-metric="${m}"]`);
-                    if (el) el.classList.add('active');
-                });
-            } else if (metrics.length) {
-                selector.querySelector('.lab-pill').classList.add('active');
+            const total = vitals.length;
+            if (vitalsRange !== 'all') {
+                const cutoff = Date.now() - Number(vitalsRange) * 86400000;
+                vitals = vitals.filter(v => v._d.getTime() >= cutoff);
             }
 
+            const sub = document.getElementById('vitalsSubtitle');
+            if (sub) {
+                sub.textContent = total
+                    ? `${vitals.length} of ${total} readings shown · shaded band = normal range`
+                    : 'No vitals recorded yet';
+            }
+
+            if (!total) {
+                grid.innerHTML = `<div class="trend-empty-block"><i class="fas fa-heart-pulse"></i>
+                    <p>No vital signs recorded yet.</p>
+                    <button class="btn btn-sm btn-primary" onclick="openVitalsModal()"><i class="fas fa-plus"></i> Log Vitals</button></div>`;
+                return;
+            }
+
+            const series = key => vitals.filter(v => v[key] != null).map(v => ({ date: v._d, value: Number(v[key]) }));
+
+            // Temperature may be stored in °C or °F — detect from data
+            const temps = series('temperature');
+            const isCelsius = temps.length && temps.every(t => t.value < 50);
+
+            const bpSys = vitals.filter(v => v.systolic_bp != null);
+            const defs = [
+                { title: 'Heart Rate', icon: 'fa-heart-pulse', unit: 'bpm', low: 60, high: 100, points: series('heart_rate') },
+                {
+                    title: 'Blood Pressure', icon: 'fa-droplet', unit: 'mmHg', low: 90, high: 120, seriesLabel: 'Systolic',
+                    points: bpSys.map(v => ({ date: v._d, value: Number(v.systolic_bp) })),
+                    extraSeries: { label: 'Diastolic', low: 60, high: 80, points: bpSys.map(v => ({ date: v._d, value: v.diastolic_bp != null ? Number(v.diastolic_bp) : null })) }
+                },
+                { title: 'Oxygen (SpO₂)', icon: 'fa-lungs', unit: '%', low: 95, high: 100, points: series('oxygen_saturation') },
+                { title: 'Temperature', icon: 'fa-temperature-half', unit: isCelsius ? '°C' : '°F', low: isCelsius ? 36.1 : 97, high: isCelsius ? 37.5 : 99.5, points: temps },
+                { title: 'Sleep Score', icon: 'fa-moon', unit: '/100', low: 70, high: 100, points: series('sleep_score') },
+                { title: 'BMI', icon: 'fa-weight-scale', unit: 'kg/m²', low: 18.5, high: 24.9, points: series('bmi') }
+            ];
+
+            defs.forEach(d => charts.vitalTrends.push(buildTrendCard(grid, d)));
+        }
+
+        // ---------- LAB ANALYTICS ----------
+        const KNOWN_LABS = ['hemoglobin', 'hba1c', 'glucose', 'cholesterol', 'ldl', 'hdl', 'triglyceride', 'creatinine', 'urea', 'bun',
+            'egfr', 'alt', 'ast', 'alp', 'bilirubin', 'albumin', 'vitamin', 'tsh', 't3', 't4', 'wbc', 'rbc', 'platelet', 'crp', 'esr',
+            'sodium', 'potassium', 'chloride', 'calcium', 'uric acid', 'ferritin', 'iron', 'b12', 'folate', 'psa', 'inr', 'hematocrit',
+            'mcv', 'mch', 'neutrophil', 'lymphocyte', 'magnesium', 'phosphorus', 'protein', 'insulin', 'ggt', 'ldh', 'cpk', 'troponin'];
+
+        let labState = { selected: [], showAll: false, search: '', groups: {} };
+        let labInsightTimer = null;
+
+        function buildLabGroups() {
+            const groups = {};
+            (profileData.lab_values || []).forEach(l => {
+                const d = parseDateSafe(l.test_date);
+                const v = Number(l.test_value);
+                if (!d || l.test_value == null || isNaN(v) || !l.test_name) return;
+                const name = String(l.test_name).trim();
+                if (!groups[name]) groups[name] = { name, unit: '', low: null, high: null, byDate: {} };
+                const g = groups[name];
+                if (l.test_unit) g.unit = l.test_unit;
+                if (l.reference_low != null) g.low = Number(l.reference_low);
+                if (l.reference_high != null) g.high = Number(l.reference_high);
+                // one value per day (latest wins)
+                g.byDate[d.toISOString().slice(0, 10)] = { date: d, value: v, abnormal: !!l.is_abnormal };
+            });
+            Object.values(groups).forEach(g => {
+                g.points = Object.values(g.byDate).sort((a, b) => a.date - b.date);
+                const lname = g.name.toLowerCase();
+                g.clinical = g.low != null || g.high != null || KNOWN_LABS.some(k => lname.includes(k));
+                const last = g.points[g.points.length - 1];
+                g.status = last ? ((g.low != null || g.high != null) ? rangeStatus(last.value, g.low, g.high) : (last.abnormal ? 'abnormal' : null)) : null;
+                g.flagged = g.status === 'high' || g.status === 'low' || g.status === 'abnormal';
+            });
+            return groups;
+        }
+
+        function initLabCharts() {
+            labState.groups = buildLabGroups();
+            const all = Object.values(labState.groups);
+            const pool = all.filter(g => g.clinical).length ? all.filter(g => g.clinical) : all;
+            // Default: flagged markers with history first, then the most-measured ones
+            const ranked = pool.slice().sort((a, b) =>
+                (b.flagged - a.flagged) || (b.points.length - a.points.length) || a.name.localeCompare(b.name));
+            labState.selected = ranked.slice(0, 4).map(g => g.name);
+            renderLabSelector();
             updateLabChart();
         }
 
-        function toggleMetric(metric) {
-            const el = document.querySelector(`[data-metric="${metric}"]`);
-            const activeCount = document.querySelectorAll('.lab-pill.active').length;
+        function renderLabSelector() {
+            const selector = document.getElementById('labMetricSelector');
+            const summary = document.getElementById('labSummary');
+            if (!selector) return;
+            const all = Object.values(labState.groups);
+            const clinical = all.filter(g => g.clinical);
 
-            if (el.classList.contains('active')) {
-                if (activeCount > 1) el.classList.remove('active');
-            } else {
-                if (activeCount < 4) el.classList.add('active');
-                else alert("Select up to 4 metrics for clear trend comparison.");
+            if (summary) {
+                const flagged = clinical.filter(g => g.flagged).length;
+                summary.innerHTML = all.length
+                    ? `<span><strong>${clinical.length}</strong> tracked markers</span>
+                       <span class="${flagged ? 'sum-flag' : 'sum-ok'}"><i class="fas ${flagged ? 'fa-triangle-exclamation' : 'fa-check'}"></i> <strong>${flagged}</strong> out of range (latest)</span>
+                       <span><strong>${labState.selected.length}</strong> selected · max 6</span>`
+                    : '';
             }
+
+            if (!all.length) {
+                selector.innerHTML = '';
+                return;
+            }
+
+            const q = labState.search.toLowerCase();
+            const list = (labState.showAll || !clinical.length ? all : clinical)
+                .filter(g => !q || g.name.toLowerCase().includes(q))
+                .sort((a, b) => (b.flagged - a.flagged) || a.name.localeCompare(b.name));
+
+            selector.innerHTML = list.map(g => {
+                const active = labState.selected.includes(g.name);
+                const flag = g.status === 'high' ? '<i class="fas fa-arrow-up pill-flag"></i>'
+                    : g.status === 'low' ? '<i class="fas fa-arrow-down pill-flag"></i>'
+                        : g.status === 'abnormal' ? '<i class="fas fa-exclamation pill-flag"></i>' : '';
+                return `<button type="button" class="lab-pill${active ? ' active' : ''}${g.flagged ? ' flagged' : ''}" data-metric="${escHtml(g.name)}"
+                            title="${escHtml(g.name)} · ${g.points.length} reading(s)">${flag}${escHtml(g.name)}<span class="pill-count">${g.points.length}</span></button>`;
+            }).join('') || '<span class="trend-foot">No markers match your search.</span>';
+        }
+
+        function toggleMetric(metric) {
+            const i = labState.selected.indexOf(metric);
+            if (i >= 0) {
+                labState.selected.splice(i, 1);
+            } else {
+                if (labState.selected.length >= 6) labState.selected.shift();
+                labState.selected.push(metric);
+            }
+            renderLabSelector();
             updateLabChart();
         }
 
         function updateLabChart() {
-            const selector = document.getElementById('labMetricSelector');
-            const activePills = Array.from(selector.querySelectorAll('.lab-pill.active'));
-            const selected = activePills.map(p => p.getAttribute('data-metric'));
+            const grid = document.getElementById('labTrendGrid');
+            if (!grid) return;
+            charts.labTrends.forEach(c => c && c.destroy());
+            charts.labTrends = [];
+            grid.innerHTML = '';
 
-            const labs = profileData.lab_values || [];
-            const grouped = {};
-            labs.forEach(l => {
-                if (!grouped[l.test_name]) grouped[l.test_name] = [];
-                grouped[l.test_name].push(l);
-            });
-            Object.values(grouped).forEach(arr => arr.sort((a, b) => new Date(a.test_date) - new Date(b.test_date)));
-
-            // Calculate trend for primary (first) selected metric
-            let trendLabel = '→ Stable';
-            let trendColor = '#91AA8A';
-            if (selected.length > 0) {
-                const primaryData = (grouped[selected[0]] || []).map(d => d.test_value);
-                const trend = calculateTrend(primaryData);
-                trendLabel = trend === 'up' ? '↑ Increasing' : (trend === 'down' ? '↓ Decreasing' : '→ Stable');
-                trendColor = trend === 'up' ? '#C96B55' : '#91AA8A';
+            if (!Object.keys(labState.groups).length) {
+                grid.innerHTML = `<div class="trend-empty-block"><i class="fas fa-flask"></i>
+                    <p>No lab results yet. Upload a medical report and its lab values will be charted here.</p></div>`;
+                document.getElementById('labInsightsContainer').innerHTML = '';
+                return;
+            }
+            if (!labState.selected.length) {
+                grid.innerHTML = `<div class="trend-empty-block"><i class="fas fa-hand-pointer"></i><p>Select one or more markers above to see their trend.</p></div>`;
+                document.getElementById('labInsightsContainer').innerHTML = '';
+                return;
             }
 
-            const allDates = [...new Set(selected.flatMap(m => grouped[m].map(d => new Date(d.test_date).toISOString().split('T')[0])))]
-                .sort((a, b) => new Date(a) - new Date(b));
-
-            const canvas = document.getElementById('labChart');
-            if (!canvas) return;
-
-            const ctx = canvas.getContext('2d');
-            if (charts.labs) charts.labs.destroy();
-
-            const chartColors = [CHART_THEME.colors.primary, CHART_THEME.colors.secondary, CHART_THEME.colors.tertiary, CHART_THEME.colors.quaternary];
-
-            charts.labs = new Chart(ctx, {
-                type: 'line',
-                plugins: [ChartDataLabels],
-                data: {
-                    labels: allDates.map(d => new Date(d).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })),
-                    datasets: selected.map((m, index) => {
-                        const datasetData = allDates.map(dateStr => {
-                            const match = (grouped[m] || []).find(d => new Date(d.test_date).toISOString().split('T')[0] === dateStr);
-                            return match ? match.test_value : null;
-                        });
-
-                        return {
-                            label: m,
-                            data: datasetData,
-                            borderColor: chartColors[index % chartColors.length],
-                            backgroundColor: chartColors[index % chartColors.length],
-                            fill: false,
-                            tension: 0.4,
-                            borderWidth: 2,
-                            pointRadius: 5,
-                            pointHoverRadius: 8,
-                            pointBackgroundColor: '#fff',
-                            spanGaps: true,
-                            datalabels: {
-                                align: 'top',
-                                anchor: 'end',
-                                color: chartColors[index % chartColors.length],
-                                font: { weight: 'bold', size: 10 },
-                                offset: 4,
-                                formatter: (val) => val !== null ? val : ''
-                            }
-                        };
-                    })
-                },
-                options: {
-                    ...CHART_THEME.baseOptions,
-                    plugins: {
-                        ...CHART_THEME.baseOptions.plugins,
-                        datalabels: {
-                            display: true
-                        },
-                        subtitle: {
-                            display: true,
-                            text: `${selected[0] || 'Lab'} Trend: ${trendLabel}`,
-                            align: 'start',
-                            font: { size: 12, weight: '700' },
-                            color: trendColor,
-                            padding: { bottom: 10 }
-                        },
-                        legend: {
-                            ...CHART_THEME.baseOptions.plugins.legend,
-                            align: 'start'
-                        }
-                    },
-                    scales: {
-                        ...CHART_THEME.baseOptions.scales,
-                        x: {
-                            ...CHART_THEME.baseOptions.scales.x,
-                            autoSkip: false
-                        }
-                    }
-                }
+            labState.selected.forEach(name => {
+                const g = labState.groups[name];
+                if (!g) return;
+                charts.labTrends.push(buildTrendCard(grid, {
+                    title: g.name, icon: 'fa-vial', unit: g.unit, low: g.low, high: g.high, points: g.points
+                }));
             });
 
-            renderLabInsights(selected, grouped);
-
-            // Selected Metrics Summary removed as per user request
+            // Debounce the AI call so quick toggling doesn't spam the backend
+            clearTimeout(labInsightTimer);
+            const grouped = {};
+            labState.selected.forEach(n => {
+                const g = labState.groups[n];
+                if (g) grouped[n] = g.points.map(p => ({ test_value: p.value, test_date: p.date.toISOString() }));
+            });
+            const selected = labState.selected.slice();
+            labInsightTimer = setTimeout(() => renderLabInsights(selected, grouped), 700);
         }
+
+        function resizeTrendCharts() {
+            [...(charts.vitalTrends || []), ...(charts.labTrends || [])].forEach(c => c && c.resize());
+        }
+
+        document.addEventListener('click', e => {
+            const pill = e.target.closest('#labMetricSelector .lab-pill');
+            if (pill) toggleMetric(pill.dataset.metric);
+            const rangeBtn = e.target.closest('#vitalsRange button');
+            if (rangeBtn) setVitalsRange(rangeBtn.dataset.range);
+        });
 
         async function renderLabInsights(selected, grouped) {
             const container = document.getElementById('labInsightsContainer');

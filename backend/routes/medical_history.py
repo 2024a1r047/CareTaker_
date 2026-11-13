@@ -494,6 +494,14 @@ def reprocess_report(
             except Exception as _me:
                 print(f"[reprocess] medication import failed: {_me}")
 
+            # Allergies mentioned in the report -> Allergies section (skips existing ones)
+            try:
+                from services.report_allergy_sync import sync_report_allergies
+                sync_report_allergies(bg_report, bg_db, text=text)
+            except Exception as _ae:
+                bg_db.rollback()
+                print(f"[reprocess] allergy import failed: {_ae}")
+
         except Exception as e:
             print(f"[reprocess] Error: {e}")
             bg_db.rollback()
