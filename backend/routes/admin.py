@@ -331,8 +331,34 @@ async def delete_caretaker(
     if not c:
         raise HTTPException(status_code=404, detail="Caretaker not found")
     name = c.full_name
-    db.delete(c)
-    db.commit()
+    try:
+        # Feature tables added later (camera falls, medicine tracking, video analyses, sensors) point to
+        # the caretaker / their patients WITHOUT "on delete cascade", so the database refused to delete
+        # any caretaker who had used them. Remove that data first (children before parents), then the
+        # caretaker; everything else already cascades.
+        rids = [r[0] for r in db.execute(text("SELECT id FROM care_recipients WHERE caretaker_id = :c"),
+                                         {"c": caretaker_id}).fetchall()]
+        params = {"c": caretaker_id, "r": rids or [-1]}
+        for table, cols in [
+            ("medicine_sightings",  ("caretaker_id", "recipient_id")),
+            ("medicine_refs",       ("caretaker_id", "recipient_id")),
+            ("table_watch_events",  ("caretaker_id", "recipient_id")),
+            ("fall_events",         ("caretaker_id", "recipient_id")),
+            ("video_analysis",      ("caretaker_id", "recipient_id")),
+            ("environment_sensors", (None, "care_recipient_id")),
+        ]:
+            care_col, rec_col = cols
+            where = [f"{rec_col} = ANY(:r)"] + ([f"{care_col} = :c"] if care_col else [])
+            db.execute(text(f"DELETE FROM {table} WHERE " + " OR ".join(where)), params)
+        # Delete in the database itself: its ON DELETE CASCADE rules remove every patient record
+        # (vitals, reports, weekly reports, recommendations, ...). Deleting through the ORM instead
+        # tried to blank the patient id on some of them (e.g. weekly_reports) and failed.
+        db.execute(text("DELETE FROM care_recipients WHERE caretaker_id = :c"), {"c": caretaker_id})
+        db.execute(text("DELETE FROM caretakers WHERE id = :c"), {"c": caretaker_id})
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Could not remove caretaker: {e}")
     _log_action(db, admin, "DELETE_CARETAKER", "caretaker", caretaker_id, name, "Deleted by admin")
     return {"message": f"Caretaker '{name}' and all associated data has been removed."}
 

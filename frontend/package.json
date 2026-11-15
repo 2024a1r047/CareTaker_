@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "serve ."
+    "dev": "node dev_server.js",
+    "dev:serve": "serve ."
   },
   "keywords": [],
   "author": "",

@@ -37,6 +37,7 @@ VALID_CATEGORIES = {
     "dislikes",
     "routine",
     "mood",
+    "life",      # life story: former job, home town, marriage (e.g. "I used to be a teacher")
 }
 
 SYSTEM_PROMPT_TEMPLATE = """You are Saathi, a warm, patient and caring voice companion.
@@ -53,6 +54,108 @@ PERSONAL PROFILE ACCESS & INSTRUCTIONS:
 - When {{preferred_name}} asks about their personal details, medicines, schedule, allergies, doctor's remarks, blood group, or emergency contact, answer directly, accurately, and reassuringly from their profile.
 - Always address them as "{{preferred_name}}".
 """
+
+
+_MEMORY_SCHEMA_OK = False
+
+
+def ensure_memory_schema() -> None:
+    """Let member_memory store every category the code uses (adds "life").
+
+    The table was created with a CHECK constraint listing only health/medicine/family/likes/
+    dislikes/routine/mood. Inserting a "life" fact (teacher, school, marriage...) failed and the
+    whole session's facts were rolled back, so nothing new was remembered. Idempotent.
+    """
+    global _MEMORY_SCHEMA_OK
+    if _MEMORY_SCHEMA_OK or not SaathiSessionLocal:
+        return
+    from sqlalchemy import text as _text
+    cats = ", ".join(f"'{c}'" for c in sorted(VALID_CATEGORIES))
+    try:
+        with SaathiSessionLocal() as s_db:
+            row = s_db.execute(_text(
+                "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                "WHERE conname = 'member_memory_category_check'")).fetchone()
+            if row and all(f"'{c}'" in row[0] for c in VALID_CATEGORIES):
+                _MEMORY_SCHEMA_OK = True
+                return
+            s_db.execute(_text("ALTER TABLE member_memory DROP CONSTRAINT IF EXISTS member_memory_category_check"))
+            s_db.execute(_text(f"ALTER TABLE member_memory ADD CONSTRAINT member_memory_category_check "
+                               f"CHECK (category IN ({cats}))"))
+            s_db.commit()
+            logger.info("[Saathi Memory] member_memory now accepts categories: %s", cats)
+        _MEMORY_SCHEMA_OK = True
+    except Exception as e:
+        logger.warning(f"[Saathi Memory] could not update member_memory categories: {e}")
+
+
+def remember_fact(family_member_id: int, category: str, fact: str,
+                  source_message_id: Optional[uuid.UUID] = None) -> bool:
+    """Store one durable fact (updates a near-duplicate instead of adding it twice)."""
+    category = (category or "").lower().strip()
+    fact = (fact or "").strip()
+    if not family_member_id or category not in VALID_CATEGORIES or not fact or not SaathiSessionLocal:
+        return False
+    ensure_memory_schema()
+    try:
+        with SaathiSessionLocal() as s_db:
+            _ensure_family_member_exists(s_db, family_member_id)
+            existing = s_db.query(MemberMemory).filter(
+                MemberMemory.family_member_id == family_member_id,
+                MemberMemory.category == category).all()
+            fw = set(fact.lower().split())
+            matched = None
+            for ex in existing:
+                ew = set((ex.fact or "").lower().split())
+                ov = len(fw & ew)
+                if (ex.fact or "").strip().lower() == fact.lower() or (ew and ov / max(len(ew), len(fw)) > 0.7):
+                    matched = ex
+                    break
+            now = datetime.now(timezone.utc)
+            if matched:
+                matched.fact = fact
+                matched.updated_at = now
+            else:
+                s_db.add(MemberMemory(family_member_id=family_member_id, category=category, fact=fact,
+                                      source_message_id=source_message_id, created_at=now, updated_at=now))
+            s_db.commit()
+            return True
+    except Exception as e:
+        logger.warning(f"[Saathi Memory] could not save fact ({category}): {e}")
+        return False
+
+
+def has_fact_containing(family_member_id: int, marker: str) -> bool:
+    if not family_member_id or not marker or not SaathiSessionLocal:
+        return False
+    try:
+        with SaathiSessionLocal() as s_db:
+            return s_db.query(MemberMemory.id).filter(
+                MemberMemory.family_member_id == family_member_id,
+                MemberMemory.fact.contains(marker)).first() is not None
+    except Exception:
+        return False
+
+
+def remember_from_turn(family_member_id: int, text: str) -> None:
+    """Save lasting personal facts from ONE thing the patient just said (runs in the background).
+
+    Memory used to be extracted only when a conversation ended cleanly - a closed page or a
+    dropped call lost everything that was said.
+    """
+    if not family_member_id or not text or len(text.strip()) < 12:
+        return
+
+    def _work():
+        try:
+            from services.memory_heuristics import extract_facts
+            for f in extract_facts([{"id": "", "content": text}]):
+                remember_fact(family_member_id, f["category"], f["fact"])
+        except Exception as e:
+            logger.warning(f"[Saathi Memory] per-turn memory failed: {e}")
+
+    import threading
+    threading.Thread(target=_work, daemon=True).start()
 
 
 def _to_valid_uuid(val: Union[str, uuid.UUID]) -> uuid.UUID:
@@ -312,7 +415,12 @@ Summary:"""
     except Exception as e:
         logger.warning(f"Failed to generate session summary with Gemini: {e}")
 
-    # Fallback summary
+    # Fallback summary: topics + one concern + one personal detail (not a raw transcript dump)
+    try:
+        from services.memory_heuristics import summarize
+        return summarize(messages)
+    except Exception as e:
+        logger.warning(f"Heuristic summary failed: {e}")
     user_msgs = [m["content"] for m in messages if m["role"] == "user"]
     if user_msgs:
         return f"Member talked about: {', '.join(user_msgs[:3])}."
@@ -374,7 +482,15 @@ User messages:
             logger.warning(f"Memory extraction failed: {e}")
 
         if not extracted or not isinstance(extracted, list):
-            # Heuristic extractor fallback across all 7 categories
+            # Clean rule-based extractor: only first-person statements, never questions,
+            # commands or filler (see services/memory_heuristics.py)
+            try:
+                from services.memory_heuristics import extract_facts
+                extracted = extract_facts(user_turns)
+            except Exception as e:
+                logger.warning(f"Heuristic memory extraction failed: {e}")
+                extracted = []
+        if False:  # previous keyword fallback, kept for reference (stored raw sentences)
             import re
             extracted = []
             for t in user_turns:
@@ -395,7 +511,8 @@ User messages:
                 elif any(k in txt for k in ["khush", "happy", "udas", "sad", "gham", "bored", "bore", "lonely", "alone"]):
                     extracted.append({"category": "mood", "fact": t["content"], "source_id": tid})
 
-        # Upsert each fact
+        ensure_memory_schema()
+        # Upsert each fact (each in its own savepoint: one rejected fact no longer loses all the others)
         for item in extracted:
             cat = str(item.get("category", "")).lower().strip()
             fact = str(item.get("fact", "")).strip()
@@ -430,22 +547,29 @@ User messages:
                     matched = ex
                     break
 
-            if matched:
-                matched.fact = fact
-                matched.source_message_id = source_uuid or matched.source_message_id
-                matched.updated_at = datetime.now(timezone.utc)
-                logger.info(f"[Saathi Memory] Updated existing {cat} fact: {fact}")
-            else:
-                new_mem = MemberMemory(
-                    family_member_id=family_member_id,
-                    category=cat,
-                    fact=fact,
-                    source_message_id=source_uuid,
-                    created_at=datetime.now(timezone.utc),
-                    updated_at=datetime.now(timezone.utc),
-                )
-                s_db.add(new_mem)
-                logger.info(f"[Saathi Memory] Added new {cat} fact: {fact}")
+            sp = s_db.begin_nested()
+            try:
+                if matched:
+                    matched.fact = fact
+                    matched.source_message_id = source_uuid or matched.source_message_id
+                    matched.updated_at = datetime.now(timezone.utc)
+                    logger.info(f"[Saathi Memory] Updated existing {cat} fact: {fact}")
+                else:
+                    new_mem = MemberMemory(
+                        family_member_id=family_member_id,
+                        category=cat,
+                        fact=fact,
+                        source_message_id=source_uuid,
+                        created_at=datetime.now(timezone.utc),
+                        updated_at=datetime.now(timezone.utc),
+                    )
+                    s_db.add(new_mem)
+                    logger.info(f"[Saathi Memory] Added new {cat} fact: {fact}")
+                s_db.flush()
+                sp.commit()
+            except Exception as _fe:
+                sp.rollback()
+                logger.warning(f"[Saathi Memory] skipped fact ({cat}): {_fe}")
 
         s_db.commit()
 
@@ -638,16 +762,48 @@ def get_member_context(family_member_id: int) -> Dict[str, Any]:
             elif mem_rec.preferred_name and mem_rec.preferred_name.strip():
                 preferred_name = mem_rec.preferred_name.strip()
 
+        # Life story (job, school, marriage, husband, children...): ALWAYS included, like the name
+        try:
+            from services.memory_heuristics import is_clean_statement
+        except Exception:
+            is_clean_statement = lambda _f: True  # noqa: E731
+        pinned = (
+            s_db.query(MemberMemory)
+            .filter(MemberMemory.family_member_id == family_member_id, MemberMemory.category == "life")
+            .order_by(MemberMemory.created_at.asc())
+            .limit(30)
+            .all()
+        )
+        pinned_ids = set()
+        for m in pinned:
+            if is_clean_statement(m.fact or ""):
+                memory_lines.append(f"[Life] {m.fact}")
+                pinned_ids.add(m.id)
+
         # Load memories
         mems = (
             s_db.query(MemberMemory)
             .filter(MemberMemory.family_member_id == family_member_id)
             .order_by(MemberMemory.updated_at.desc())
-            .limit(15)
+            .limit(40)
             .all()
         )
+        # Skip old low-quality entries (questions, commands, fragments) without deleting them
+        try:
+            from services.memory_heuristics import is_usable_fact
+        except Exception:
+            is_usable_fact = lambda _f: True  # noqa: E731
+        n_other = 0
         for m in mems:
+            if m.id in pinned_ids:
+                continue
+            # facts written by the app itself (e.g. "(fall #18)") are clean even without "main/mera"
+            if not (is_usable_fact(m.fact or "") or "(fall #" in (m.fact or "")):
+                continue
             memory_lines.append(f"[{m.category.capitalize()}] {m.fact}")
+            n_other += 1
+            if n_other >= 15:
+                break
 
         # Load recent 3 session summaries
         recent_sessions = (
@@ -660,11 +816,22 @@ def get_member_context(family_member_id: int) -> Dict[str, Any]:
             .limit(5)
             .all()
         )
+        def _tidy(summary: str) -> str:
+            # Older fallback summaries were raw transcript dumps: "Member talked about: <sentences>"
+            if summary and summary.startswith("Member talked about:"):
+                try:
+                    from services.memory_heuristics import summarize
+                    raw = summary[len("Member talked about:"):].strip().rstrip(".")
+                    return summarize([{"role": "user", "content": raw}])
+                except Exception:
+                    pass
+            return summary or ""
+
         if recent_sessions:
-            last_summary = recent_sessions[0].summary or ""
+            last_summary = _tidy(recent_sessions[0].summary)
         for s in recent_sessions:
             date_str = s.started_at.strftime("%b %d") if s.started_at else "Recently"
-            summaries.append(f"- {date_str}: {s.summary}")
+            summaries.append(f"- {date_str}: {_tidy(s.summary)}")
 
     member_memory_str = "\n".join(memory_lines) if memory_lines else "No specific personal memories recorded yet."
     recent_summaries_str = "\n".join(summaries) if summaries else "No previous conversations recorded yet."

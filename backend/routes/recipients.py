@@ -1010,6 +1010,12 @@ async def get_care_recipient_profile(
     environment.reverse()
 
     # 11. Alerts (Unread & Recent)
+    # Event alerts (medicines not taken, voice emergency, long lie) expire 4 hours after they were raised
+    try:
+        from services.alert_autoclear import expire_old_event_alerts
+        expire_old_event_alerts(db, recipient_id)
+    except Exception as _ex_err:
+        print(f"[profile] alert expiry skipped: {_ex_err}")
     alerts_raw = db.query(MedicalAlert).filter(MedicalAlert.care_recipient_id == recipient_id).order_by(MedicalAlert.created_at.desc()).limit(15).all()
     alerts = [
         {
@@ -1657,44 +1663,137 @@ def _build_weekly_report_pdf(result: dict, recipient, caretaker) -> bytes:
     data_table("Active Conditions (Disease Burden)", [
         ("Total active conditions", active_count_val, ""),
         ("Conditions", ", ".join(active_names) if active_names else "None on record", ""),
-        ("New this week", len(cond_data.get("new_diagnoses") or []), ""),
+        ("New this week", len(cond_data.get("new_diagnoses") or []) or "None", ""),
     ])
 
-    data_table("Vitals", [
+    _ex = sections.get("report_extras") or {}
+    _vs = sections.get("vitals_summary", {}) or {}
+    if (_vs.get("readings") or 0) > 0 or not (sections.get("current_health") or {}).get("latest_vitals"):
+      data_table("Vitals", [
         ("Heart Rate (avg)",     sections.get("vitals_summary",{}).get("avg_heart_rate"),    "bpm"),
         ("Blood Pressure (avg)", sections.get("vitals_summary",{}).get("avg_systolic_bp"),   "mmHg"),
         ("SpO2 (avg)",           sections.get("vitals_summary",{}).get("avg_spo2"),          "%"),
         ("Sleep Score (avg)",    sections.get("vitals_summary",{}).get("avg_sleep_score"),   "/ 10"),
         ("Temperature (avg)",    sections.get("vitals_summary",{}).get("avg_temperature"),   "C"),
         ("Readings logged this week", sections.get("vitals_summary",{}).get("readings"),     ""),
-    ])
+      ])
+    # ── Present state: latest vitals, trends, sugar / labs, medicines (not limited to this week) ──
+    cur = sections.get("current_health") or {}
+    lv = cur.get("latest_vitals") or {}
+    if lv:
+        when = lv.get("recorded_at") or "-"
+        if lv.get("days_ago") is not None:
+            when += " (today)" if lv["days_ago"] == 0 else f" ({lv['days_ago']} days ago)"
+        bp = (f"{lv['systolic_bp']:g}/{lv['diastolic_bp']:g}" if lv.get("systolic_bp") and lv.get("diastolic_bp")
+              else (f"{lv['systolic_bp']:g}" if lv.get("systolic_bp") else None))
+        data_table("Current Vitals (latest reading)", [
+            ("Blood Pressure",  bp,                    "mmHg"),
+            ("Heart Rate",      lv.get("heart_rate"),  "bpm"),
+            ("SpO2 (oxygen)",   lv.get("spo2"),        "%"),
+            ("Temperature",     lv.get("temperature"), "F"),
+            ("Sleep Score",     lv.get("sleep_score"), "/ 100"),
+            ("Weight",          lv.get("weight"),      "kg"),
+            ("BMI",             lv.get("bmi"),         ""),
+            ("Last recorded",   when,                  ""),
+            ("Readings this week", (f"{_vs.get('readings')}" if (_vs.get("readings") or 0) > 0
+                                    else "None logged - values above are the latest"), ""),
+        ])
+        trends = cur.get("vital_trends") or []
+        if trends:
+            data_table("Vital Trends (last 30 days)", [
+                (t["name"], f"{t['first']:g} -> {t['last']:g} {t['unit']} ({t['direction']}, {t['readings']} readings)", "")
+                for t in trends
+            ])
+        else:
+            data_table("Vital Trends (last 30 days)", [
+                ("Trend", "Needs 2+ readings in 30 days", ""),
+            ])
+    labs_now = cur.get("key_labs") or []
+    if labs_now:
+        data_table("Blood Sugar & Key Lab Results (latest)", [
+            (f"{l['name']}" + (f"  ({l['date']})" if l.get("date") else ""),
+             f"{l['value']:g} {l.get('unit') or ''}".strip()
+             + (f"  - {l['status']}" if l.get("status") and l["status"] != "-" else "")
+             + (f"  ({l['change_pct']:+g}%)" if l.get("change_pct") else ""), "")
+            for l in labs_now
+        ])
+    meds_now = cur.get("medicines") or []
+    if meds_now:
+        data_table("Current Medicines", [
+            (m["name"], ", ".join(x for x in (m.get("dosage"), m.get("frequency"),
+                                              (f"at {m['schedule']}" if m.get("schedule") else "")) if x), "")
+            for m in meds_now
+        ])
+
     adh_pct = sections.get("medication_adherence",{}).get("adherence_pct")
     adh_display = f"{adh_pct}" if adh_pct is not None else "Not tracked"
-    data_table("Medication Adherence", [
+    _ma = sections.get("medication_adherence", {}) or {}
+    if _ma.get("no_data") and _ex.get("medicines_prescribed"):
+        _rows = [
+            ("Medicines prescribed", f"{_ex['medicines_prescribed']}"
+                                     + (f" ({_ex['sos_medicines']} only when needed)" if _ex.get("sos_medicines") else ""), ""),
+            ("Doses due each day", _ex.get("doses_per_day"), ""),
+            ("Doses due this week", (_ex.get("doses_per_day") or 0) * 7, ""),
+        ]
+        if _ex.get("camera_medicine_taken"):
+            _rows.append(("Medicine taken (seen by camera)", f"{_ex['camera_medicine_taken']} times", ""))
+        if _ex.get("medicine_sightings"):
+            _rows.append(("Medicine seen in the room", f"{_ex['medicine_sightings']} times", ""))
+        if _ex.get("camera_missed_alerts"):
+            _rows.append(("Missed-dose alerts", _ex["camera_missed_alerts"], ""))
+        _rows.append(("Adherence rate", "Not tracked - mark doses as taken in the app", ""))
+        data_table("Medication Adherence", _rows)
+    else:
+      data_table("Medication Adherence", [
         ("Total doses scheduled", sections.get("medication_adherence",{}).get("total_doses"),  ""),
         ("Doses taken",           sections.get("medication_adherence",{}).get("taken"),         ""),
         ("Doses missed",          sections.get("medication_adherence",{}).get("missed"),        ""),
         ("Adherence rate",        adh_display,                                                   "%" if adh_pct is not None else ""),
     ])
-    data_table("Lab Results", [
-        ("New lab results this week", sections.get("lab_summary",{}).get("new_labs_this_week"), ""),
-        ("Abnormal values",           sections.get("lab_summary",{}).get("abnormal_count"),     ""),
-    ])
+    _ls = sections.get("lab_summary", {}) or {}
+    _lab_rows = [("New lab results this week", _ls.get("new_labs_this_week") or "None - no new report uploaded", "")]
+    if _ls.get("new_labs_this_week"):
+        _lab_rows.append(("Abnormal values", _ls.get("abnormal_count"), ""))
+    if _ex.get("latest_lab_date"):
+        _lab_rows.append(("Latest lab report", f"{_ex['latest_lab_date']} ({_ex.get('latest_lab_tests')} key tests)", ""))
+        _lab_rows.append(("Outside normal range", f"{_ex.get('latest_lab_out_of_range')} of {_ex.get('latest_lab_tests')} tests", ""))
+    data_table("Lab Results", _lab_rows)
     data_table("Respiratory Activity", [
-        ("Cough count (7 days)",  sections.get("respiratory_activity",{}).get("cough_count_7d"),  ""),
-        ("Sneeze count (7 days)", sections.get("respiratory_activity",{}).get("sneeze_count_7d"), ""),
-        ("Daily cough average",   sections.get("respiratory_activity",{}).get("cough_daily_avg"), "/ day"),
+        ("Cough count (7 days)",  sections.get("respiratory_activity",{}).get("cough_count_7d") or "None detected",  ""),
+        ("Sneeze count (7 days)", sections.get("respiratory_activity",{}).get("sneeze_count_7d") or "None detected", ""),
+        ("Daily cough average",   sections.get("respiratory_activity",{}).get("cough_daily_avg") or "None", "/ day" if sections.get("respiratory_activity",{}).get("cough_daily_avg") else ""),
     ])
+    _pa = sections.get("physical_activity", {}) or {}
+    if _pa.get("falls_got_up_in_time") is not None:
+        _avg = _pa.get("avg_get_up_sec")
+        data_table("Falls (home camera, this week)", [
+            ("Falls recorded",              _pa.get("fall_count"), ""),
+            ("Got up within 2 minutes",     _pa.get("falls_got_up_in_time"), ""),
+            ("Long lies (over 2 minutes)",  _pa.get("long_lies") or "None", ""),
+            ("No record of getting up",     _pa.get("falls_outcome_unknown") or "None", ""),
+            ("Average time to get up",      f"{_avg:g} s" if _avg is not None else None, ""),
+        ] + [(f"Fall {n}", t, "") for n, t in enumerate(_pa.get("fall_times") or [], 1)])
     data_table("Physical Activity", [
         ("Fall incidents",  sections.get("physical_activity",{}).get("fall_count"),          ""),
         ("Activity score",  sections.get("physical_activity",{}).get("avg_activity_score"),  "/ 10"),
         ("Mobility score",  sections.get("physical_activity",{}).get("avg_mobility_score"),  "/ 10"),
     ])
-    data_table("Environment", [
-        ("Avg room temperature", sections.get("environment",{}).get("avg_room_temp_c"), "C"),
-        ("Avg humidity",         sections.get("environment",{}).get("avg_humidity"),    "%"),
-        ("Extreme readings",     sections.get("environment",{}).get("extreme_readings"), ""),
-    ])
+    _env = sections.get("environment", {}) or {}
+    _w = _ex.get("weather") or {}
+    if _env.get("avg_room_temp_c") is None and _w:
+        _place = _w.get("place") or "home"
+        data_table(f"Environment (weather in {_place})", [
+            ("Temperature",  f"{_w.get('temp_c')} C" + (f", {_w['condition']}" if _w.get("condition") else ""), ""),
+            ("Humidity",     _w.get("humidity"), "%"),
+            ("Air quality",  _w.get("aqi") or "Not available", ""),
+            ("Extreme readings", _env.get("extreme_readings") or "None", ""),
+        ])
+    else:
+        data_table("Environment", [
+            ("Avg room temperature", _env.get("avg_room_temp_c"), "C"),
+            ("Avg humidity",         _env.get("avg_humidity"),    "%"),
+            ("Extreme readings",     _env.get("extreme_readings") or "None", ""),
+        ])
     data_table("Mood & Wellbeing", [
         ("Voice sessions", sections.get("mood_wellbeing",{}).get("conversations"), ""),
         ("Dominant mood",  sections.get("mood_wellbeing",{}).get("dominant_mood"),  ""),

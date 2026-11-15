@@ -17,3 +17,5 @@ from . import admin
 from . import thresholds
 from . import weekly_reports
 from . import saathi_db_models
+from . import table_watch
+from . import medicine_ref

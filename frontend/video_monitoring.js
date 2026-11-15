@@ -12,12 +12,15 @@ let _tfjsSession = null;
 
 /** Fall alert auto-dismiss timer. */
 let _fallAlertTimer = null;
+let _tfjsOpenFall = null;   // latest live fall waiting for the person to get up
 
 // Authentication check
-const token = localStorage.getItem('token');
+let token = localStorage.getItem('token');
 if (!token) {
     window.location.href = 'index.html';
 }
+// session_keepalive.js swaps the login token every 20 minutes: use the fresh one from then on
+window.addEventListener('caretaker-token', e => { if (e.detail) token = e.detail; });
 
 // Initialize on page load
 // Initial listener removed to avoid duplication with the one at the bottom
@@ -209,6 +212,10 @@ function updateProgress(percent, message) {
 
 
 
+function escapeFallText(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
 function showResults(results) {
     const resultsSection = document.getElementById('resultsSection');
     const resultsAlert = document.getElementById('resultsAlert');
@@ -261,21 +268,31 @@ function showResults(results) {
         resultsAlert.innerHTML = `
             <h5><i class="fas fa-exclamation-triangle me-2"></i>Fall Detected!</h5>
             <p class="mb-0">
-                A fall was detected in the video analysis. 
-                Please review the playback and details below.
+                ${results.fall_summary ? escapeFallText(results.fall_summary) + '<br>' : 'A fall was detected in the video analysis. '}
+                Please review the playback and details below. The fall summary is saved in the database.
             </p>
         `;
 
         // Show fall details
         let detailsHTML = videoHtml; // Add video at the top
         detailsHTML += '<div class="monitoring-card mt-3"><h5>Fall Details</h5><div class="table-responsive"><table class="table table-striped">';
-        detailsHTML += '<thead><tr><th>Time</th><th>Details</th></tr></thead><tbody>';
+        detailsHTML += '<thead><tr><th>Time in video</th><th>Confidence</th><th>Got up?</th><th>Summary</th></tr></thead><tbody>';
 
         results.falls_detected.forEach(fall => {
+            const t = Number(fall.timestamp) || 0;
+            const timeTxt = `${String(Math.floor(t / 60)).padStart(2, '0')}:${(t % 60).toFixed(1).padStart(4, '0')}`;
+            const confTxt = fall.confidence ? `${Math.round(fall.confidence)}%` : '—';
+            const upTxt = fall.got_up
+                ? `<span class="badge bg-success">Yes, after ${Number(fall.time_to_get_up_sec || 0).toFixed(1)} s</span>`
+                : (fall.got_up === false
+                    ? `<span class="badge bg-danger">No${fall.time_on_ground_sec != null ? ` (still down ${Number(fall.time_on_ground_sec).toFixed(1)} s)` : ''}</span>`
+                    : '—');
             detailsHTML += `
                 <tr>
-                    <td>${fall.timestamp}</td>
-                    <td>${fall.message || 'Fall detected'}</td>
+                    <td>${timeTxt}</td>
+                    <td>${confTxt}</td>
+                    <td>${upTxt}</td>
+                    <td>${escapeFallText(fall.summary || fall.message || 'Fall detected')}</td>
                 </tr>
             `;
         });
@@ -390,12 +407,16 @@ function setupCameraSelector() {
             refreshCameraList();
         });
     }
+    // Live Monitoring is the first (default) tab now: fill the camera list on page load too
+    const livePaneOnLoad = document.getElementById('live');
+    if (livePaneOnLoad && livePaneOnLoad.classList.contains('active')) refreshCameraList();
 
     // Auto-refresh history when user switches to History tab
     const historyTabBtn = document.getElementById('history-tab');
     if (historyTabBtn) {
         historyTabBtn.addEventListener('shown.bs.tab', function () {
             loadHistory();
+            loadHistoryDashboard();
         });
     }
 
@@ -494,31 +515,55 @@ async function startLiveMonitoring() {
         _tfjsSession = new TFJSLiveSession(videoEl, canvasEl, {
             sensitivity,
 
+            // ── Fall confirmed (fires ONCE per fall; no repeats while the person is down) ──
             onFall(event) {
-                // Show fall banner
-                const banner = document.getElementById('fallAlertBanner');
-                const timeEl = document.getElementById('fallAlertTime');
-                if (banner) banner.classList.add('show');
-                if (timeEl)  timeEl.textContent = `Detected at ${new Date(event.timestamp).toLocaleTimeString()}`;
+                const openFall = { at: Date.now(), eventId: null, longLie: false };
+                _tfjsOpenFall = openFall;
 
-                // Auto-dismiss banner after 6 s
+                showFallBanner('fall', `Detected at ${new Date(event.timestamp).toLocaleTimeString()} — waiting for the person to get up`);
+                _appendLiveAlert({ type: 'fall', timestamp: event.timestamp, confidence: event.confidence,
+                    message: 'Beeping until the person gets up or you press "I am attending"' });
+                startFallAlarm();
+
+                // Save the fall in the database (fall_events); keep its id to record "got up" later
+                _reportFallToBackend(event)
+                    .then(id => { openFall.eventId = id; })
+                    .catch(e => console.warn('[Fall] Backend report failed:', e));
+            },
+
+            // ── Every frame while on the floor: live timer towards the 2-minute limit ──
+            onFloorTick({ secondsOnFloor, personVisible }) {
+                updateFallTimer(secondsOnFloor, personVisible);
+            },
+
+            // ── 2 minutes on the floor: escalate (siren + caretaker alert) ──
+            onLongLie({ timestamp, secondsOnFloor }) {
+                const f = _tfjsOpenFall;
+                if (f) f.longLie = true;
+                showFallBanner('longlie', 'Not up after 2 minutes — please check on them NOW');
+                _appendLiveAlert({ type: 'long_lie', timestamp,
+                    message: `Still on the floor after ${fmtDuration(secondsOnFloor)} — caretaker alerted` });
+                escalateFallAlarm();
+                _reportLongLieToBackend(f, secondsOnFloor).catch(e => console.warn('[Fall] long-lie report failed:', e));
+            },
+
+            // ── Person stood up again ──
+            onRecover({ timestamp, secondsOnFloor, withinLimit }) {
+                const f = _tfjsOpenFall;
+                _tfjsOpenFall = null;
+                stopFallAlarm();
+                playRecoveredChime();
+                const verdict = withinLimit
+                    ? `Got up after ${fmtDuration(secondsOnFloor)} — within 2 minutes ✓`
+                    : `Got up after ${fmtDuration(secondsOnFloor)} — took longer than 2 minutes ⚠`;
+                showFallBanner(withinLimit ? 'ok' : 'late', verdict);
                 clearTimeout(_fallAlertTimer);
-                _fallAlertTimer = setTimeout(() => {
-                    if (banner) banner.classList.remove('show');
-                }, 6000);
-
-                // Add entry to the live alerts list
-                _appendLiveAlert({ type: 'fall', timestamp: event.timestamp, confidence: event.confidence });
-
-                // Play alert sound
-                playAlertSound();
-
-                // Optionally report to backend for DB logging (fire-and-forget)
-                _reportFallToBackend(event).catch(e => console.warn('[Fall] Backend report failed:', e));
+                _fallAlertTimer = setTimeout(hideFallBanner, 8000);
+                _appendLiveAlert({ type: 'got_up', timestamp, message: verdict });
+                if (f) _reportGotUpToBackend(f, secondsOnFloor).catch(e => console.warn('[Fall] got-up report failed:', e));
             },
 
             onFrame(features, fps) {
-                // Update metrics panel
                 const fpEl  = document.getElementById('metricFps');
                 const angEl = document.getElementById('metricAngle');
                 const aspEl = document.getElementById('metricAspect');
@@ -529,13 +574,22 @@ async function startLiveMonitoring() {
             },
         });
 
+        // A click on "Start" is a user gesture: unlock audio now so the alarm can sound later
+        ensureAlarmAudio();
+
         if (loadingMsg) loadingMsg.textContent = 'Opening camera…';
         await _tfjsSession.start(deviceId);
 
         // Hide loading overlay once running
         if (loadingOverlay) loadingOverlay.style.display = 'none';
 
-        showAlert('✅ TF.js live monitoring started! (MoveNet, in-browser)', 'success');
+        // Same camera also tracks the medicines in the room
+        if (typeof TableWatch !== 'undefined') {
+            TableWatch.attach(document.getElementById('tfjs-video'))
+                .catch(e => console.warn('[Room camera] medicine tracking could not start:', e));
+        }
+
+        showAlert('✅ Room camera started — watching for falls and medicines', 'success');
         console.log('[startLiveMonitoring] TF.js session running at', sensitivity, 'sensitivity.');
 
     } catch (err) {
@@ -557,10 +611,18 @@ async function startLiveMonitoring() {
 }
 
 function stopLiveMonitoring() {
+    if (typeof TableWatch !== 'undefined') TableWatch.detach();   // medicine tracking uses the same camera
     if (_tfjsSession) {
+        // Stopped while the person is still on the floor: save how long they were down
+        if (_tfjsSession.isFallen && _tfjsOpenFall) {
+            _reportStoppedDownToBackend(_tfjsOpenFall, _tfjsSession.secondsOnFloor)
+                .catch(e => console.warn('[Fall] stopped-down report failed:', e));
+        }
         _tfjsSession.stop();
         _tfjsSession = null;
     }
+    _tfjsOpenFall = null;
+    stopFallAlarm();
 
     // UI reset
     document.getElementById('startLiveBtn').classList.remove('d-none');
@@ -588,22 +650,30 @@ function stopLiveMonitoring() {
 function _appendLiveAlert(alert) {
     const alertsList = document.getElementById('liveAlertsList');
     if (!alertsList) return;
+    const card = document.getElementById('liveAlertsCard');
+    if (card) card.style.display = '';          // first event: show the card
 
     // Remove 'no alerts' placeholder
     const placeholder = alertsList.querySelector('p.text-muted');
     if (placeholder) placeholder.remove();
 
-    const alertClass = alert.type === 'fall' ? 'danger' : 'warning';
-    const icon       = alert.type === 'fall' ? 'exclamation-triangle' : 'exclamation-circle';
-    const conf       = alert.confidence != null ? ` &mdash; ${(alert.confidence * 100).toFixed(0)}% conf.` : '';
+    const alertClass = (alert.type === 'fall' || alert.type === 'long_lie') ? 'danger'
+        : (alert.type === 'got_up' ? 'success' : (alert.type === 'info' ? 'secondary' : 'warning'));
+    const icon       = alert.type === 'fall' ? 'exclamation-triangle'
+        : (alert.type === 'long_lie' ? 'stopwatch' : (alert.type === 'got_up' ? 'person-walking' : 'exclamation-circle'));
+    // Browser detector sends 0-1, the camera engine sends 0-100: show both as a normal percentage
+    const pct        = alert.confidence == null ? null : (alert.confidence <= 1 ? alert.confidence * 100 : alert.confidence);
+    const conf       = pct != null ? ` &mdash; ${pct.toFixed(0)}% conf.` : '';
+    const title      = { got_up: 'GOT UP', long_lie: 'LONG LIE (2+ MIN)', info: 'NOTE' }[alert.type] || alert.type.toUpperCase();
+    const msg        = alert.message ? `${escapeFallText(alert.message)}<br>` : '';
 
     const div = document.createElement('div');
     div.className = `alert alert-${alertClass} mb-2`;
     div.innerHTML = `
         <small>
             <i class="fas fa-${icon} me-1"></i>
-            <strong>${alert.type.toUpperCase()}</strong>${conf}<br>
-            ${new Date(alert.timestamp).toLocaleString()}
+            <strong>${title}</strong>${conf}<br>
+            ${msg}${new Date(alert.timestamp).toLocaleString()}
         </small>`;
 
     alertsList.insertBefore(div, alertsList.firstChild);
@@ -626,10 +696,24 @@ async function _reportFallToBackend(event) {
     };
     if (recipientId) body.recipient_id = recipientId;
 
-    await fetch(`${API_BASE}/video-monitoring/log-event`, {
+    const res = await fetch(`${API_BASE}/video-monitoring/log-event`, {
         method:  'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body:    JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    return data.event_id || null;      // used to record "got up" on the same fall
+}
+
+/** Person got up after a live fall: update the saved fall (waits briefly for its id). */
+async function _reportGotUpToBackend(fall, secs) {
+    if (!token) return;
+    for (let i = 0; i < 50 && !fall.eventId; i++) await new Promise(r => setTimeout(r, 100));
+    if (!fall.eventId) return;
+    await fetch(`${API_BASE}/video-monitoring/log-event`, {
+        method:  'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ type: 'got_up', event_id: fall.eventId, time_to_get_up_sec: Math.round(secs * 10) / 10 }),
     });
 }
 
@@ -731,11 +815,14 @@ async function checkLiveAlerts() {
 
 function displayLiveAlerts(alerts) {
     const alertsList = document.getElementById('liveAlertsList');
+    const card = document.getElementById('liveAlertsCard');
 
     if (alerts.length === 0) {
         alertsList.innerHTML = '<p class="text-muted text-center">No active alerts</p>';
+        if (card) card.style.display = 'none';  // nothing to show: keep the card hidden
         return;
     }
+    if (card) card.style.display = '';
 
     let html = '';
     alerts.slice(-5).reverse().forEach(alert => {
@@ -1065,3 +1152,338 @@ window.previewVideo = function (videoUrl) {
     }, { once: true });
 };
 
+
+// ============================================================================
+//  FALL ALARM, 2-MINUTE TIMER AND BANNER
+//  - Beeps every 3 s from the moment a fall is confirmed until the person gets up
+//    or someone presses "I am attending".
+//  - After 2 minutes on the floor: a louder siren + caretaker alert (backend).
+//  - When the person stands up: alarm stops, a soft chime plays, the time is recorded.
+// ============================================================================
+const _fallAlarm = { timer: null, mode: null, acknowledged: false };
+let _lastTimerPaint = 0;
+
+function ensureAlarmAudio() {
+    try {
+        if (!_alertAudioCtx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) _alertAudioCtx = new AudioCtx();
+        }
+        if (_alertAudioCtx && _alertAudioCtx.state === 'suspended') _alertAudioCtx.resume();
+    } catch (e) { /* audio not available */ }
+}
+
+function _tone(freqStart, freqEnd, start, dur, type = 'square', vol = 0.8) {
+    if (!_alertAudioCtx) return;
+    const osc = _alertAudioCtx.createOscillator();
+    const gain = _alertAudioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freqStart, start);
+    if (freqEnd !== freqStart) osc.frequency.linearRampToValueAtTime(freqEnd, start + dur);
+    gain.gain.setValueAtTime(0.001, start);
+    gain.gain.linearRampToValueAtTime(vol, start + 0.02);
+    gain.gain.setValueAtTime(vol, start + dur - 0.03);
+    gain.gain.linearRampToValueAtTime(0.001, start + dur);
+    osc.connect(gain);
+    gain.connect(_alertAudioCtx.destination);
+    osc.start(start);
+    osc.stop(start + dur);
+}
+
+/**
+ * Long-lie alarm (2 minutes on the floor): a two-tone "nee-naw" emergency tone, clearly
+ * different from the fall beeps, plus a spoken warning every few rounds.
+ */
+let _sirenRound = 0;
+function playSiren() {
+    ensureAlarmAudio();
+    if (!_alertAudioCtx) return playAlertSound();
+    try { if (window.speechSynthesis && window.speechSynthesis.speaking) return; } catch (e) { /* ignore */ }   // let the warning be heard
+    const now = _alertAudioCtx.currentTime;
+    for (let i = 0; i < 4; i++) {
+        _tone(960, 960, now + i * 0.6, 0.28, 'triangle', 0.9);
+        _tone(640, 640, now + i * 0.6 + 0.3, 0.28, 'triangle', 0.9);
+    }
+    if (_sirenRound++ % 4 === 0) _speakLongLieWarning();
+}
+
+function _speakLongLieWarning() {
+    try {
+        if (!window.speechSynthesis) return;
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance('Attention. The patient has been on the floor for more than two minutes. Please check on them now.');
+        u.rate = 0.95; u.volume = 1;
+        setTimeout(() => window.speechSynthesis.speak(u), 2500);   // after the tone
+    } catch (e) { /* speech not available */ }
+}
+
+/** Soft two-note chime when the person is back on their feet. */
+function playRecoveredChime() {
+    ensureAlarmAudio();
+    if (!_alertAudioCtx) return;
+    const now = _alertAudioCtx.currentTime;
+    _tone(660, 660, now, 0.18, 'sine', 0.4);
+    _tone(990, 990, now + 0.2, 0.3, 'sine', 0.4);
+}
+
+function startFallAlarm() {
+    stopFallAlarm();
+    _fallAlarm.mode = 'fall';
+    _fallAlarm.acknowledged = false;
+    playAlertSound();
+    _fallAlarm.timer = setInterval(() => { if (!_fallAlarm.acknowledged) playAlertSound(); }, 3000);
+    _setAckButton(true);
+}
+
+function escalateFallAlarm() {
+    if (_fallAlarm.timer) clearInterval(_fallAlarm.timer);
+    _fallAlarm.mode = 'longlie';
+    // A long lie always sounds again, even if the first alarm was acknowledged
+    _fallAlarm.acknowledged = false;
+    playSiren();
+    _sirenRound = 0;
+    _fallAlarm.timer = setInterval(() => { if (!_fallAlarm.acknowledged) playSiren(); }, 3200);
+    _setAckButton(true);
+}
+
+function stopFallAlarm() {
+    if (_fallAlarm.timer) clearInterval(_fallAlarm.timer);
+    _fallAlarm.timer = null;
+    if (_fallAlarm.mode === 'longlie') { try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) { /* ignore */ } }
+    _fallAlarm.mode = null;
+    _setAckButton(false);
+}
+
+/** "I am attending": silence the alarm; the on-floor timer and recording continue. */
+function acknowledgeFallAlarm() {
+    _fallAlarm.acknowledged = true;
+    try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+    _setAckButton(false);
+    const st = document.getElementById('fallAlertStatus');
+    if (st) st.textContent = 'Alarm silenced — someone is attending. Timer still running.';
+    _appendLiveAlert({ type: 'info', timestamp: new Date().toISOString(), message: 'Alarm acknowledged by caretaker' });
+}
+
+function _setAckButton(show) {
+    const b = document.getElementById('fallAckBtn');
+    if (b) b.style.display = show ? 'inline-block' : 'none';
+}
+
+function showFallBanner(kind, statusText) {
+    const banner = document.getElementById('fallAlertBanner');
+    if (!banner) return;
+    const title = document.getElementById('fallAlertTitle');
+    const status = document.getElementById('fallAlertStatus');
+    const colors = {
+        fall:    'linear-gradient(135deg, #ff3b3b, #c0392b)',
+        longlie: 'linear-gradient(135deg, #8b0000, #4a0000)',
+        ok:      'linear-gradient(135deg, #2e9d5b, #1e7a44)',
+        late:    'linear-gradient(135deg, #d97706, #b45309)',
+    };
+    const titles = {
+        fall: 'FALL DETECTED!', longlie: 'STILL ON THE FLOOR — 2 MINUTES PASSED',
+        ok: 'PERSON GOT UP', late: 'PERSON GOT UP (LATE)',
+    };
+    banner.style.background = colors[kind] || colors.fall;
+    banner.style.animation = (kind === 'ok' || kind === 'late') ? 'none' : '';
+    if (title) title.textContent = titles[kind] || titles.fall;
+    if (status) status.textContent = statusText || '';
+    if (kind === 'ok' || kind === 'late') {
+        const timer = document.getElementById('fallFloorTimer');
+        if (timer) timer.textContent = '';
+    }
+    banner.classList.add('show');
+    const timeEl = document.getElementById('fallAlertTime');
+    if (timeEl && kind === 'fall') timeEl.textContent = '';
+}
+
+function hideFallBanner() {
+    const banner = document.getElementById('fallAlertBanner');
+    if (banner) banner.classList.remove('show');
+}
+
+function updateFallTimer(secondsOnFloor, personVisible) {
+    const now = Date.now();
+    if (now - _lastTimerPaint < 400) return;          // repaint ~2x per second
+    _lastTimerPaint = now;
+    const el = document.getElementById('fallFloorTimer');
+    if (!el) return;
+    const left = Math.max(0, 120 - secondsOnFloor);
+    el.textContent = secondsOnFloor < 120
+        ? `On the floor: ${fmtDuration(secondsOnFloor)}  ·  ${fmtDuration(left)} left to get up`
+        : `On the floor: ${fmtDuration(secondsOnFloor)}  ·  over the 2-minute limit`;
+    if (!personVisible) el.textContent += '  ·  (not visible to camera)';
+}
+
+/** 2 minutes on the floor: mark the fall as a long lie and alert the caretaker. */
+async function _reportLongLieToBackend(fall, secs) {
+    if (!token || !fall) return;
+    for (let i = 0; i < 50 && !fall.eventId; i++) await new Promise(r => setTimeout(r, 100));
+    if (!fall.eventId) return;
+    await fetch(`${API_BASE}/video-monitoring/log-event`, {
+        method:  'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ type: 'long_lie', event_id: fall.eventId, time_on_ground_sec: Math.round(secs) }),
+    });
+}
+
+/** Monitoring stopped while the person was still down: record how long they were on the floor. */
+async function _reportStoppedDownToBackend(fall, secs) {
+    if (!token || !fall || !fall.eventId) return;
+    await fetch(`${API_BASE}/video-monitoring/log-event`, {
+        method:  'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ type: 'stopped_down', event_id: fall.eventId, time_on_ground_sec: Math.round(secs) }),
+        keepalive: true,
+    });
+}
+
+// ============================================================================
+//  HISTORY DASHBOARD: falls (2-minute rule), medicine checks
+// ============================================================================
+let _histDays = 30;
+
+function _fmtMinSec(sec) {
+    if (sec == null || isNaN(sec)) return '--';
+    sec = Math.round(sec);
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return m ? `${m} min ${s} s` : `${s} s`;
+}
+
+function _histErr(e, what) {
+    if (String(e && e.message) === '401') {
+        // login token too old: renew it quietly and load again (no "log in again" message)
+        if (window.CaretakerSession && !_histErr._renewing && Date.now() - (_histErr._lastRenew || 0) > 60000) {
+            _histErr._renewing = true; _histErr._lastRenew = Date.now();
+            window.CaretakerSession.refresh().finally(() => {
+                setTimeout(() => { _histErr._renewing = false; loadHistoryDashboard(); }, 500);
+            });
+        }
+        return '<p class="text-muted mb-0">Loading ' + what + '…</p>';
+    }
+    return '<p class="text-danger mb-0">Could not load ' + what + '. Is the server running?</p>';
+}
+
+async function loadHistoryDashboard() {
+    const auth = { headers: { 'Authorization': `Bearer ${token}` } };
+    // patient from the URL, or (page opened directly) the caretaker's own patient
+    let rid = new URLSearchParams(window.location.search).get('recipient_id');
+    if (!rid) {
+        try {
+            const r = await fetch(`${API_BASE}/video-monitoring/default-recipient`, auth);
+            if (r.ok) rid = (await r.json()).recipient_id;
+            else if (r.status === 401) {
+                const msg = _histErr(new Error('401'), 'the history');
+                ['histFalls', 'histTable', 'histSightings'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = msg; });
+                return;
+            }
+        } catch (e) { /* stays empty */ }
+    }
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.innerHTML = v; };
+
+    // ── Falls ──
+    if (!rid) {
+        set('histFalls', '<p class="text-muted">Open this page from a care recipient\'s profile to see their fall history.</p>');
+    } else {
+        try {
+            const r = await fetch(`${API_BASE}/video-monitoring/recipient/${rid}/fall-analysis?days=${_histDays}`, auth);
+            if (!r.ok) throw new Error(r.status);
+            const d = await r.json();
+            set('hkFalls', d.total_falls);
+            set('hkFallsSub', `previous ${d.days} days: ${d.previous_period_falls}`);
+            set('hkOk', d.got_up_within_limit);
+            set('hkOkSub', d.avg_time_to_get_up_sec != null ? `avg ${_fmtMinSec(d.avg_time_to_get_up_sec)} to get up` : '&nbsp;');
+            set('hkLong', d.long_lies);
+            const risk = d.risk_level;
+            set('histRisk', risk === 'high' ? '<span class="hist-badge bad"><i class="fas fa-triangle-exclamation"></i> Fall risk: High</span>'
+                : risk === 'moderate' ? '<span class="hist-badge warn"><i class="fas fa-circle-exclamation"></i> Fall risk: Moderate</span>'
+                : '<span class="hist-badge ok"><i class="fas fa-check"></i> Fall risk: Low</span>');
+            set('histInsights', (d.insights || []).map(t => `<div class="hist-insight"><i class="fas fa-lightbulb me-1 text-warning"></i>${escapeFallText(t)}</div>`).join(''));
+            const src = s => ({ tfjs_live: 'Live monitor', live_stream: 'Home camera', upload: 'Uploaded video' }[s] || s || '--');
+            const rows = (d.incidents || []).map(i => {
+                const when = new Date(i.occurred_at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+                const up = i.got_up && i.time_to_get_up_sec != null ? _fmtMinSec(i.time_to_get_up_sec)
+                    : i.got_up ? 'Got up' : (i.time_on_ground_sec ? `still down after ${_fmtMinSec(i.time_on_ground_sec)}` : 'Not recorded');
+                const res = i.outcome === 'ok' ? '<span class="hist-badge ok"><i class="fas fa-check"></i> Within 2 min</span>'
+                    : i.outcome === 'long_lie' ? '<span class="hist-badge bad"><i class="fas fa-stopwatch"></i> Long lie</span>'
+                    : '<span class="hist-badge na"><i class="fas fa-question"></i> Unknown</span>';
+                return `<tr><td>${when}</td><td>${escapeFallText(src(i.source))}${i.video ? '<br><small class="text-muted">' + escapeFallText(i.video) + '</small>' : ''}</td>
+                        <td>${i.confidence ? i.confidence + '%' : '--'}</td><td>${up}</td><td>${res}</td></tr>`;
+            });
+            set('histFalls', rows.length
+                ? `<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+                     <thead><tr><th>When</th><th>Detected by</th><th>Conf.</th><th>Got up after</th><th>Result</th></tr></thead>
+                     <tbody>${rows.join('')}</tbody></table></div>`
+                : `<p class="text-muted mb-0">No falls in the last ${d.days} days. 👍</p>`);
+        } catch (e) {
+            console.warn('[History] fall analysis failed', e);
+            set('histFalls', _histErr(e, 'the fall log'));
+        }
+    }
+
+    // ── Medicines ──
+    try {
+        const r = await fetch(`${API_BASE}/video-monitoring/table-watch/events?days=${Math.min(_histDays, 90)}${rid ? '&recipient_id=' + rid : ''}`, auth);
+        if (!r.ok) throw new Error(r.status);
+        const d = await r.json();
+        set('hkMed', d.summary.medicine_taken);
+        set('hkMedSub', d.summary.medicine_alerts ? `${d.summary.medicine_alerts} missed-dose alert(s)` : 'no missed doses');
+        const label = { baseline: 'Seen / placed', taken: 'Taken', missing: 'Moved', returned: 'Back', untouched_alert: 'Alert' };
+        const cls = { taken: 'ok', untouched_alert: 'bad', missing: 'warn' };
+        const items = (d.events || []).filter(e => e.item !== 'water').slice(0, 40).map(e => `
+            <div class="d-flex gap-2 align-items-start py-1 border-bottom small">
+                <i class="fas ${e.item === 'water' ? 'fa-glass-water' : 'fa-pills'} mt-1" style="color:${e.item === 'water' ? '#2f72b8' : '#b0566b'}"></i>
+                <div class="flex-grow-1">${escapeFallText(e.detail || e.event)}<br>
+                    <span class="text-muted">${new Date(e.occurred_at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
+                <span class="hist-badge ${cls[e.event] || 'na'}">${label[e.event] || e.event}</span>
+            </div>`);
+        set('histTable', items.length ? items.join('')
+            : '<p class="text-muted mb-0">No medicine events yet. Start the room camera in <strong>Live Monitoring</strong>.</p>');
+    } catch (e) {
+        console.warn('[History] table watch failed', e);
+        set('histTable', _histErr(e, 'the medicine log'));
+    }
+
+    // ── Where the camera found each medicine ──
+    try {
+        const r = await fetch(`${API_BASE}/video-monitoring/medicine-sightings?days=${_histDays}${rid ? '&recipient_id=' + rid : ''}`, auth);
+        if (!r.ok) throw new Error(r.status);
+        const d = await r.json();
+        const fmt = iso => new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+        const dur = mins => mins < 1 ? 'a moment' : mins < 60 ? `${Math.round(mins)} min` : `${Math.floor(mins / 60)} h ${Math.round(mins % 60)} min`;
+        set('histSightSummary', d.medicines.length
+            ? d.medicines.map(m => `<strong>${escapeFallText(m.name)}</strong>: ${m.visits} sighting${m.visits === 1 ? '' : 's'}`).join(' · ')
+            : '');
+        const rows = (d.sightings || []).map(s => `
+            <tr>
+                <td><i class="fas fa-pills me-1" style="color:#b0566b;"></i>${escapeFallText(s.medicine)}</td>
+                <td>${escapeFallText((s.location || '').replace(/^probably /, ''))}</td>
+                <td>${fmt(s.first_seen_at)}${s.minutes >= 1 ? ` <span class="text-muted">· for ${dur(s.minutes)}</span>` : ''}</td>
+                <td>${s.confidence != null ? Math.round(s.confidence) + '%' : '--'}</td>
+                <td>${s.probable ? '<span class="hist-badge warn"><i class="fas fa-question"></i> Probably</span>'
+                                 : '<span class="hist-badge ok"><i class="fas fa-check"></i> Seen</span>'}</td>
+            </tr>`);
+        set('histSightings', rows.length
+            ? `<div class="table-responsive" style="max-height:360px; overflow-y:auto;"><table class="table table-sm table-hover align-middle mb-0">
+                 <thead><tr><th>Medicine</th><th>Where</th><th>When</th><th>Match</th><th>Status</th></tr></thead>
+                 <tbody>${rows.join('')}</tbody></table></div>`
+            : `<p class="text-muted mb-0">No medicine sightings in the last ${d.days} days. Start the room camera in <strong>Live Monitoring</strong> with a medicine in view.</p>`);
+    } catch (e) {
+        console.warn('[History] medicine sightings failed', e);
+        set('histSightings', _histErr(e, 'the medicine sightings'));
+    }
+}
+
+document.addEventListener('click', e => {
+    const b = e.target.closest('#histRange button');
+    if (!b) return;
+    _histDays = Number(b.dataset.days) || 30;
+    document.querySelectorAll('#histRange button').forEach(x => x.classList.toggle('active', x === b));
+    loadHistoryDashboard();
+});
+
+// Keep the History tab up to date while it is open (new falls / medicine sightings appear by themselves)
+setInterval(() => {
+    const pane = document.getElementById('history');
+    if (pane && pane.classList.contains('active') && !document.hidden) loadHistoryDashboard();
+}, 30000);

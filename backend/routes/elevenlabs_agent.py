@@ -204,11 +204,23 @@ async def get_signed_url(
     except Exception as _serr:
         print(f"[Saathi DB] Could not start session in saathi_db: {_serr}")
 
+    # Fell today and not asked yet: Asha opens the call by asking whether they are hurt
+    fall_checkin = None
+    try:
+        from services.voice_health_brief import recent_fall_checkin
+        fall_checkin = recent_fall_checkin(db, recip_id, dynamic_variables.get("user_name") or "ji")
+        if fall_checkin:
+            medical_context = (fall_checkin["context"] + "\n\n" + (medical_context or "")).strip()
+    except Exception as _ferr:
+        db.rollback()
+        print(f"[Asha] fall check-in skipped: {_ferr}")
+
     return ResponseSchema(
         code=200,
         status="success",
         message="Signed conversation URL generated",
         result={
+            "fall_checkin": fall_checkin["hi"] if fall_checkin else None,
             "signed_url": result["signed_url"],
             "session_id": saathi_sess_id,
             "agent_id": target_agent_id,
@@ -269,8 +281,31 @@ async def save_conversation_turn(
     mood_enum = MoodEnum(mood_str) if mood_str in [m.value for m in MoodEnum] else MoodEnum.neutral
     trigger_enum = TriggerTypeEnum.user_initiated
 
+    # Patient talking normally to Asha -> clear old event alerts (medicines not taken, emergency, long lie)
+    if sender_enum == SenderEnum.user:
+        try:
+            from services.alert_autoclear import clear_on_normal_talk
+            clear_on_normal_talk(db, recip_id, payload.text, mood_str)
+        except Exception as _ac_err:
+            print(f"[ElevenLabs] alert auto-clear skipped: {_ac_err}")
+
     # Deduplication check: avoid duplicate records if both callback and client stream the same text
-    if SaathiSessionLocal:
+    if not _saathi_msg_table_ok():
+        try:
+            from tables.conversation_history import ConversationMessage as MainMsg
+            cutoff = datetime.utcnow() - timedelta(seconds=4)
+            dup = db.query(MainMsg).filter(
+                MainMsg.care_recipient_id == recip_id,
+                MainMsg.sender == sender_enum,
+                MainMsg.message_text == payload.text.strip(),
+                MainMsg.created_at >= cutoff,
+            ).first()
+            if dup:
+                return ResponseSchema(code=200, status="success", message="Turn already recorded",
+                                      result={"id": dup.id, "duplicate": True})
+        except Exception:
+            db.rollback()
+    elif SaathiSessionLocal:
         try:
             with SaathiSessionLocal() as s_db:
                 cutoff = datetime.utcnow() - timedelta(seconds=4)
@@ -317,6 +352,28 @@ async def save_conversation_turn(
         result={"saved": True, "recipient_id": recip_id, "session_id": payload.session_id}
     )
 
+_SAATHI_MSG_OK = None
+
+
+def _saathi_msg_table_ok() -> bool:
+    """saathi_db.conversation_messages now has the new layout (family_member_id / role / content), not the
+    old one this route's model expects (recipient_id / sender / message_text). Querying it raised
+    'column recipient_id does not exist' on every call; check once and use the main DB instead."""
+    global _SAATHI_MSG_OK
+    if _SAATHI_MSG_OK is None:
+        _SAATHI_MSG_OK = False
+        if SaathiSessionLocal:
+            try:
+                from sqlalchemy import text as _t
+                with SaathiSessionLocal() as s_db:
+                    _SAATHI_MSG_OK = s_db.execute(_t(
+                        "SELECT 1 FROM information_schema.columns WHERE table_name = 'conversation_messages' "
+                        "AND column_name = 'recipient_id'")).first() is not None
+            except Exception:
+                _SAATHI_MSG_OK = False
+    return _SAATHI_MSG_OK
+
+
 @router.get("/history/{recipient_id}", response_model=ResponseSchema)
 async def get_conversation_history(
     recipient_id: int,
@@ -339,7 +396,7 @@ async def get_conversation_history(
     target_id = recip.id if recip else recipient_id
 
     messages = []
-    if SaathiSessionLocal:
+    if SaathiSessionLocal and _saathi_msg_table_ok():
         try:
             with SaathiSessionLocal() as s_db:
                 msgs = s_db.query(SaathiMsg).filter(

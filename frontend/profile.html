@@ -83,11 +83,12 @@
             padding: 32px 20px;
             display: flex;
             flex-direction: column;
-            gap: 40px;
+            gap: 22px;
             position: fixed;
             top: 0;
             left: 0;
             height: 100vh;
+            overflow-y: auto;          /* short screens: scroll, so the account / settings card is never cut off */
             z-index: 1000;
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -839,6 +840,26 @@
         .lab-pill .pill-flag { color: #C96B55; font-size: 0.7rem; }
         .lab-pill.active .pill-flag { color: #fff; }
         @media (max-width: 480px) { .trend-grid { grid-template-columns: 1fr; } .lab-search { min-width: 0; width: 100%; } }
+
+        /* ---- Fall analysis (Video tab) ---- */
+        .fall-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+        .fall-kpi { background: #fff; border: 1px solid var(--border-light); border-radius: 16px; padding: 14px 16px; }
+        .fall-kpi-label { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); }
+        .fall-kpi-value { font-size: 1.9rem; font-weight: 800; color: var(--text-main); font-variant-numeric: tabular-nums; margin-top: 2px; }
+        .fall-kpi-sub { font-size: 0.75rem; color: var(--text-muted); }
+        .fall-insights { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+        .fall-insight { display: flex; gap: 10px; align-items: flex-start; background: #FAF7F4; border-radius: 12px; padding: 10px 12px; font-size: 0.88rem; color: var(--text-main); }
+        .fall-insight i { margin-top: 3px; color: #B97886; }
+        .fall-tod { display: flex; flex-direction: column; gap: 10px; padding: 8px 2px; }
+        .fall-tod-row { display: grid; grid-template-columns: 120px 1fr 28px; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-muted); }
+        .fall-tod-bar { height: 10px; background: #F1ECE7; border-radius: 6px; overflow: hidden; }
+        .fall-tod-bar span { display: block; height: 100%; background: #B0566B; border-radius: 6px; }
+        .fall-tod-row b { color: var(--text-main); text-align: right; font-variant-numeric: tabular-nums; }
+        .fall-table-wrap { overflow-x: auto; border: 1px solid var(--border-light); border-radius: 14px; }
+        .fall-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 560px; }
+        .fall-table th { text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); background: #FAF7F4; padding: 10px 12px; }
+        .fall-table td { padding: 10px 12px; border-top: 1px solid #F1ECE7; color: var(--text-main); font-variant-numeric: tabular-nums; }
+        .trend-badge.warn { background: #FFF4E5; color: #9A5B00; }
 
         .lab-pill-group {
             display: flex;
@@ -1726,7 +1747,19 @@
             font-weight: 700;
             color: #475569;
         }
-    </style>
+            /* The menu (☰) button only appears on phones / small tablets, where the sidebar is hidden.
+           (.btn sets display, so this rule must come after it.) */
+        .header-top .hamburger.btn { display: none; }
+        @media (max-width: 1024px) { .header-top .hamburger.btn { display: flex; } }
+
+        /* Back to the caretaker's dashboard (all patients) */
+        .nav-back {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 0;
+            padding: 10px 14px; border-radius: 12px; font-weight: 600; font-size: 0.92rem;
+            color: var(--text-muted); text-decoration: none; border: 1px dashed var(--border-light);
+        }
+        .nav-back:hover { color: var(--accent-hover); background: rgba(185, 120, 134, 0.06); }
+</style>
 </head>
 
 <body>
@@ -1744,6 +1777,9 @@
                     <i class="fas fa-times"></i>
                 </button>
             </div>
+            <a href="dashboard.html" class="nav-back" title="Back to the caretaker's dashboard (all patients)">
+                <i class="fas fa-arrow-left"></i> Caretaker dashboard
+            </a>
             <nav class="nav-menu">
                 <a class="nav-item active" onclick="switchTab('tab-dashboard')">
                     <i class="fas fa-th-large"></i> Dashboard
@@ -1783,9 +1819,6 @@
                         <i class="fas fa-user-cog"></i> Account Settings
                     </a>
                 </div>
-                <a href="dashboard.html" class="nav-item" style="padding: 10px 16px;">
-                    <i class="fas fa-sign-out-alt"></i> Back to Hub
-                </a>
             </div>
         </aside>
 
@@ -2299,55 +2332,71 @@
                         </div>
 
                         <div class="col-12" id="videoStatsContainer" style="margin-top: 24px; display: none;">
-                            <div class="dashboard-grid">
-                                <div class="col-4">
-                                    <div class="card" style="text-align: center; padding: 16px;">
-                                        <div
-                                            style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 800; margin-bottom: 4px;">
-                                            Total Sessions</div>
-                                        <div id="totalVideos"
-                                            style="font-size: 1.8rem; font-weight: 800; color: var(--accent);">0</div>
+                            <div class="card" style="padding: 24px;">
+                                <div class="trend-head">
+                                    <div>
+                                        <h2 class="trend-title">Fall Analysis</h2>
+                                        <p class="trend-sub" id="fallAnalysisSub">Falls from the home camera, live monitor and uploaded videos · getting up within 2 minutes is fine</p>
                                     </div>
-                                </div>
-                                <div class="col-4">
-                                    <div class="card" style="text-align: center; padding: 16px;">
-                                        <div
-                                            style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 800; margin-bottom: 4px;">
-                                            Falls Detected</div>
-                                        <div id="totalFalls"
-                                            style="font-size: 1.8rem; font-weight: 800; color: var(--critical);">0</div>
-                                    </div>
-                                </div>
-                                <div class="col-4">
-                                    <div class="card" style="text-align: center; padding: 16px;">
-                                        <div
-                                            style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 800; margin-bottom: 4px;">
-                                            Avg. Mobility</div>
-                                        <div id="avgActivity"
-                                            style="font-size: 1.8rem; font-weight: 800; color: var(--normal);">0/10
+                                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                                        <span id="fallRiskBadge" class="trend-badge na">Risk: --</span>
+                                        <div class="range-toggle" id="fallRange" role="group" aria-label="Time range">
+                                            <button type="button" data-range="7">7D</button>
+                                            <button type="button" data-range="30" class="active">30D</button>
+                                            <button type="button" data-range="90">90D</button>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="col-6">
-                                    <div class="card">
-                                        <div class="card-header" style="padding: 12px 16px;">
-                                            <h2><i class="fas fa-chart-line"></i> Fall History</h2>
-                                        </div>
-                                        <div class="chart-container" style="height: 240px; padding: 0 12px 12px;">
-                                            <canvas id="fallsHistoryChart"></canvas>
-                                        </div>
+                                <div class="fall-kpis">
+                                    <div class="fall-kpi">
+                                        <div class="fall-kpi-label">Falls</div>
+                                        <div class="fall-kpi-value" id="totalFalls">0</div>
+                                        <div class="fall-kpi-sub" id="fallsPrev">&nbsp;</div>
+                                    </div>
+                                    <div class="fall-kpi">
+                                        <div class="fall-kpi-label"><i class="fas fa-check-circle" style="color:#6E8C66;"></i> Got up within 2 min</div>
+                                        <div class="fall-kpi-value" id="fallsOk">0</div>
+                                        <div class="fall-kpi-sub" id="fallsUnknown">&nbsp;</div>
+                                    </div>
+                                    <div class="fall-kpi">
+                                        <div class="fall-kpi-label"><i class="fas fa-stopwatch" style="color:#C96B55;"></i> Long lies (&gt; 2 min)</div>
+                                        <div class="fall-kpi-value" id="fallsLong">0</div>
+                                        <div class="fall-kpi-sub">on the floor too long</div>
+                                    </div>
+                                    <div class="fall-kpi">
+                                        <div class="fall-kpi-label">Avg. time to get up</div>
+                                        <div class="fall-kpi-value" id="avgGetUp">--</div>
+                                        <div class="fall-kpi-sub" id="maxGetUp">&nbsp;</div>
                                     </div>
                                 </div>
-                                <div class="col-6">
-                                    <div class="card">
-                                        <div class="card-header" style="padding: 12px 16px;">
-                                            <h2><i class="fas fa-walking"></i> Mobility Trends</h2>
-                                        </div>
-                                        <div class="chart-container" style="height: 240px; padding: 0 12px 12px;">
-                                            <canvas id="mobilityHistoryChart"></canvas>
-                                        </div>
+                                <p class="trend-sub" id="lastFallLine" style="margin:10px 0 0;"></p>
+
+                                <div id="fallInsights" class="fall-insights"></div>
+
+                                <div class="trend-grid" style="margin-top:16px;">
+                                    <div class="trend-card">
+                                        <div class="trend-card-head"><span class="trend-name"><i class="fas fa-chart-column"></i> Falls per day</span></div>
+                                        <div class="trend-chart"><canvas id="fallsHistoryChart"></canvas></div>
                                     </div>
+                                    <div class="trend-card">
+                                        <div class="trend-card-head"><span class="trend-name"><i class="fas fa-person-arrow-up-from-line"></i> Time to get up after each fall</span></div>
+                                        <div class="trend-chart"><canvas id="getUpChart"></canvas></div>
+                                        <div class="trend-foot"><span>Dashed line = 2-minute limit</span><span>Grey = no stand-up recorded</span></div>
+                                    </div>
+                                    <div class="trend-card">
+                                        <div class="trend-card-head"><span class="trend-name"><i class="fas fa-clock"></i> Time of day</span></div>
+                                        <div id="fallTimeOfDay" class="fall-tod"></div>
+                                        <div class="trend-foot"><span id="videoSessionsLine">&nbsp;</span></div>
+                                    </div>
+                                </div>
+
+                                <h3 style="font-size:1rem; font-weight:800; color:var(--text-main); margin:22px 0 10px;"><i class="fas fa-history" style="color:#B97886;"></i> Fall history</h3>
+                                <div class="fall-table-wrap">
+                                    <table class="fall-table">
+                                        <thead><tr><th>Date &amp; time</th><th>Detected by</th><th>Confidence</th><th>Got up after</th><th>Result</th></tr></thead>
+                                        <tbody id="fallHistoryBody"><tr><td colspan="5" class="trend-foot">Loading…</td></tr></tbody>
+                                    </table>
                                 </div>
                             </div>
                         </div>
@@ -2616,8 +2665,15 @@
             ? `${window.location.protocol}//${window.location.hostname}:8000/api`
             : '/api';
         const urlParams = new URLSearchParams(window.location.search);
-        let recipientId = urlParams.get('recipient_id');
-        const token = localStorage.getItem('token');
+        let recipientId = urlParams.get('recipient_id')
+            || localStorage.getItem('selectedRecipientId') || sessionStorage.getItem('selectedRecipientId');
+        if (recipientId && !urlParams.get('recipient_id')) {
+            try { window.history.replaceState(null, '', window.location.pathname + `?recipient_id=${recipientId}`); } catch (e) { }
+        }
+        let token = localStorage.getItem('token');
+        // session_keepalive.js renews the login token: use the fresh one from then on
+        window.addEventListener('caretaker-token', e => { if (e.detail) token = e.detail; });
+        if (recipientId) { try { localStorage.setItem('selectedRecipientId', recipientId); } catch (e) { } }
 
         // State & Charts Configuration 
         let profileData = {};
@@ -2858,7 +2914,8 @@
             if (tabId === 'tab-video') {
                 fetchVideoStats();
                 if (fallsChartInstance) fallsChartInstance.resize();
-                if (mobilityHistoryChart) mobilityChartInstance.resize();
+                if (mobilityChartInstance) mobilityChartInstance.resize();
+                if (typeof getUpChartInstance !== 'undefined' && getUpChartInstance) getUpChartInstance.resize();
             }
 
             // Special: Sidebar close on mobile after selection
@@ -2890,31 +2947,159 @@
             window.location.href = `video_monitoring.html?recipient_id=${recipientId}`;
         }
 
+        // ── Fall analysis (Video tab) ──────────────────────────────────────────
+        let fallRangeDays = 30;
+        let getUpChartInstance = null;
+
+        function fmtMinSec(sec) {
+            if (sec == null || isNaN(sec)) return '--';
+            sec = Math.round(sec);
+            const m = Math.floor(sec / 60), s = sec % 60;
+            return m ? `${m} min ${s} s` : `${s} s`;
+        }
+
         async function fetchVideoStats() {
             const container = document.getElementById('videoStatsContainer');
             if (!container) return;
             container.style.display = 'block';
 
             try {
-                const res = await fetch(`${API_BASE}/video-monitoring/recipient/${recipientId}/stats`, {
+                const res = await fetch(`${API_BASE}/video-monitoring/recipient/${recipientId}/fall-analysis?days=${fallRangeDays}`, {
                     headers: { 'Authorization': 'Bearer ' + token }
                 });
-
-                if (!res.ok) throw new Error('Failed to fetch stats');
-                const data = await res.json();
-
-                // Update specific elements
-                document.getElementById('totalVideos').textContent = data.total_videos;
-                document.getElementById('totalFalls').textContent = data.total_falls;
-                document.getElementById('avgActivity').textContent = `${data.avg_activity_score}/10`;
-
-                updateVideoCharts(data.history);
-
+                if (!res.ok) throw new Error('Failed to fetch fall analysis');
+                renderFallAnalysis(await res.json());
             } catch (err) {
-                console.error('Error fetching video stats:', err);
-                container.style.display = 'none';
+                console.error('Error fetching fall analysis:', err);
+                const body = document.getElementById('fallHistoryBody');
+                if (body) body.innerHTML = '<tr><td colspan="5" class="trend-foot">Could not load fall history. Is the backend running?</td></tr>';
             }
         }
+
+        function renderFallAnalysis(d) {
+            const set = (id, v) => { const el = document.getElementById(id); if (el) el.innerHTML = v; };
+            set('totalFalls', d.total_falls);
+            set('fallsPrev', `previous ${d.days} days: ${d.previous_period_falls}`);
+            set('fallsOk', d.got_up_within_limit);
+            set('fallsUnknown', d.unknown_outcome ? `${d.unknown_outcome} with no stand-up recorded` : '&nbsp;');
+            set('fallsLong', d.long_lies);
+            set('avgGetUp', d.avg_time_to_get_up_sec != null ? fmtMinSec(d.avg_time_to_get_up_sec) : '--');
+            set('maxGetUp', d.max_time_to_get_up_sec != null ? `slowest ${fmtMinSec(d.max_time_to_get_up_sec)}` : '&nbsp;');
+            set('lastFallLine', d.last_fall_at
+                ? `<i class="fas fa-clock"></i> Last fall: ${new Date(d.last_fall_at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+                  + (d.raw_detections > d.total_falls ? ` · ${d.raw_detections} camera detections merged into ${d.total_falls} falls` : '')
+                : '');
+
+            const badge = document.getElementById('fallRiskBadge');
+            if (badge) {
+                const r = d.risk_level;
+                badge.className = 'trend-badge ' + (r === 'high' ? 'high' : r === 'moderate' ? 'warn' : 'ok');
+                badge.innerHTML = r === 'high' ? '<i class="fas fa-triangle-exclamation"></i> Fall risk: High'
+                    : r === 'moderate' ? '<i class="fas fa-circle-exclamation"></i> Fall risk: Moderate'
+                    : '<i class="fas fa-check"></i> Fall risk: Low';
+            }
+
+            set('fallInsights', (d.insights || []).map(t =>
+                `<div class="fall-insight"><i class="fas fa-lightbulb"></i><span>${escHtml(t)}</span></div>`).join(''));
+
+            // Time of day bars
+            const tod = d.time_of_day || {};
+            const maxTod = Math.max(1, ...Object.values(tod));
+            set('fallTimeOfDay', Object.entries(tod).map(([k, v]) =>
+                `<div class="fall-tod-row"><span>${escHtml(k)}</span><div class="fall-tod-bar"><span style="width:${(v / maxTod) * 100}%"></span></div><b>${v}</b></div>`).join(''));
+            set('videoSessionsLine', `${d.video_sessions} uploaded video session${d.video_sessions === 1 ? '' : 's'}`
+                + (d.avg_mobility_score != null ? ` · avg mobility ${d.avg_mobility_score}/10` : ''));
+
+            // History table (newest first)
+            const srcLabel = s => ({ tfjs_live: 'Live monitor', live_stream: 'Home camera', upload: 'Uploaded video' }[s] || s || '--');
+            const rows = (d.incidents || []).map(i => {
+                const when = new Date(i.occurred_at).toLocaleString([], { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                const up = i.got_up && i.time_to_get_up_sec != null ? fmtMinSec(i.time_to_get_up_sec)
+                    : i.got_up ? 'Got up' : (i.time_on_ground_sec ? `still down after ${fmtMinSec(i.time_on_ground_sec)}` : 'Not recorded');
+                const res = i.outcome === 'ok' ? '<span class="trend-badge ok"><i class="fas fa-check"></i> Within 2 min</span>'
+                    : i.outcome === 'long_lie' ? '<span class="trend-badge high"><i class="fas fa-stopwatch"></i> Long lie</span>'
+                    : '<span class="trend-badge na"><i class="fas fa-question"></i> Unknown</span>';
+                const multi = i.detections > 1 ? ` <span class="trend-foot">(${i.detections} detections)</span>` : '';
+                return `<tr><td>${when}</td><td>${escHtml(srcLabel(i.source))}${i.camera ? ' · ' + escHtml(i.camera) : ''}${multi}</td>
+                        <td>${i.confidence ? i.confidence + '%' : '--'}</td><td>${up}</td><td>${res}</td></tr>`;
+            });
+            set('fallHistoryBody', rows.join('') || `<tr><td colspan="5" class="trend-foot">No falls recorded in the last ${d.days} days.</td></tr>`);
+
+            // Falls per day
+            const perDay = d.per_day || [];
+            const ctxF = document.getElementById('fallsHistoryChart');
+            if (ctxF) {
+                if (fallsChartInstance) fallsChartInstance.destroy();
+                fallsChartInstance = new Chart(ctxF.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: perDay.map(p => new Date(p.date).toLocaleDateString([], { day: 'numeric', month: 'short' })),
+                        datasets: [{ label: 'Falls', data: perDay.map(p => p.falls), backgroundColor: '#B0566B', borderRadius: 4, maxBarThickness: 18 }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false }, datalabels: { display: false }, tooltip: CHART_THEME.baseOptions.plugins.tooltip },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#94A3B8', maxTicksLimit: 8, maxRotation: 0 } },
+                            y: { beginAtZero: true, ticks: { precision: 0, font: { size: 10 }, color: '#94A3B8' }, grid: { color: 'rgba(148,163,184,0.15)' }, border: { display: false } }
+                        }
+                    }
+                });
+            }
+
+            // Time to get up per fall, with the 2-minute line
+            const inc = (d.incidents || []).slice().reverse();
+            const ctxG = document.getElementById('getUpChart');
+            if (ctxG) {
+                if (getUpChartInstance) getUpChartInstance.destroy();
+                const limitMin = (d.limit_sec || 120) / 60;
+                const vals = inc.map(i => i.got_up && i.time_to_get_up_sec != null ? i.time_to_get_up_sec / 60
+                    : (i.time_on_ground_sec ? i.time_on_ground_sec / 60 : null));
+                getUpChartInstance = new Chart(ctxG.getContext('2d'), {
+                    type: 'bar',
+                    plugins: [refBandPlugin],
+                    data: {
+                        labels: inc.map(i => new Date(i.occurred_at).toLocaleDateString([], { day: 'numeric', month: 'short' })),
+                        datasets: [{
+                            label: 'Minutes on the floor',
+                            data: vals.map(v => v == null ? 0.05 : v),
+                            backgroundColor: inc.map((i, k) => vals[k] == null ? '#CBD5E1' : (vals[k] > limitMin ? TREND_CRITICAL : '#6E8C66')),
+                            borderRadius: 4, maxBarThickness: 22
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: {
+                            refBand: { low: null, high: limitMin },
+                            legend: { display: false }, datalabels: { display: false },
+                            tooltip: {
+                                ...CHART_THEME.baseOptions.plugins.tooltip,
+                                callbacks: {
+                                    label: item => {
+                                        const i = inc[item.dataIndex];
+                                        if (vals[item.dataIndex] == null) return ' No stand-up recorded';
+                                        return ` ${fmtMinSec(vals[item.dataIndex] * 60)} — ${i.outcome === 'ok' ? 'within 2 min' : 'longer than 2 min'}`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#94A3B8', maxRotation: 0 } },
+                            y: { beginAtZero: true, suggestedMax: limitMin * 1.25, title: { display: true, text: 'minutes', color: '#94A3B8', font: { size: 10 } },
+                                 ticks: { font: { size: 10 }, color: '#94A3B8' }, grid: { color: 'rgba(148,163,184,0.15)' }, border: { display: false } }
+                        }
+                    }
+                });
+            }
+        }
+
+        document.addEventListener('click', e => {
+            const b = e.target.closest('#fallRange button');
+            if (!b) return;
+            fallRangeDays = Number(b.dataset.range) || 30;
+            document.querySelectorAll('#fallRange button').forEach(x => x.classList.toggle('active', x === b));
+            fetchVideoStats();
+        });
 
         function updateVideoCharts(history) {
             const ctxFallsEl = document.getElementById('fallsHistoryChart');
@@ -2988,7 +3173,14 @@
                 });
 
                 if (response.status === 401) {
-                    localStorage.removeItem('token');
+                    // login token too old: renew it quietly and try once more before sending to the login page
+                    if (!fetchProfileData._retried && window.CaretakerSession) {
+                        fetchProfileData._retried = true;
+                        await window.CaretakerSession.refresh();
+                        token = localStorage.getItem('token') || token;
+                        return fetchProfileData();
+                    }
+                    localStorage.removeItem('token'); sessionStorage.removeItem('token');
                     window.location.href = 'index.html';
                     return;
                 }
@@ -2998,6 +3190,7 @@
                     throw new Error(err.detail || 'Failed to fetch profile.');
                 }
 
+                fetchProfileData._retried = false;
                 profileData = await response.json();
 
                 // Hide loading, show dashboard
@@ -3076,9 +3269,10 @@
             const messageEl = document.getElementById('bannerMessage');
             const titleEl = document.getElementById('bannerTitle');
 
-            // Find highest severity alert
+            // Find the highest severity alert that is still open (read / cleared alerts are not shown;
+            // event alerts clear when the patient talks normally to the assistant or after 4 hours)
             const criticalAlert = (profileData.alerts || []).find(a =>
-                a.severity?.toLowerCase() === 'critical' || a.severity?.toLowerCase() === 'high'
+                !a.is_read && (a.severity?.toLowerCase() === 'critical' || a.severity?.toLowerCase() === 'high')
             );
 
             if (criticalAlert) {
@@ -4894,6 +5088,7 @@
             }
         });
     </script>
+    <script src="session_keepalive.js?v=4"></script>
 </body>
 
 </html>

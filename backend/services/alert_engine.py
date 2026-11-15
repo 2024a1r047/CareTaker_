@@ -90,6 +90,15 @@ def generate_alerts(
 
     # Check for critical lab values (independent of status changes)
     for lab in progression_result.get("new_lab_values", []):
+        # A physically impossible value (e.g. Hemoglobin 1.0 from a misread report) is a reading
+        # error, not a medical emergency: never raise a critical alert for it.
+        try:
+            from services.agent_medical_context import _plausible
+            if not _plausible(lab["metric"], float(lab["value"])):
+                print(f"[alert_engine] skipped critical alert for implausible {lab['metric']} = {lab['value']}")
+                continue
+        except (TypeError, ValueError, ImportError):
+            pass
         if _is_critical_value(lab["metric"], lab["value"]):
             critical_alert = MedicalAlert(
                 care_recipient_id=recipient_id,

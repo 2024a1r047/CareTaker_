@@ -119,6 +119,15 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
                     # Specification: Exact opening greeting with natural pauses
                     reply_text = f"Namaste {first_name} ji... aaj aap kaisa feel kar rahe hain? ... Jo bhi aapke mann mein hai, mujhe batayiye. Main sun rahi hoon."
                     intent = "greeting"
+                    # Fell today and not asked yet: open by asking whether they are hurt
+                    try:
+                        from services.voice_health_brief import recent_fall_checkin
+                        _fc = recent_fall_checkin(db, recipient_id, f"{first_name} ji")
+                        if _fc:
+                            reply_text = f"Namaste {first_name} ji... " + _fc["hi"].split(", ", 1)[-1]
+                    except Exception as _ferr:
+                        db.rollback()
+                        print(f"[Saathi] fall check-in skipped: {_ferr}")
 
                     save_message(recipient_id, SenderEnum.bot, reply_text, MoodEnum.neutral,
                                  TriggerTypeEnum.proactive_checkin, session_id, db, intent=intent)
@@ -175,6 +184,12 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
                 mood_str = sentiment.get("current_mood", "neutral")
                 mood_enum = MoodEnum(mood_str) if mood_str in [m.value for m in MoodEnum] else MoodEnum.neutral
                 save_message(recipient_id, SenderEnum.user, user_text, mood_enum, trigger_type, session_id, db)
+                # Patient talking normally -> clear old event alerts (medicines not taken, emergency, long lie)
+                try:
+                    from services.alert_autoclear import clear_on_normal_talk
+                    clear_on_normal_talk(db, recipient_id, user_text, mood_str)
+                except Exception as _ac_err:
+                    print(f"[voice_ws] alert auto-clear skipped: {_ac_err}")
                 # Sync user turn to saathi_db.conversation_messages
                 try:
                     from services.saathi_memory_service import save_message_sync

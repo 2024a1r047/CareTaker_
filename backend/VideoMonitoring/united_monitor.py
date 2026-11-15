@@ -13,6 +13,7 @@ import os
 import sys
 import time
 import math
+from collections import deque
 import cv2
 import numpy as np
 import torch
@@ -84,6 +85,33 @@ class UnitedMonitor:
         self._has_been_standing = False
         self._standing_duration = 0.0
         self._fall_anchor_box = None  # bounding box locked at fall-trigger time (visual anchor)
+
+        # ── After-fall reporting (does not affect detection) ──
+        # Which detector fired, how long the person has been down, and whether they got up.
+        self._fall_method = None             # pose_model | lstm | disappearance
+        self._time_since_fall = 0.0          # seconds (video time offline, real time live)
+        self._fall_recovered = False         # person stood up again after the latest fall
+        self._recovery_seconds = None        # seconds on the ground before getting up
+        self._got_up_just_fired = False      # one-frame flag, like _fall_event_just_fired
+        self._since_recovery = 0.0           # for showing "got up" on screen for a few seconds
+        self._GOT_UP_STANDING_SEC = 2.0      # same "clearly upright" gate the HUD already uses
+
+        # ── Elderly safety: sudden fall vs. slowly bending down to pick something up ──
+        # The models fire on "torso tilted a lot / hips went down a lot", which a slow, careful
+        # bend also does. A real fall is SUDDEN: the body drops a large part of its height in
+        # well under a second, and the person then stays down. Both are checked before a fall
+        # is confirmed. Times use the VIDEO clock offline (set by the caller), real time live.
+        self._video_time = None              # seconds into the video (offline), set per frame by caller
+        self._motion_hist = deque()          # (t, hip_y, neck_y) of the monitored person
+        self._body_h_ref = None              # standing body height in px (scale for the drop)
+        self._pending_fall = None            # sudden drop seen, waiting to confirm the person stays down
+        self._SUDDEN_WINDOW_SEC = 0.6        # the HIP drop must happen within this time...
+        self._SUDDEN_DROP_FRAC = 0.20        # ...and be at least this fraction of body height
+        self._SUDDEN_LOOKBACK_SEC = 2.5      # how far back to look (models fire a little after the drop)
+        self._STAY_DOWN_SEC = 1.5            # still down this long after the drop -> real fall
+        self._MAX_CONFIRM_SEC = 4.0          # give up if hips never reach the floor by then
+        self._ON_FLOOR_HIP_FRAC = 0.30       # hips within 30% of body height above the feet = on the floor
+        self._last_drop_frac = 0.0           # for logs
 
         # Alert Suppression
         self._last_event_frame = -999
@@ -188,6 +216,7 @@ class UnitedMonitor:
     def process_frame(self, frame: np.ndarray) -> dict:
         self._frame_counter += 1
         self._fall_event_just_fired = False  # Reset at frame start; set to True below if event fires
+        self._got_up_just_fired = False      # Reset at frame start; set to True when the person gets up
         now = time.time()
         ts = now - self._fps_start
 
@@ -203,7 +232,21 @@ class UnitedMonitor:
             yolo_res = self._yolo.predict(frame, verbose=False, classes=[0], conf=0.25)[0]
         boxes_raw = yolo_res.boxes
         kps_data = yolo_res.keypoints
-        
+
+        # Raw detections (before the strict humanity filter) for the whole-video fall analysis
+        # of uploaded recordings (VideoMonitoring/offline_fall_analyzer.py)
+        self.last_raw_people = []
+        try:
+            if boxes_raw is not None and len(boxes_raw.xyxy) > 0 and kps_data is not None:
+                _b = boxes_raw.xyxy.cpu().numpy()
+                _xy = kps_data.xy.cpu().numpy()
+                _cf = kps_data.conf.cpu().numpy() if kps_data.conf is not None else None
+                for _i in range(len(_b)):
+                    self.last_raw_people.append({"box": _b[_i], "xy": _xy[_i],
+                                                 "conf": _cf[_i] if _cf is not None else None})
+        except Exception:
+            self.last_raw_people = []
+
         all_persons = []
         possible_humans = []
         monitored_idx = -1
@@ -331,6 +374,14 @@ class UnitedMonitor:
             else:
                 self._standing_duration = max(0.0, self._standing_duration - dt)
 
+            # Motion history for the sudden-fall check
+            clock = self._motion_clock(now)
+            if is_upright and bh > 0:
+                self._body_h_ref = bh if self._body_h_ref is None else 0.9 * self._body_h_ref + 0.1 * bh
+            self._motion_hist.append((clock, float(mid_hip[1]), float(neck[1])))
+            while self._motion_hist and clock - self._motion_hist[0][0] > self._SUDDEN_LOOKBACK_SEC:
+                self._motion_hist.popleft()
+
             cooldown = self._EVENT_FRAME_COOLDOWN if self.is_live else 60
             fall_triggered = False
 
@@ -348,8 +399,11 @@ class UnitedMonitor:
                     self._inactivity.set_external_sleep_status(True)
 
                 # 90%+ confirmed fall required; deliberate lie-down / sleeping strictly rejected
+                # p_alarm (alarm still held) also counts: if a slow bend was ignored and the person
+                # then falls suddenly from that bent position, the model does not fire a second
+                # p_event while its alarm is held -> the sudden-drop check below decides.
                 fall_triggered = (
-                    p_event and
+                    (p_event or p_alarm) and
                     prob >= 0.90 and
                     self._has_been_standing and
                     not self._is_sleeping and
@@ -380,6 +434,48 @@ class UnitedMonitor:
                     not self._is_currently_falling and
                     (self._frame_counter - self._last_event_frame) > cooldown
                 )
+                if fall_triggered:
+                    # Report the real model probability (was left at 0 -> "FALL DETECTED (0%)")
+                    self._fall_confidence = int(round(lstm_prob * 100))
+                    self._fall_method = "lstm"
+            if self._prototype_detector is not None and fall_triggered:
+                self._fall_method = "pose_model"
+
+            # ── Sudden-fall check (elderly: slow bend to pick something up is NOT a fall) ──
+            if fall_triggered:
+                fall_triggered = False                     # confirmed below only if it was sudden
+                if self._pending_fall is None:
+                    sudden, drop = self._sudden_drop()
+                    self._last_drop_frac = drop
+                    if sudden:
+                        self._pending_fall = {"t": clock, "confidence": self._fall_confidence, "method": self._fall_method}
+                        self._slow_logged = False
+                        print(f"[UnitedMonitor] Sudden drop {drop:.2f} of body height - confirming the person stays down...")
+                    elif not getattr(self, "_slow_logged", False):
+                        self._slow_logged = True       # log once per slow bend, not every frame
+                        print(f"[UnitedMonitor] Fall signal ignored: body went down slowly (drop {drop:.2f} of body height "
+                              f"in {self._SUDDEN_WINDOW_SEC}s) - bending / sitting, not a fall")
+            elif self._pending_fall is None and is_upright:
+                self._slow_logged = False
+            if self._pending_fall is not None:
+                # Hips near the floor (close to the feet) or body lying flat = on the floor.
+                # Bending over to pick something up keeps the hips up at leg height.
+                ref = self._body_h_ref or bh or 1.0
+                hip_above_feet = (float(monitored_box[3]) - float(mid_hip[1])) / ref
+                on_floor = bbox_is_horizontal or hip_above_feet < self._ON_FLOOR_HIP_FRAC
+                waited = clock - self._pending_fall["t"]
+                if is_upright and self._standing_duration > 0.5:
+                    print("[UnitedMonitor] Person straightened up right away - not a fall")
+                    self._pending_fall = None
+                elif waited >= self._STAY_DOWN_SEC and on_floor:
+                    # Sudden drop AND still down on the floor -> real fall
+                    self._fall_confidence = self._pending_fall["confidence"]
+                    self._fall_method = self._pending_fall["method"]
+                    self._pending_fall = None
+                    fall_triggered = not self._is_currently_falling
+                elif waited >= self._MAX_CONFIRM_SEC:
+                    print(f"[UnitedMonitor] Hips stayed off the floor ({hip_above_feet:.2f} of body height) - bending / crouching, not a fall")
+                    self._pending_fall = None
 
             # ── Record pose state for pre-disappearance analysis ──
             self._pre_disappear_torso_angles.append(torso_angle)
@@ -402,11 +498,19 @@ class UnitedMonitor:
                 # This prevents the "! FALL DETECTED" label from jumping to other people
                 # in multi-person scenes (predict() mode uses sequential IDs that shift).
                 self._fall_anchor_box = monitored_box.copy() if monitored_box is not None else None
+                self._start_after_fall_tracking()
                 _sound_loud_beep()
-            
+
             # HUD Clearing Logic: once clearly upright and stable, clear the fall flag
             if self._is_currently_falling:
                 if is_upright and self._standing_duration > 2.0:
+                    # Person got up after the fall (reported once per fall)
+                    if not self._fall_recovered:
+                        self._fall_recovered = True
+                        self._got_up_just_fired = True
+                        self._since_recovery = 0.0
+                        # time on the ground = time since fall minus the 2 s of standing used to confirm it
+                        self._recovery_seconds = round(max(0.0, self._time_since_fall - self._GOT_UP_STANDING_SEC), 1)
                     self._fall_detected = False
                     if self._standing_duration > 10.0:
                         self._is_currently_falling = False
@@ -451,6 +555,11 @@ class UnitedMonitor:
                     self._last_fall_event_time = now
                     self._last_event_frame = self._frame_counter
                     self._disappear_fall_fired = True
+                    # Report the model probability seen just before the person left the view
+                    # (was not set -> showed 0% or the previous fall's value)
+                    self._fall_confidence = int(round(avg_lstm * 100))
+                    self._fall_method = "disappearance"
+                    self._start_after_fall_tracking()
                     _sound_loud_beep()
                     print(f"[UnitedMonitor] Pose-aware disappearance fall: torso={avg_torso:.1f}° lstm={avg_lstm:.2f} horiz={any_horiz}")
 
@@ -458,11 +567,25 @@ class UnitedMonitor:
         inactivity_res = self._inactivity.update([monitored_box.tolist()] if monitored_box is not None else [], now)
         self._inactivity_alert = inactivity_res.get("alert", False)
 
+        # ── After-fall clock (reporting only) ──
+        if self._is_currently_falling and not self._fall_recovered and not self._fall_event_just_fired:
+            self._time_since_fall += dt
+        if self._fall_recovered:
+            self._since_recovery += dt
+        on_ground = self._is_currently_falling and not self._fall_recovered
+        recovered_recently = self._fall_recovered and self._since_recovery < 6.0
+
         result = {
             "fall": {
                 "fall_detected": self._fall_detected,
                 "fall_event_fired": self._fall_event_just_fired,
                 "confidence": self._fall_confidence if self._fall_detected else 0,
+                "event_confidence": self._fall_confidence,          # confidence of the latest fall
+                "detection_method": self._fall_method,
+                "got_up_event_fired": self._got_up_just_fired,      # person stood up after the fall (one frame)
+                "on_ground": on_ground,
+                "time_on_ground_sec": round(self._time_since_fall, 1) if on_ground else None,
+                "recovery_seconds": self._recovery_seconds,
                 "all_persons": all_persons,
                 "features": features,
                 "keypoints": monitored_xy,
@@ -476,7 +599,11 @@ class UnitedMonitor:
                 "is_sleeping": self._is_sleeping,
                 "inactivity_alert": self._inactivity_alert,
                 "fps": self._current_fps,
-                "timestamp": ts
+                "timestamp": ts,
+                "on_ground": on_ground,
+                "time_on_ground_sec": round(self._time_since_fall, 1) if on_ground else None,
+                "recovered_recently": recovered_recently,
+                "recovery_seconds": self._recovery_seconds,
             }
         }
         
@@ -491,10 +618,54 @@ class UnitedMonitor:
         dx, dy = p2[0]-p1[0], p2[1]-p1[1]
         return math.degrees(math.atan2(abs(dx), abs(dy))) if vertical else math.degrees(math.atan2(dy, dx))
 
+    def _motion_clock(self, now: float) -> float:
+        """Video time offline (so processing speed and frame skipping don't distort speeds), real time live."""
+        if not self.is_live and self._video_time is not None:
+            return float(self._video_time)
+        return now
+
+    def _sudden_drop(self):
+        """
+        Largest drop of hips or shoulders (as a fraction of standing body height) that happened
+        within _SUDDEN_WINDOW_SEC, looking back over the last few seconds.
+        Returns (is_sudden, drop_fraction).
+          Slow, careful bend:  ~0.10-0.18 of body height per 0.6 s  -> not a fall
+          Real fall:           ~0.3-0.8 of body height in < 0.6 s   -> fall
+        """
+        ref = self._body_h_ref
+        hist = list(self._motion_hist)
+        if not ref or ref <= 0 or len(hist) < 2:
+            return True, 0.0          # no reference yet: don't block (keeps previous behaviour)
+        best = 0.0
+        for i in range(len(hist)):
+            ti, hip_i, _neck_i = hist[i]
+            for j in range(i + 1, len(hist)):
+                tj, hip_j, _neck_j = hist[j]
+                if tj - ti > self._SUDDEN_WINDOW_SEC:
+                    break
+                # HIPS, not shoulders: bending forward drops the shoulders a lot but the hips little;
+                # in a real fall the hips drop fast. (image y grows downwards)
+                drop = (hip_j - hip_i) / ref
+                if drop > best:
+                    best = drop
+        return best >= self._SUDDEN_DROP_FRAC, round(best, 3)
+
+    def _start_after_fall_tracking(self):
+        """A new fall fired: start the 'time on the ground' clock for it."""
+        self._time_since_fall = 0.0
+        self._fall_recovered = False
+        self._recovery_seconds = None
+        self._since_recovery = 0.0
+
     def reset_fall(self):
         self._fall_detected = False
         self._is_currently_falling = False
         self._confirm_count = 0
+        self._fall_recovered = False
+        self._recovery_seconds = None
+        self._time_since_fall = 0.0
+        self._pending_fall = None
+        self._motion_hist.clear()
         if self._seq_buf is not None:
             self._seq_buf.reset()
         if self._prototype_detector is not None:
@@ -545,8 +716,11 @@ def draw_united_interface(frame, results, draw_skeleton=True):
         if is_fall_person:
             if fall_detected:
                 color = (0, 0, 255)           # Red — fall
-                conf_val = fall_res.get("confidence", 95)
-                label = f"! FALL DETECTED ({conf_val}%)"
+                conf_val = fall_res.get("confidence") or 0
+                label = f"! FALL DETECTED ({conf_val}%)" if conf_val > 0 else "! FALL DETECTED"
+            elif gs.get("recovered_recently"):
+                color = (0, 200, 0)           # Green — got up again
+                label = ">> GOT UP"
             elif gs.get("is_sleeping"):
                 color = (255, 200, 0)         # Soft Cyan/Blue — Resting
                 label = ">> RESTING / IN BED"
@@ -588,9 +762,19 @@ def draw_united_interface(frame, results, draw_skeleton=True):
 
     # Build status string
     if gs["fall_detected"] and (fall_person_idx != -1 or (fall_anchor is not None and n_persons > 0)):
-        conf_val = fall_res.get("confidence", 95)
-        status_txt   = f"FALL DETECTED (CONFIRMED {conf_val}%)"
+        conf_val = fall_res.get("confidence") or 0
+        status_txt   = f"FALL DETECTED (CONFIRMED {conf_val}%)" if conf_val > 0 else "FALL DETECTED"
+        if gs.get("on_ground") and gs.get("time_on_ground_sec") is not None:
+            status_txt += f" - on floor {gs['time_on_ground_sec']:.0f}s"
         status_color = (0, 0, 255)
+    elif gs.get("on_ground") and gs.get("time_on_ground_sec") is not None:
+        # Fallen person left the view / not visible: keep counting
+        status_txt   = f"FALL - person has not got up ({gs['time_on_ground_sec']:.0f}s)"
+        status_color = (0, 0, 255)
+    elif gs.get("recovered_recently"):
+        rs = gs.get("recovery_seconds")
+        status_txt   = f"PERSON GOT UP after the fall ({rs:.1f}s on floor)" if rs is not None else "PERSON GOT UP after the fall"
+        status_color = (0, 200, 0)
     elif gs.get("is_sleeping"):
         status_txt   = "Resting / Sleeping in bed (Sleep mode active)"
         status_color = (255, 200, 0)

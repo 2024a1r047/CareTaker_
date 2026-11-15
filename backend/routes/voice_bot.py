@@ -130,6 +130,13 @@ async def voice_bot_chat(payload: ChatRequest, authorization: Optional[str] = He
     
     save_message(payload.recipient_id, SenderEnum.user, user_text, mood_enum, trigger_enum, payload.session_id, db)
 
+    # Patient talking normally to Saathi -> clear old event alerts (medicines not taken, emergency, long lie)
+    try:
+        from services.alert_autoclear import clear_on_normal_talk
+        clear_on_normal_talk(db, payload.recipient_id, user_text, mood_str)
+    except Exception as _ac_err:
+        print(f"[voice_bot] alert auto-clear skipped: {_ac_err}")
+
     context = build_conversation_context(payload.recipient_id, db)
     system_prompt = generate_system_prompt(recipient.full_name, context, payload.language, sentiment)
     is_at_risk = check_depression_risk(payload.recipient_id, db) or sentiment.get("urgency") == "high"

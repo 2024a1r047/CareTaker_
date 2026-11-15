@@ -67,7 +67,9 @@ class CameraSession:
         self.last_activity = datetime.now()
         self.alerts: List[dict] = []
         self.frame_count = 0
-        
+        # Latest fall still waiting for the person to get up -> {"id", "at", "confidence"}
+        self._open_fall: Optional[dict] = None
+
         # Reconnect state (for IP cameras that drop)
         self._consecutive_failures = 0
         self._max_failures = 30   # ~3 s at 10 fps before reconnect attempt
@@ -198,8 +200,16 @@ class CameraSession:
                 # Check for alerts
                 alert_triggered = False
                 if results["fall"]["fall_event_fired"]:
-                    self._add_alert("fall", "Fall detected!")
+                    conf = results["fall"].get("event_confidence") or 0
+                    self._add_alert("fall", f"Fall detected! ({conf}% confidence)" if conf else "Fall detected!",
+                                    confidence=conf or None)
+                    self._record_fall(results["fall"])
                     alert_triggered = True
+                elif results["fall"].get("got_up_event_fired"):
+                    rs = results["fall"].get("recovery_seconds")
+                    self._add_alert("got_up", f"Person got up after the fall ({rs:.1f}s on the floor)" if rs is not None
+                                    else "Person got up after the fall")
+                    self._record_got_up(rs)
                 elif results["global_state"]["inactivity_alert"]:
                     self._add_alert("inactivity", "Inactivity alert!")
                     alert_triggered = True
@@ -236,13 +246,69 @@ class CameraSession:
                 logger.error(f"Error in capture loop: {e}")
                 time.sleep(0.1)
     
-    def _add_alert(self, alert_type: str, message: str):
+    # ── Fall records in the database (fall_events) ──────────────────────────
+    def _record_fall(self, fall_res: dict):
+        """Save the fall at once (in the background) and remember it to fill in 'got up' later."""
+        try:
+            from services.fall_event_store import save_fall_event, run_in_background
+        except Exception as e:
+            logger.warning(f"[FallEvents] store unavailable: {e}")
+            return
+        from datetime import datetime as _dt
+        rec = {"id": None, "at": _dt.utcnow(), "confidence": fall_res.get("event_confidence") or None}
+        self._open_fall = rec
+        data = {
+            "username": self.username, "source": "live_stream", "camera_name": self.camera_name,
+            "occurred_at": rec["at"], "confidence": rec["confidence"],
+            "detection_method": fall_res.get("detection_method"),
+        }
+        def _save():
+            rec["id"] = save_fall_event(data)
+        run_in_background(_save)
+
+    def _record_got_up(self, recovery_seconds):
+        rec = self._open_fall
+        if not rec:
+            return
+        self._open_fall = None
+        try:
+            from services.fall_event_store import update_fall_event, run_in_background
+        except Exception:
+            return
+        from datetime import datetime as _dt
+        got_up_at = _dt.utcnow()
+        secs = recovery_seconds if recovery_seconds is not None else round((got_up_at - rec["at"]).total_seconds(), 1)
+        def _update():
+            for _ in range(50):                 # the insert may still be running
+                if rec["id"]: break
+                time.sleep(0.1)
+            update_fall_event(rec["id"], got_up=True, time_to_get_up_sec=secs, got_up_at=got_up_at)
+        run_in_background(_update)
+
+    def _close_open_fall(self):
+        """Monitoring stopped while the person was still down: note how long they were on the ground."""
+        rec = self._open_fall
+        if not rec:
+            return
+        self._open_fall = None
+        try:
+            from services.fall_event_store import update_fall_event
+            from datetime import datetime as _dt
+            for _ in range(50):
+                if rec["id"]: break
+                time.sleep(0.1)
+            update_fall_event(rec["id"], got_up=False,
+                              time_on_ground_sec=round((_dt.utcnow() - rec["at"]).total_seconds(), 1))
+        except Exception as e:
+            logger.warning(f"[FallEvents] could not close open fall: {e}")
+
+    def _add_alert(self, alert_type: str, message: str, confidence=None):
         """Add an alert to the session"""
         # Simple debounce: check if last alert of same type was recent (< 5s)
         now = datetime.now()
-        recent = [a for a in self.alerts if a["type"] == alert_type and 
+        recent = [a for a in self.alerts if a["type"] == alert_type and
                   (now - datetime.fromisoformat(a["timestamp"])) < timedelta(seconds=5)]
-        
+
         if not recent:
             alert = {
                 "type": alert_type,
@@ -250,6 +316,8 @@ class CameraSession:
                 "timestamp": now.isoformat(),
                 "frame_number": self.frame_count
             }
+            if confidence is not None:
+                alert["confidence"] = confidence      # 0-100 %
             self.alerts.append(alert)
             logger.info(f"[Alert] Session {self.session_id} - {alert_type}: {message}")
     
@@ -287,7 +355,9 @@ class CameraSession:
         
         if self.cap:
             self.cap.release()
-        
+
+        self._close_open_fall()
+
         logger.info(f"Session {self.session_id} stopped")
 
 

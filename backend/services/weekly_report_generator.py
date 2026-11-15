@@ -7,6 +7,8 @@ and persists the result in the WeeklyReport table.
 """
 
 import datetime
+import os
+import re
 import json
 from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
@@ -49,7 +51,80 @@ def aggregate_weekly_data(recipient_id: int, db: Session,
         "mood_wellbeing": _agg_mood(recipient_id, db, start_dt, end_dt),
         "alerts_recap": _agg_alerts(recipient_id, db, start_dt, end_dt),
     }
+    # present state (latest vitals, BP / sugar / labs, medicines) - shown even in a week without new readings
+    sections["current_health"] = _current_snapshot(recipient_id, db)
+    # real values for rows that would otherwise show 0 / N/A (camera medicine intake, latest lab
+    # report, today's weather) - never invented numbers
+    sections["report_extras"] = _report_extras(recipient_id, db, start_dt, end_dt, sections["current_health"])
     return sections
+
+
+def _doses_per_day(m: Dict) -> int:
+    sched = [t for t in re.split(r"[,;]", m.get("schedule") or "") if t.strip()]
+    if sched:
+        return len(sched)
+    f = (m.get("frequency") or "").lower()
+    if "sos" in f or "needed" in f:
+        return 0
+    for word, n in (("four", 4), ("thrice", 3), ("three", 3), ("twice", 2), ("two", 2), ("once", 1)):
+        if word in f:
+            return n
+    return 1
+
+
+def _report_extras(rid, db, start, end, current: Dict) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    meds = (current or {}).get("medicines") or []
+    out["medicines_prescribed"] = len(meds)
+    out["doses_per_day"] = sum(_doses_per_day(m) for m in meds)
+    out["sos_medicines"] = sum(1 for m in meds if _doses_per_day(m) == 0)
+
+    # medicine intake / sightings seen by the room camera this week
+    try:
+        from tables.table_watch import TableWatchEvent
+        evs = db.query(TableWatchEvent).filter(
+            TableWatchEvent.recipient_id == rid, TableWatchEvent.item == "medicine",
+            TableWatchEvent.occurred_at >= start, TableWatchEvent.occurred_at <= end).all()
+        out["camera_medicine_taken"] = sum(1 for e in evs if e.event == "taken")
+        out["camera_missed_alerts"] = sum(1 for e in evs if e.event == "untouched_alert")
+    except Exception:
+        db.rollback()
+    try:
+        from tables.medicine_ref import MedicineSighting
+        out["medicine_sightings"] = db.query(MedicineSighting).filter(
+            MedicineSighting.recipient_id == rid,
+            MedicineSighting.first_seen_at >= start, MedicineSighting.first_seen_at <= end).count()
+    except Exception:
+        db.rollback()
+
+    # latest lab report summary (from the key labs already collected)
+    labs = (current or {}).get("key_labs") or []
+    if labs:
+        dates = [l.get("date") for l in labs if l.get("date")]
+        out["latest_lab_date"] = dates[0] if dates else None
+        out["latest_lab_tests"] = len(labs)
+        out["latest_lab_out_of_range"] = sum(1 for l in labs if l.get("status") in ("High", "Low", "Abnormal"))
+
+    # today's weather where the patient lives (the room has no sensor readings)
+    try:
+        from weather import WeatherPredictionModel
+        from tables.users import CareRecipient
+        recip = db.query(CareRecipient).filter(CareRecipient.id == rid).first()
+        wm = WeatherPredictionModel(os.getenv("WEATHER_API_KEY"), os.getenv("DEFAULT_CITY", "Jammu"))
+        data = wm.fetch_data(city=(recip.city if recip and recip.city else None)) or wm.fetch_data()
+        cur = (data or {}).get("current") or {}
+        if cur:
+            aqi = (cur.get("air_quality") or {}).get("us-epa-index")
+            out["weather"] = {
+                "place": (data.get("location") or {}).get("name"),
+                "temp_c": cur.get("temp_c"), "humidity": cur.get("humidity"),
+                "condition": (cur.get("condition") or {}).get("text"),
+                "aqi": {1: "Good", 2: "Moderate", 3: "Unhealthy for sensitive people", 4: "Unhealthy",
+                        5: "Very unhealthy", 6: "Hazardous"}.get(aqi),
+            }
+    except Exception as e:
+        print(f"[weekly_report] weather skipped: {e}")
+    return out
 
 
 def _safe_avg(values):
@@ -133,6 +208,132 @@ def _agg_meds(rid, db, start, end):
     }
 
 
+# ── Current health snapshot (latest data, not limited to this week) ─────────
+_KEY_LABS = [
+    # (label, metric names as stored, unit hint)
+    ("Fasting blood sugar", ("Fasting Glucose", "Fasting Blood Sugar", "FBS"), "mg/dL"),
+    ("Post-meal blood sugar", ("Postprandial Glucose", "PP Glucose", "PPBS", "Post Prandial Glucose"), "mg/dL"),
+    ("Random blood sugar", ("Random Glucose", "Random Blood Sugar", "RBS"), "mg/dL"),
+    ("HbA1c (3-month sugar)", ("HbA1c",), "%"),
+    ("Estimated average glucose", ("Estimated Average Glucose",), "mg/dL"),
+    ("Hemoglobin", ("Hemoglobin",), "g/dL"),
+    ("Creatinine", ("Creatinine",), "mg/dL"),
+    ("eGFR (kidney)", ("eGFR", "confirm. eGFR"), "mL/min"),
+    ("BUN / Urea", ("BUN", "Urea", "Blood Urea"), "mg/dL"),
+    ("Total cholesterol", ("Total Cholesterol", "Cholesterol"), "mg/dL"),
+    ("LDL cholesterol", ("LDL", "LDL Cholesterol"), "mg/dL"),
+    ("HDL cholesterol", ("HDL", "HDL Cholesterol"), "mg/dL"),
+    ("Triglycerides", ("Triglycerides",), "mg/dL"),
+    ("TSH (thyroid)", ("TSH",), "uIU/mL"),
+]
+
+
+# standard limits for the sugar tests (used only when the report gave no reference range)
+_SUGAR_LIMITS = {
+    "Fasting blood sugar": (70, 100), "Post-meal blood sugar": (None, 140), "Random blood sugar": (None, 140),
+    "HbA1c (3-month sugar)": (None, 5.7), "Estimated average glucose": (None, 117),
+}
+
+
+def _current_snapshot(rid, db) -> Dict[str, Any]:
+    """Latest vitals (with date), 30-day vital trends, latest sugar / key lab values and the
+    current medicines - so the weekly report always shows the patient's present state, even in a
+    week with no new readings."""
+    from tables.vital_signs import VitalSign
+    out: Dict[str, Any] = {"latest_vitals": None, "vital_trends": [], "key_labs": [], "medicines": []}
+
+    # latest vitals: newest value of each vital (they may come from different readings)
+    try:
+        rows = db.query(VitalSign).filter(VitalSign.care_recipient_id == rid)                  .order_by(VitalSign.recorded_at.desc()).limit(60).all()
+        if rows:
+            def newest(attr):
+                for r in rows:
+                    v = getattr(r, attr, None)
+                    if v not in (None, 0):
+                        return v, r.recorded_at
+                return None, None
+            lv = {}
+            for key, attr in [("heart_rate", "heart_rate"), ("systolic_bp", "systolic_bp"),
+                              ("diastolic_bp", "diastolic_bp"), ("spo2", "oxygen_saturation"),
+                              ("temperature", "temperature"), ("sleep_score", "sleep_score"),
+                              ("weight", "weight"), ("bmi", "bmi")]:
+                v, _ = newest(attr)
+                lv[key] = round(float(v), 1) if v is not None else None
+            last = rows[0].recorded_at
+            lv["recorded_at"] = last.strftime("%d %b %Y") if last else None
+            lv["days_ago"] = (datetime.datetime.utcnow() - last).days if last else None
+            out["latest_vitals"] = lv
+
+            # trends over the last 30 days: first vs latest reading
+            since = datetime.datetime.utcnow() - datetime.timedelta(days=30)
+            recent = [r for r in rows if r.recorded_at and r.recorded_at >= since][::-1]   # oldest first
+            for label, attr, unit in [("Heart rate", "heart_rate", "bpm"), ("Systolic BP", "systolic_bp", "mmHg"),
+                                      ("Diastolic BP", "diastolic_bp", "mmHg"), ("SpO2", "oxygen_saturation", "%"),
+                                      ("Sleep score", "sleep_score", ""), ("Weight", "weight", "kg")]:
+                vals = [float(getattr(r, attr)) for r in recent if getattr(r, attr, None) not in (None, 0)]
+                if len(vals) >= 2:
+                    ch = vals[-1] - vals[0]
+                    direction = "rising" if ch > 0.5 else "falling" if ch < -0.5 else "stable"
+                    out["vital_trends"].append({"name": label, "first": round(vals[0], 1), "last": round(vals[-1], 1),
+                                                "change": round(ch, 1), "direction": direction,
+                                                "readings": len(vals), "unit": unit})
+    except Exception:
+        db.rollback()
+
+    # latest sugar + key lab values (misread / impossible values skipped)
+    try:
+        from tables.medical_conditions import LabValue
+        try:
+            from services.agent_medical_context import _plausible, _num
+        except Exception:
+            _plausible = lambda m, v: v is not None   # noqa: E731
+            _num = lambda lv: lv.normalized_value if lv.normalized_value is not None else lv.metric_value  # noqa: E731
+        labs = db.query(LabValue).filter(LabValue.care_recipient_id == rid)                  .order_by(LabValue.recorded_date.desc(), LabValue.id.desc()).all()
+        for label, names, unit_hint in _KEY_LABS:
+            lower = {n.lower() for n in names}
+            for lv in labs:
+                if (lv.metric_name or "").strip().lower() not in lower:
+                    continue
+                val = _num(lv)
+                if val is None or not _plausible(lv.metric_name, float(val)):
+                    continue
+                lo, hi = lv.reference_range_low, lv.reference_range_high
+                if lo is None and hi is None and label in _SUGAR_LIMITS:
+                    lo, hi = _SUGAR_LIMITS[label]
+                if lo is None and hi is None:
+                    status = "Abnormal" if lv.is_abnormal else "-"        # no range on record: do not guess
+                else:
+                    status = ("High" if hi is not None and val > hi else "Low" if lo is not None and val < lo
+                              else "Abnormal" if lv.is_abnormal else "Normal")
+                unit = next((u for u in (lv.normalized_unit, lv.unit)
+                             if u and re.fullmatch(r"[A-Za-z%/µμ.\d^ ]{1,12}", u.strip())
+                             and re.search(r"(%|/|g|l|mol|iu|u|mm)", u.strip(), re.I)), unit_hint)
+                out["key_labs"].append({
+                    "name": label, "value": round(float(val), 2),
+                    "unit": unit,
+                    "date": lv.recorded_date.strftime("%d %b %Y") if lv.recorded_date else None,
+                    "status": status,
+                    "change_pct": round(lv.pct_change_from_previous, 1) if lv.pct_change_from_previous else None,
+                })
+                break
+    except Exception:
+        db.rollback()
+
+    # current medicines
+    try:
+        from tables.medications import Medication
+        meds = db.query(Medication).filter(Medication.care_recipient_id == rid).all()
+        for m in meds:
+            st = m.status.value if hasattr(m.status, "value") else str(m.status or "")
+            if st.lower() != "active":
+                continue
+            out["medicines"].append({"name": m.medicine_name, "dosage": m.dosage or "",
+                                     "frequency": m.frequency or "", "schedule": m.schedule_time or ""})
+    except Exception:
+        db.rollback()
+    return out
+
+
 def _agg_conditions(rid, db, start, end):
     from tables.medical_conditions import ConditionHistory, PatientCondition, ConditionStatus
     changes = db.query(ConditionHistory).join(PatientCondition).filter(
@@ -177,11 +378,70 @@ def _agg_video(rid, db, start, end):
         VideoAnalysis.timestamp >= start, VideoAnalysis.timestamp <= end
     ).all()
     falls = sum(v.fall_count for v in vids)
-    return {
+    out = {
         "fall_count": falls,
         "avg_activity_score": _safe_avg([v.activity_score for v in vids]),
         "avg_mobility_score": _safe_avg([v.mobility_score for v in vids]),
     }
+    # Falls from the room camera's fall log (live monitoring + analysed videos), counted exactly like
+    # Video Monitoring > History: detections < 90 s apart = one fall. The old count above only saw
+    # uploaded-video analyses, so live-camera falls were missing from the report.
+    try:
+        inc = _fall_incidents(rid, db, start, end)
+        if inc is not None:
+            ups = [i["up"] for i in inc if i["got_up"] and i["up"] is not None]
+            out.update({
+                "fall_count": len(inc),
+                "falls_got_up_in_time": sum(1 for i in inc if i["outcome"] == "ok"),
+                "long_lies": sum(1 for i in inc if i["outcome"] == "long_lie"),
+                "falls_outcome_unknown": sum(1 for i in inc if i["outcome"] == "unknown"),
+                "avg_get_up_sec": round(sum(ups) / len(ups), 1) if ups else None,
+                "fall_times": [i["when"] for i in inc][:10],
+            })
+    except Exception:
+        db.rollback()
+    return out
+
+
+def _fall_incidents(rid, db, start, end):
+    from tables.video_analysis import FallEvent
+    from tables.users import CareRecipient
+    from sqlalchemy import or_, and_
+    recip = db.query(CareRecipient).filter(CareRecipient.id == rid).first()
+    scope = FallEvent.recipient_id == rid
+    if recip and recip.caretaker_id and \
+            db.query(CareRecipient).filter(CareRecipient.caretaker_id == recip.caretaker_id).count() == 1:
+        scope = or_(scope, and_(FallEvent.recipient_id.is_(None), FallEvent.caretaker_id == recip.caretaker_id))
+    rows = (db.query(FallEvent).filter(scope, FallEvent.occurred_at >= start, FallEvent.occurred_at <= end)
+            .order_by(FallEvent.occurred_at.asc(), FallEvent.id.asc()).all())
+    LONG_LIE = 120
+    inc = []
+    for r in rows:
+        if not r.occurred_at:
+            continue
+        last = inc[-1] if inc else None
+        same_video = last and r.source == "upload" and last["video"] == (r.video_filename or "")
+        if last and (r.occurred_at - last["last"]).total_seconds() <= 90 and (r.source != "upload" or same_video):
+            last["last"] = r.occurred_at
+            if r.got_up and (last["up"] is None or not last["got_up"]):
+                last["got_up"], last["up"] = True, r.time_to_get_up_sec
+            if r.time_on_ground_sec:
+                last["ground"] = max(last["ground"] or 0, r.time_on_ground_sec)
+            continue
+        inc.append({"at": r.occurred_at, "last": r.occurred_at, "video": r.video_filename or "",
+                    "got_up": bool(r.got_up), "up": r.time_to_get_up_sec, "ground": r.time_on_ground_sec})
+    ist = datetime.timedelta(hours=5, minutes=30)
+    for i in inc:
+        if i["got_up"] and i["up"] is not None:
+            i["outcome"] = "ok" if i["up"] <= LONG_LIE else "long_lie"
+        elif i["got_up"]:
+            i["outcome"] = "ok"
+        elif (i["ground"] or 0) > LONG_LIE:
+            i["outcome"] = "long_lie"
+        else:
+            i["outcome"] = "unknown"
+        i["when"] = (i["at"] + ist).strftime("%a %d %b, %I:%M %p")
+    return inc
 
 
 def _agg_environment(rid, db, start, end):
@@ -241,17 +501,18 @@ def build_comparison(current: Dict, previous: Optional[Dict]) -> Dict:
         return {"has_previous": False}
     comp = {"has_previous": True}
     # Adherence
-    curr_adh = current.get("medication_adherence", {}).get("adherence_pct", 0)
-    prev_adh = previous.get("medication_adherence", {}).get("adherence_pct", 0)
-    comp["adherence_change"] = round(curr_adh - prev_adh, 1)
+    curr_adh = (current.get("medication_adherence") or {}).get("adherence_pct")
+    prev_adh = (previous.get("medication_adherence") or {}).get("adherence_pct")
+    # no doses logged in one of the weeks -> adherence_pct is None: no change can be computed
+    comp["adherence_change"] = round(curr_adh - prev_adh, 1) if curr_adh is not None and prev_adh is not None else None
     # Vitals
     for key in ["avg_heart_rate", "avg_systolic_bp", "avg_spo2", "avg_sleep_score"]:
         c = current.get("vitals_summary", {}).get(key)
         p = previous.get("vitals_summary", {}).get(key)
         comp[f"{key}_change"] = round(c - p, 1) if c is not None and p is not None else None
     # Cough trend
-    curr_c = current.get("respiratory_activity", {}).get("cough_count_7d", 0)
-    prev_c = previous.get("respiratory_activity", {}).get("cough_count_7d", 0)
+    curr_c = (current.get("respiratory_activity") or {}).get("cough_count_7d") or 0
+    prev_c = (previous.get("respiratory_activity") or {}).get("cough_count_7d") or 0
     comp["cough_trend"] = "increasing" if curr_c > prev_c * 1.2 else "decreasing" if curr_c < prev_c * 0.8 else "stable"
     # Activity
     curr_a = current.get("physical_activity", {}).get("avg_activity_score")
@@ -285,8 +546,9 @@ def compute_wellness_score(sections: Dict) -> float:
         if active_count > 0:
             score -= 10
     else:
-        adh = med.get("adherence_pct", 100)
-        score -= max(0, (100 - adh)) * 0.25
+        adh = med.get("adherence_pct")
+        if adh is not None:
+            score -= max(0, (100 - adh)) * 0.25
 
     # ── Vitals instability ────────────────────────────────────────────────────
     if vitals.get("alerts"):
@@ -303,7 +565,7 @@ def compute_wellness_score(sections: Dict) -> float:
     # ── Activity / falls (-8 per fall) ───────────────────────────────────────
     act = sections.get("physical_activity", {})
     if act.get("fall_count", 0) > 0:
-        score -= act["fall_count"] * 8
+        score -= min(25, act["fall_count"] * 8)   # capped like the other categories (6 falls no longer = score 0)
     if act.get("avg_activity_score") and act["avg_activity_score"] < 3:
         score -= 5
 
@@ -392,7 +654,9 @@ def _run_triage(sections: Dict) -> Dict:
 def _run_narrative(sections: Dict, comparison: Dict, recipient, week_start, week_end) -> tuple:
     comp_note = ""
     if comparison.get("has_previous"):
-        comp_note = f"vs Last Week: adherence {comparison.get('adherence_change', 0):+.1f}%, cough trend: {comparison.get('cough_trend', 'stable')}"
+        adh_chg = comparison.get('adherence_change')
+        adh_txt = f"{adh_chg:+.1f}%" if adh_chg is not None else "not comparable (no doses logged)"
+        comp_note = f"vs Last Week: adherence {adh_txt}, cough trend: {comparison.get('cough_trend', 'stable')}"
     severity = "low"
     # Determine model
     model = "gemini-3.1-flash-lite"
@@ -423,6 +687,138 @@ def _run_narrative(sections: Dict, comparison: Dict, recipient, week_start, week
             except json.JSONDecodeError:
                 pass
     return None, model
+
+
+def _natural_narrative(sections: Dict, recipient, score: float, comparison: Dict) -> Dict:
+    """A natural, specific weekly summary written from the data (used when the AI model is not
+    available): current BP / sugar / labs, medicines, falls, mood, plus actions and a doctor note."""
+    name = recipient.full_name or "the patient"
+    first = name.split()[0]
+    cur = sections.get("current_health") or {}
+    lv = cur.get("latest_vitals") or {}
+    labs = {l["name"]: l for l in (cur.get("key_labs") or [])}
+    meds = cur.get("medicines") or []
+    pa = sections.get("physical_activity") or {}
+    mood = sections.get("mood_wellbeing") or {}
+    adh = sections.get("medication_adherence") or {}
+    cond = sections.get("condition_updates") or {}
+    vit_week = sections.get("vitals_summary") or {}
+
+    summary, highs, concerns, actions, doc = [], [], [], [], []
+
+    # vitals
+    sbp, dbp, hr, spo2 = lv.get("systolic_bp"), lv.get("diastolic_bp"), lv.get("heart_rate"), lv.get("spo2")
+    when = lv.get("recorded_at")
+    ago = lv.get("days_ago")
+    when_txt = (f"on {when}" + (f" ({ago} days ago)" if ago else " (today)" if ago == 0 else "")) if when else ""
+    vit_bits = []
+    if sbp and dbp:
+        bp_state = ("high" if sbp >= 140 or dbp >= 90 else "slightly raised" if sbp >= 130 or dbp >= 80
+                    else "low" if sbp < 90 or dbp < 60 else "normal")
+        vit_bits.append(f"blood pressure {sbp:g}/{dbp:g} mmHg ({bp_state})")
+        if bp_state in ("high", "slightly raised"):
+            concerns.append(f"Blood pressure was {sbp:g}/{dbp:g} mmHg at the last reading - above the healthy 120/80.")
+            doc.append(f"BP {sbp:g}/{dbp:g}")
+        elif bp_state == "normal":
+            highs.append(f"Blood pressure was in the normal range ({sbp:g}/{dbp:g} mmHg).")
+    if hr:
+        vit_bits.append(f"heart rate {hr:g} bpm")
+        if hr > 100:
+            concerns.append(f"Heart rate was fast at {hr:g} bpm (normal 60-100).")
+            doc.append(f"HR {hr:g}")
+    if spo2:
+        vit_bits.append(f"oxygen {spo2:g}%")
+        if spo2 < 95:
+            concerns.append(f"Oxygen level (SpO2) was low at {spo2:g}% (normal 95-100%).")
+            doc.append(f"SpO2 {spo2:g}%")
+    if vit_bits:
+        summary.append(f"{first}'s latest vitals {when_txt}: " + ", ".join(vit_bits) + ".")
+    if (vit_week.get("readings") or 0) == 0:
+        actions.append("Check and log blood pressure, sugar and oxygen at least 2-3 times this week - "
+                       "no vitals were recorded in the last 7 days.")
+
+    # sugar and labs
+    sugar = [labs[k] for k in ("Fasting blood sugar", "Post-meal blood sugar", "Random blood sugar",
+                               "HbA1c (3-month sugar)", "Estimated average glucose") if k in labs]
+    if sugar:
+        txt = ", ".join(f"{s['name'].lower()} {s['value']:g} {s['unit']}" for s in sugar[:3])
+        high_sugar = [s for s in sugar if s["status"] == "High"]
+        date = sugar[0].get("date")
+        summary.append(f"Her last sugar tests ({date}) showed {txt}" +
+                       (" - higher than the healthy range." if high_sugar else " - within range."))
+        if high_sugar:
+            concerns.append("Blood sugar is high: " + ", ".join(f"{s['name'].lower()} {s['value']:g} {s['unit']}"
+                                                              for s in high_sugar[:3]) + ".")
+            doc.append("raised glucose")
+            actions.append("Check fasting and after-meal sugar this week; give diabetes medicines on time and "
+                           "keep sweets and white rice / maida low.")
+    other_bad = [l for k, l in labs.items() if l not in sugar and l["status"] in ("High", "Low")]
+    for l in other_bad[:4]:
+        concerns.append(f"{l['name']} was {l['status'].lower()} at {l['value']:g} {l['unit']} ({l.get('date')}).")
+    other_ok = [l for k, l in labs.items() if l not in sugar and l["status"] == "Normal"]
+    if other_ok:
+        highs.append("Normal results for " + ", ".join(l["name"].split(" (")[0].lower() for l in other_ok[:3]) + ".")
+    lab_dates = [l.get("date") for l in labs.values() if l.get("date")]
+    if lab_dates:
+        try:
+            newest = max(datetime.datetime.strptime(d, "%d %b %Y") for d in lab_dates)
+            if (datetime.datetime.now() - newest).days > 90:
+                actions.append(f"The last blood tests are from {newest.strftime('%b %Y')} - ask the doctor about "
+                               "repeating HbA1c, lipid profile and hemoglobin.")
+        except Exception:
+            pass
+
+    # medicines
+    if meds:
+        summary.append(f"{first} is on {len(meds)} medicines, including " +
+                       ", ".join(m["name"] for m in meds[:4]) + ("." if len(meds) <= 4 else " and others."))
+    if adh.get("no_data"):
+        actions.append("Mark medicines as taken in the app each day so the weekly adherence can be tracked.")
+    elif adh.get("adherence_pct") is not None:
+        if adh["adherence_pct"] >= 90:
+            highs.append(f"Took {adh['adherence_pct']:g}% of scheduled medicine doses.")
+        else:
+            concerns.append(f"Only {adh['adherence_pct']:g}% of medicine doses were taken ({adh.get('missed', 0)} missed).")
+
+    # falls
+    nf = pa.get("fall_count") or 0
+    if nf:
+        ok, ll = pa.get("falls_got_up_in_time") or 0, pa.get("long_lies") or 0
+        avg = pa.get("avg_get_up_sec")
+        summary.append(f"The home camera recorded {nf} fall{'s' if nf > 1 else ''} this week" +
+                       (f"; she got up within 2 minutes after {ok} of them" if ok else "") +
+                       (f" (average {avg:g} s)" if avg else "") + ".")
+        concerns.append(f"{nf} fall{'s' if nf > 1 else ''} this week" +
+                        (f", including {ll} long lie{'s' if ll > 1 else ''} (on the floor over 2 minutes)" if ll else "") + ".")
+        actions.append("Reduce fall risk: clear the floor, use night lights, non-slip footwear, and help her "
+                       "stand up slowly (BP and sugar medicines can cause dizziness).")
+        doc.append(f"{nf} fall(s) this week")
+    else:
+        highs.append("No falls were recorded by the home camera this week.")
+
+    # mood
+    sessions = mood.get("conversations") or mood.get("total_sessions") or mood.get("sessions")
+    dm = mood.get("dominant_mood")
+    mood_txt = ""
+    if dm:
+        mood_txt = f"Her mood in conversations with the voice assistant was mostly {dm}"
+        mood_txt += f" across {sessions} sessions." if sessions else "."
+        if dm in ("sad", "anxious", "lonely", "stressed"):
+            actions.append("Spend some extra time talking with her this week - her mood was low.")
+
+    conds = cond.get("active_condition_names") or []
+    if conds:
+        doc.insert(0, "Active: " + ", ".join(conds))
+    summary.append(f"Overall wellness score this week: {score:g}/100.")
+
+    return {
+        "executive_summary": " ".join(summary),
+        "highlights": highs[:4],
+        "concerns": concerns[:6],
+        "caregiver_actions": actions[:5],
+        "doctor_note": "; ".join(doc) + "." if doc else "",
+        "emotional_wellbeing": mood_txt,
+    }
 
 
 # ── 5. Orchestrator ─────────────────────────────────────────────────────────
@@ -473,7 +869,13 @@ def generate_weekly_report(recipient_id: int, db: Session,
     triage = _run_triage(sections)
     if triage.get("needs_deep_analysis"):
         narrative, model_used = _run_narrative(sections, comparison, recipient, week_start, week_end)
-    else:
+    if not narrative:
+        try:
+            narrative = _natural_narrative(sections, recipient, score, comparison)
+        except Exception as _ne:
+            print(f"[weekly_report] natural summary failed: {_ne}")
+            narrative = None
+    if not narrative:
         # Lightweight rule-based summary
         narrative = {
             "executive_summary": f"A generally stable week for {recipient.full_name}. Wellness score: {score}/100.",

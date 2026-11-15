@@ -122,7 +122,7 @@ function classIcon(cls) {
 }
 
 function handleLogout() {
-    localStorage.removeItem('token');
+    localStorage.removeItem('token'); sessionStorage.removeItem('token');
     window.location.href = 'index.html';
 }
 

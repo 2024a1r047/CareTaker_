@@ -611,11 +611,12 @@
 
         <div class="max-w-6xl mx-auto flex justify-between items-center relative z-10">
             <div class="flex items-center space-x-4">
-                <a href="dashboard.html"
+                <a href="dashboard.html" id="backToPatientLink"
+                    onclick="event.preventDefault(); var rid = (typeof getRecipientId === 'function') ? getRecipientId() : null; window.location.href = rid ? ('profile.html?recipient_id=' + rid) : 'dashboard.html';"
                     class="flex items-center text-[#443744] hover:text-[#B97886] transition-colors font-medium"
-                    title="Back to Dashboard">
+                    title="Back to the patient's dashboard">
                     <i data-lucide="arrow-left" class="h-5 w-5 mr-1"></i>
-                    <span class="hidden sm:inline">Dashboard</span>
+                    <span class="hidden sm:inline">Patient dashboard</span>
                 </a>
                 <div class="h-6 w-px bg-[#E8E1DB]"></div>
                 <div class="flex items-center space-x-2">
@@ -2119,7 +2120,7 @@
         // (music hold, dropped call, page reload, Start Assistant again) within 6 hours,
         // she continues the same conversation instead of greeting again.
         const CONTINUE_WINDOW_MS = 6 * 60 * 60 * 1000;
-        function convStoreKey() { return `saathi_conv_${getRecipientId() || '1'}`; }
+        function convStoreKey(rid) { return `saathi_conv_${rid || getRecipientId() || '1'}`; }
 
         function rememberTurn(line) {
             if (line.startsWith("Patient: ")) {
@@ -2130,14 +2131,20 @@
             while (elevenLabsState.recentTurns.length > 30) elevenLabsState.recentTurns.shift();
             elevenLabsState.lastTurnAt = Date.now();
             try {
-                localStorage.setItem(convStoreKey(), JSON.stringify({ turns: elevenLabsState.recentTurns, at: elevenLabsState.lastTurnAt }));
+                // Saved with the patient's name, so it can never be continued for a different person
+                const name = ((elevenLabsState.profileVars || {}).user_name || '').trim();
+                localStorage.setItem(convStoreKey(), JSON.stringify({ turns: elevenLabsState.recentTurns, at: elevenLabsState.lastTurnAt, name }));
             } catch (e) {}
         }
 
-        function loadSavedConversation() {
+        function loadSavedConversation(rid, name) {
             try {
-                const saved = JSON.parse(localStorage.getItem(convStoreKey()) || 'null');
-                if (saved && Array.isArray(saved.turns) && saved.turns.length && Date.now() - saved.at < CONTINUE_WINDOW_MS) return saved;
+                const saved = JSON.parse(localStorage.getItem(convStoreKey(rid)) || 'null');
+                if (!saved || !Array.isArray(saved.turns) || !saved.turns.length || Date.now() - saved.at >= CONTINUE_WINDOW_MS) return null;
+                // Only continue a chat saved for THIS patient's name. Older saves without a name
+                // are never trusted (they may belong to another profile used in this browser).
+                if (!name || !saved.name || saved.name.toLowerCase() !== name.toLowerCase()) return null;
+                return saved;
             } catch (e) {}
             return null;
         }
@@ -2163,15 +2170,9 @@
             elevenLabsState.connecting = true;
             elevenLabsState.metadataDone = false;
 
-            // Same conversation within the last 6 hours? -> continue it, no new greeting
-            const savedConv = loadSavedConversation();
-            if (savedConv) {
-                if (!elevenLabsState.recentTurns.length) elevenLabsState.recentTurns = savedConv.turns.slice();
-                elevenLabsState.lastTurnAt = savedConv.at;
-                elevenLabsState.continueMode = true;
-            } else {
-                elevenLabsState.continueMode = false;
-            }
+            // (Whether to continue a saved conversation is decided once the backend has confirmed
+            //  which patient this call is for — see below.)
+            elevenLabsState.continueMode = false;
 
             updateAssistantUI('connecting');
 
@@ -2207,10 +2208,37 @@
 
                 const { signed_url, voice_id, dynamic_variables, recipient_name, session_id } = signData.result;
                 if (session_id) elevenLabsState.sessionId = session_id;
+
+                // The backend confirms WHICH patient this call is for (it ignores a stale selection
+                // from another account, e.g. Jagpreet's profile left in this browser). Use that patient
+                // everywhere: saved conversation, dose log, caretaker messages, reminders.
+                const confirmedRid = signData.result.recipient_id ? String(signData.result.recipient_id) : null;
+                if (confirmedRid && confirmedRid !== String(rid)) {
+                    console.warn(`[Saathi] Selected profile ${rid} is not this account's; using profile ${confirmedRid} confirmed by the backend`);
+                    try { sessionStorage.setItem('selectedRecipientId', confirmedRid); } catch (e) { }
+                    try { localStorage.setItem('selectedRecipientId', confirmedRid); } catch (e) { }
+                }
+                const callName = ((dynamic_variables || {}).user_name || recipient_name || '').trim();
+                // Continue only a conversation that belongs to THIS patient (same profile and name)
+                const ownConv = loadSavedConversation(confirmedRid || rid, callName);
+                if (elevenLabsState.convOwner !== `${confirmedRid || rid}|${callName}`) {
+                    elevenLabsState.recentTurns = [];          // never carry another patient's chat over
+                    elevenLabsState.lastPatientText = null;
+                }
+                elevenLabsState.convOwner = `${confirmedRid || rid}|${callName}`;
+                if (ownConv) {
+                    if (!elevenLabsState.recentTurns.length) elevenLabsState.recentTurns = ownConv.turns.slice();
+                    elevenLabsState.lastTurnAt = ownConv.at;
+                    elevenLabsState.continueMode = true;
+                } else if (!elevenLabsState.silentStart) {
+                    elevenLabsState.continueMode = false;
+                }
                 // Patient profile + memory from the DB, re-sent to the agent once the call starts
                 elevenLabsState.profileVars = dynamic_variables || { user_name: recipient_name || "ji" };
                 // Uploaded reports + analysis, labs with normal ranges, vitals, BP/sugar guidance
                 elevenLabsState.medicalContext = signData.result.medical_context || "";
+                // Camera saw a fall today: Asha opens by asking whether they are hurt
+                elevenLabsState.fallCheckin = signData.result.fall_checkin || null;
                 // Caretaker / emergency numbers for the call_* tools
                 elevenLabsState.contacts = signData.result.contacts || {};
                 elevenLabsState.voiceId = voice_id || "VQxh7q9EH7jUlfwkQI00";
@@ -2253,7 +2281,11 @@
                     };
                     // Coming back after the music hold, a dropped call, or a restart within 6 hours:
                     // no fresh "Namaste, kaise hain aap?", Asha continues the same conversation
-                    if (elevenLabsState.silentStart || elevenLabsState.continueMode) {
+                    if (elevenLabsState.fallCheckin && !elevenLabsState.silentStart) {
+                        // a fall today outranks "continue the chat": ask about it first
+                        initPayload.conversation_config_override.agent = { first_message: elevenLabsState.fallCheckin };
+                        elevenLabsState.fallCheckin = null;
+                    } else if (elevenLabsState.silentStart || elevenLabsState.continueMode) {
                         initPayload.conversation_config_override.agent = { first_message: "" };
                     }
                     ws.send(JSON.stringify(initPayload));
@@ -2369,6 +2401,7 @@
                             Date.now() - (elevenLabsState.lastTimeContextAt || 0) > 60 * 1000) sendTimeContext();
                         if (!isFiller) autoLogTakenMedicine(transcript);
                         if (!isFiller) { sendScriptHint(transcript); handleYesToOffer(transcript); }
+                        if (!isFiller) sendMedicineLocationIfAsked(transcript);
                         if (!isFiller) {
                             rememberTurn("Patient: " + transcript);
                             addUIMessage('user', transcript);
@@ -2609,6 +2642,39 @@
             ws.send(JSON.stringify({ type: "contextual_update", text: buildTimeAndMedicineContext() }));
             elevenLabsState.lastTimeContextAt = Date.now();
         }
+
+        // "Meri dawai kahan hai?" -> fetch where the room camera last saw each medicine and give it
+        // to Asha right away (the briefing at the start of the call may be minutes old).
+        // any "where" question (the medicine may be asked by its name, e.g. "Metformin kahan hai?")
+        const MED_WHERE_RE = /(kahan|kaha\b|kidhar|where|कहाँ|कहां|किधर)/i;
+        async function sendMedicineLocationIfAsked(transcript) {
+            if (!MED_WHERE_RE.test(transcript || '')) return;
+            const ws = elevenLabsState.ws;
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            try {
+                const rid = getRecipientId() || '';
+                const res = await fetch(`http://127.0.0.1:8000/api/video-monitoring/medicine-locations?recipient_id=${rid}`,
+                    { headers: { 'Authorization': `Bearer ${getToken()}` } });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!(data.medicines || []).length && !/(dawa|dawai|davai|dvayi|dvai|dwai|dava|medicine|tablet|goli|दवा|दवाई|गोली)/i.test(transcript)) return;
+                // Only medicines the camera has actually seen (a removed / never-seen photo is not mentioned),
+                // unless none has been seen yet
+                const seenMeds = (data.medicines || []).filter(m => m.minutes_ago != null);
+                const list = (seenMeds.length ? seenMeds : (data.medicines || [])).map(m => m.minutes_ago == null
+                    ? `${m.name}: not seen by the room camera yet`
+                    : `${m.name}: seen ${m.minutes_ago} min ago ${m.location || 'in the room'}`).join('; ');
+                const text = list
+                    ? `MEDICINE LOCATIONS from the room camera. If the patient is asking where a medicine is, answer now ` +
+                      `in their language using this (otherwise ignore it): ${list}. Suggested answer: ${data.answer || ''} ` +
+                      `Answer only about these medicines, in one or two sentences, and do NOT offer to message the caretaker.`
+                    : `MEDICINE LOCATIONS: no medicine photo has been added to the room camera yet. Tell the patient gently ` +
+                      `that their caretaker can upload a photo of the medicine in Video Monitoring so you can find it.`;
+                if (elevenLabsState.ws && elevenLabsState.ws.readyState === WebSocket.OPEN) {
+                    elevenLabsState.ws.send(JSON.stringify({ type: "contextual_update", text }));
+                }
+            } catch (e) { console.warn('[Saathi] medicine location lookup failed', e); }
+        }
         // Keep Asha's clock current during long calls
         setInterval(() => {
             if (elevenLabsState.isConnected && Date.now() - (elevenLabsState.lastTimeContextAt || 0) > 5 * 60 * 1000) sendTimeContext();
@@ -2816,6 +2882,18 @@
                     });
                 }
 
+                // On a reconnect this function runs again with the same mic stream. Remove the previous
+                // processor first, otherwise two processors stream every chunk and ElevenLabs hears each
+                // word twice ("main, main, le, le, sleep, sleep").
+                if (elevenLabsState.processor) {
+                    try { elevenLabsState.processor.onaudioprocess = null; elevenLabsState.processor.disconnect(); } catch (e) {}
+                    elevenLabsState.processor = null;
+                }
+                if (elevenLabsState.micSource) {
+                    try { elevenLabsState.micSource.disconnect(); } catch (e) {}
+                    elevenLabsState.micSource = null;
+                }
+
                 const source = elevenLabsState.audioCtx.createMediaStreamSource(elevenLabsState.mediaStream);
                 // 4096 buffer size at 16kHz = ~256ms audio packet
                 const processor = elevenLabsState.audioCtx.createScriptProcessor(4096, 1, 1);
@@ -2824,6 +2902,8 @@
                 muteGain.gain.value = 0; // Prevent echo into own speaker
 
                 processor.onaudioprocess = (e) => {
+                    // Only the current processor may stream (guards against any leftover duplicate)
+                    if (processor !== elevenLabsState.processor) return;
                     if (!elevenLabsState.isListening || elevenLabsState.isMuted || !elevenLabsState.ws || elevenLabsState.ws.readyState !== WebSocket.OPEN) {
                         return;
                     }
@@ -2865,6 +2945,7 @@
                 muteGain.connect(elevenLabsState.audioCtx.destination);
 
                 elevenLabsState.processor = processor;
+                elevenLabsState.micSource = source;
                 elevenLabsState.isListening = true;
                 elevenLabsState.isMuted = false;
                 setListening(true);
@@ -2880,8 +2961,12 @@
             elevenLabsState.isListening = false;
             setListening(false);
             if (elevenLabsState.processor) {
-                try { elevenLabsState.processor.disconnect(); } catch (e) {}
+                try { elevenLabsState.processor.onaudioprocess = null; elevenLabsState.processor.disconnect(); } catch (e) {}
                 elevenLabsState.processor = null;
+            }
+            if (elevenLabsState.micSource) {
+                try { elevenLabsState.micSource.disconnect(); } catch (e) {}
+                elevenLabsState.micSource = null;
             }
             if (elevenLabsState.mediaStream) {
                 try {
@@ -3007,6 +3092,22 @@
                 !(PLAY_VERB.test(t) && (PLAY_WORD.test(t) || playTopicFrom(t)))) return false;   // "nahi", "band karo"
             return PLAY_WORD.test(t) || PLAY_VERB.test(t) || !!playTopicFrom(t) || ANY_OK.test(t) ||
                 /\b(haan|han|ha|haanji|ji|jee|theek hai|thik hai|bilkul|zaroor|jaroor|jarur|ok|okay|yes|chalo|wahi|same|dusra|doosra|koi aur)\b|हाँ|हां|जी|ठीक है|बिल्कुल|ज़रूर|जरूर|चलो|वही|दूसरा|कोई और/i.test(t);
+        }
+
+        // Message / call the caretaker ONLY when the patient asked for it, said yes to Asha's offer,
+        // or it is an emergency. (Asha sometimes messaged the caretaker on her own, e.g. to "update
+        // the profile" after a simple question about the patient's old school.)
+        const CONTACT_ASK = /\b(message|msg|sms|whatsapp)\s*(bhej|kar|karo|kardo|kar do|bhejo|bhej do|send)|\b(call|phone|fone)\s*(karo|kar do|kardo|kariye|lagao|laga do|milao|mila do)|\bko\s+(bata do|batao|bataiye|bol do|bolo|boliye|message|msg|call|phone|bhej do|bhejo|inform|khabar)|baat\s*(karao|karwao|karwa do|kara do)|\b(inform|tell|message|call|text|phone)\s+(him|her|them|my|rahul|caretaker|son|beta|beti)|मैसेज\s*(भेज|कर)|फ़?फोन\s*(कर|लगा|मिला)|कॉल\s*(कर|लगा)|को\s*(बता दो|बताओ|बताइए|बोल दो|बोलो|मैसेज|फोन|कॉल|भेज दो|भेजो|खबर)|बात\s*(कराओ|करवाओ|करा दो)/i;
+        const EMERGENCY_WORDS = /\b(bachao|help|madad|emergency|ambulance|hospital|gir gay|gir gayi|giri|chot lagi|bahut dard|saans nahi|saans|behosh|chest pain|seene mein dard)\b|बचाओ|मदद|इमरजेंसी|एम्बुलेंस|अस्पताल|गिर गई|गिर गया|चोट|बहुत दर्द|सांस|बेहोश|सीने में दर्द/i;
+        function patientAskedForContact() {
+            const t = (elevenLabsState.lastPatientText || '').toLowerCase();
+            if (!t || Date.now() - (elevenLabsState.lastPatientAt || 0) > 120 * 1000) return false;
+            if (CONTACT_ASK.test(t) || EMERGENCY_WORDS.test(t)) return true;
+            // "haan" to Asha's question "... message bhej doon?" / "call karun?"
+            const offer = elevenLabsState.lastAshaReply || '';
+            const care = ((elevenLabsState.contacts || {}).caretaker_name || '').toLowerCase().split(/\s+/)[0];
+            if (care && care.length > 2 && t.includes(care) && /bata|bol|bhej|call|phone|message|बता|बोल|भेज|फोन|कॉल|मैसेज/i.test(t)) return true;
+            return YES_ONLY.test(t) && /\?|？/.test(offer) && /message|मैसेज|मेसेज|msg|call|कॉल|फोन|phone|bata|बता/i.test(offer);
         }
 
         // One request = one track: ignore a second play tool / page trigger fired for the same request
@@ -3344,6 +3445,14 @@
             const rid = getRecipientId() || "1";
 
             let resultMsg = "Executed";
+            if ((toolName === "message_caretaker" || toolName === "call_caretaker") && !patientAskedForContact()) {
+                console.log(`[Saathi] Blocked ${toolName}: the patient did not ask for it`);
+                sendElevenLabsToolResult(callId,
+                    "NOT DONE: the patient did not ask you to contact anyone. Do not message or call the caretaker " +
+                    "unless the patient asks, agrees to your offer, or it is an emergency. Do not say you sent anything; " +
+                    "just answer the patient's question.", false);
+                return;
+            }
             // Was this already done by the page a moment ago (patient said "haan")? Then don't do it twice.
             const prevCalls = elevenLabsState.lastToolCalls || {};
             if ((toolName === "message_caretaker" || toolName === "call_caretaker") && Date.now() - (prevCalls[toolName] || 0) < 60 * 1000) {
@@ -6510,6 +6619,7 @@
             <div id="custom-voice-status" class="min-h-5 text-xs"></div>
         </div>
     </div>
+    <script src="session_keepalive.js?v=4"></script>
 </body>
 
 </html>

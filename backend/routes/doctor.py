@@ -5,7 +5,9 @@ Provides aggregated patient data specifically for doctors:
 - Detailed clinical summary for individual patients
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+import re
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 from config import get_db
@@ -281,8 +283,62 @@ def get_patient_clinical_summary(recipient_id: int, db: Session = Depends(get_db
         "total_events": cough_count + sneeze_count,
     }
 
-    # 10. AI Clinical Summary (use existing report_summary if available)
-    clinical_summary = recipient.report_summary or "No clinical summary available. Upload medical reports to generate AI-powered insights."
+    # 10. Everything the uploaded reports say (labs, vitals, allergies, diagnoses) merged in.
+    #     Read-only: worked out from the reports each time, so new uploads appear at once.
+    reports_list = []
+    insights = None
+    try:
+        from services.doctor_insights import build_insights
+        insights = build_insights(recipient_id, db, recipient)
+    except Exception as e:
+        print(f"[doctor] report insights failed for {recipient_id}: {e}")
+
+    if insights:
+        reports_list = insights["report_list"]
+        # Vitals: device / manual readings + readings written in the reports
+        vitals = sorted(vitals + insights["report_vitals"], key=lambda v: (v.get("recorded_at") or "")[:19])
+        # Lab trends: reports + earlier lab records (junk / misread values filtered)
+        if insights["lab_trends"]:
+            lab_metrics = insights["lab_trends"]
+        # Allergies stated in the reports (e.g. discharge summary) that are not on file yet
+        have = {(a["allergen"] or "").lower() for a in allergies}
+        for a in insights["allergies"]:
+            if a["allergen"].lower() not in have:
+                allergies.append({"id": None, **a})
+        # Diagnoses from the reports that are not already active conditions
+        keys = ("copd", "diabetes", "hypertension", "osteoarthritis", "asthma", "kidney", "anaemia", "anemia",
+                "hyperlipid", "dyslipid", "thyroid", "heart failure", "coronary")
+        def _key(name):
+            n = (name or "").lower()
+            return next((k for k in keys if k in n), n[:25])
+        taken = {_key(c["disease_name"]) for c in conditions}
+        for dx in insights["diagnoses"]:
+            k = _key(dx["name"])
+            if k in taken:
+                continue
+            taken.add(k)
+            sev = re.search(r"\b(mild|moderate|severe)\b", dx["name"], re.I)
+            conditions.append({
+                "id": None, "disease_name": dx["name"], "disease_code": None,
+                "status": "from report", "severity": sev.group(1).lower() if sev else None,
+                "first_detected": dx["date"], "last_updated": dx["date"], "confidence_score": None,
+                "source": dx["source"],
+            })
+
+    # 11. Clinical summary: built from all of the above (works without the Gemini key)
+    clinical_summary = None
+    try:
+        from services.doctor_insights import build_clinical_summary
+        if insights:
+            clinical_summary = build_clinical_summary(general_info, conditions, medications, allergies, vitals, insights)
+    except Exception as e:
+        print(f"[doctor] clinical summary failed for {recipient_id}: {e}")
+    old = (recipient.report_summary or "").strip()
+    if old and not old.lower().startswith(("failed", "no clinical summary")) and clinical_summary:
+        clinical_summary += "\n## Earlier AI summary\n" + old
+    if not clinical_summary:
+        clinical_summary = old if old and not old.lower().startswith("failed") else \
+            "No clinical summary available yet. Upload medical reports to generate insights."
 
     return {
         "general_info": general_info,
@@ -295,6 +351,7 @@ def get_patient_clinical_summary(recipient_id: int, db: Session = Depends(get_db
         "lab_trends": lab_metrics,
         "audio_summary": audio_summary,
         "clinical_summary": clinical_summary,
+        "reports": reports_list,
     }
 
 class AIChatModel(BaseModel):
@@ -309,16 +366,86 @@ def patient_ai_chat(recipient_id: int, model: AIChatModel, db: Session = Depends
     except HTTPException:
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    # 2. Call Gemini
+    # 2. Call Gemini when a real Gemini key is configured; otherwise (or if it fails) answer
+    #    directly from the patient's reports and records.
+    import os
     from utils.summarizer import chat_with_patient_ai
-    
-    answer = chat_with_patient_ai(
-        patient_context=context,
-        chat_history=model.history,
-        user_message=model.message
-    )
-    
+    from services.doctor_insights import answer_question
+
+    key = (os.environ.get("GEMINI_API_KEY") or "").strip()
+    answer = None
+    if key.startswith("AIza"):
+        answer = chat_with_patient_ai(
+            patient_context=context,
+            chat_history=model.history,
+            user_message=model.message
+        )
+        if not answer or answer.startswith(("I apologize", "An error occurred", "Unable to use")):
+            answer = None
+    if answer is None:
+        answer = answer_question(model.message, context)
+
     return {"reply": answer}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Medical reports for a patient (doctor portal): list, upload, view
+# ─────────────────────────────────────────────────────────────────────────────
+@router.get("/doctor/patients/{recipient_id}/reports")
+def list_patient_reports(recipient_id: int, db: Session = Depends(get_db)):
+    from tables.users import CareRecipient
+    from services.doctor_insights import build_insights
+    recipient = db.query(CareRecipient).filter(CareRecipient.id == recipient_id).first()
+    if not recipient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return {"reports": build_insights(recipient_id, db, recipient)["report_list"]}
+
+
+@router.post("/doctor/patients/{recipient_id}/reports")
+async def upload_patient_report(recipient_id: int, background_tasks: BackgroundTasks,
+                                file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """
+    Upload a report for this patient from the doctor portal. It goes through the same
+    pipeline as a caretaker upload (analysis, labs, conditions, medicine sync).
+    """
+    from tables.users import CareRecipient
+    from repository.medical_reports import create_medical_report
+    recipient = db.query(CareRecipient).filter(CareRecipient.id == recipient_id).first()
+    if not recipient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (max 10 MB)")
+    allowed = ['application/pdf', 'image/png', 'image/jpeg', 'application/msword',
+               'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/octet-stream']
+    mime = file.content_type or 'application/octet-stream'
+    if mime not in allowed:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {mime}. Upload a PDF, image or Word file.")
+
+    report = create_medical_report(db, recipient_id, file.filename, mime, content)
+    try:
+        from routes.recipients import _run_medical_history_pipeline
+        background_tasks.add_task(_run_medical_history_pipeline, recipient_id=recipient_id,
+                                  report_id=report.id, filename=file.filename)
+    except Exception as e:
+        print(f"[doctor] could not queue report pipeline: {e}")
+    return {"message": "Report uploaded", "report_id": report.id, "filename": report.filename,
+            "processing_status": "processing"}
+
+
+@router.get("/doctor/patients/{recipient_id}/reports/{report_id}/file")
+def view_patient_report(recipient_id: int, report_id: int, db: Session = Depends(get_db)):
+    from tables.medical_reports import MedicalReport
+    r = db.query(MedicalReport).filter(MedicalReport.id == report_id,
+                                       MedicalReport.care_recipient_id == recipient_id).first()
+    if not r or r.data is None:
+        raise HTTPException(status_code=404, detail="Report not found")
+    safe_name = re.sub(r'[^A-Za-z0-9._ -]', '_', r.filename or f"report_{report_id}")
+    return Response(content=bytes(r.data), media_type=r.mime_type or "application/octet-stream",
+                    headers={"Content-Disposition": f'inline; filename="{safe_name}"'})
 
 @router.post("/doctor/patients/{recipient_id}/remarks")
 def update_doctor_remarks(recipient_id: int, model: RemarksModel, db: Session = Depends(get_db)):

@@ -611,6 +611,22 @@ def build_agent_dynamic_variables(recipient_id: int, db: Session) -> Dict[str, s
         parts.append(f"health conditions: {conditions}")
     if recipient and getattr(recipient, "doctor_remarks", None):
         parts.append(f"doctor's advice: {recipient.doctor_remarks}")
+    # Known allergies (so Asha can answer "mujhe kis cheez se allergy hai?" and warn about them)
+    if recipient:
+        try:
+            from tables.allergies import Allergy, AllergyStatus
+            allergies = db.query(Allergy).filter(
+                Allergy.care_recipient_id == recipient.id,
+                Allergy.status == AllergyStatus.active,
+            ).all()
+            if allergies:
+                parts.append("known allergies: " + "; ".join(
+                    f"{a.allergen}" + (f" ({a.reaction})" if a.reaction else "") for a in allergies))
+            else:
+                parts.append("known allergies: none on record")
+        except Exception as e:
+            db.rollback()
+            print(f"[ElevenLabs] Allergies skipped for recipient {recipient.id}: {e}")
     profile_details = ", ".join(parts)
 
     medicines = ctx.get("medicine_schedule") or ""

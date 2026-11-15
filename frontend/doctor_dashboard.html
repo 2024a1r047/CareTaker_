@@ -391,6 +391,33 @@
             line-height: 1.6;
         }
 
+        /* ── Doctor introduction on the welcome screen ── */
+        .welcome-state .doc-designation { font-size: 1.02rem; font-weight: 600; color: var(--accent); margin: -10px 0 0; }
+        .doc-badges { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+        .doc-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+            font-size: 0.8rem; font-weight: 600; background: rgba(255,255,255,0.7); border: 1px solid var(--border-light); color: var(--text); }
+        .doc-badge.ok { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.35); color: #047857; }
+        .doc-badge.wait { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.35); color: #b45309; }
+        .doc-intro-card { max-width: 560px; width: 100%; text-align: left; background: rgba(255,255,255,0.6);
+            border: 1px solid var(--border-light); border-radius: 16px; padding: 16px 20px; }
+        .doc-intro-card .row-line { display: flex; gap: 10px; align-items: flex-start; font-size: 0.88rem; color: var(--text); margin: 6px 0; }
+        .doc-intro-card .row-line i { color: var(--accent); width: 18px; margin-top: 3px; }
+        .doc-intro-card .bio { color: var(--muted); font-size: 0.88rem; line-height: 1.55; margin: 0 0 8px; }
+        .doc-settings-btn { padding: 10px 18px; border-radius: 12px; border: 1px solid var(--accent); background: transparent;
+            color: var(--accent); font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+        .doc-settings-btn:hover { background: var(--accent-glow); }
+
+        /* ── Doctor card in the sidebar ── */
+        .doc-mini { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px;
+            background: rgba(255,255,255,0.6); border: 1px solid var(--border-light); margin-bottom: 14px; }
+        .doc-mini .av { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-weight: 800;
+            color: #fff; background: linear-gradient(135deg, var(--accent), #0f766e); flex-shrink: 0; }
+        .doc-mini .nm { font-weight: 700; font-size: 0.9rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .doc-mini .sp { font-size: 0.74rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .settings-msg { font-size: 0.84rem; margin-top: 10px; min-height: 1.2em; }
+        .settings-msg.err { color: var(--danger); }
+        .settings-msg.ok { color: #047857; }
+
         /* ── Patient Header ── */
         .patient-header {
             display: flex;
@@ -652,7 +679,37 @@
             color: var(--muted);
         }
 
+        /* ── Medical Reports panel ── */
+        .report-upload {
+            display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+            padding: 16px 18px; border: 2px dashed rgba(13, 148, 136, 0.35); border-radius: 14px;
+            background: rgba(255, 255, 255, 0.45); margin-bottom: 12px; transition: background .2s, border-color .2s;
+        }
+        .report-upload.drag { background: rgba(13, 148, 136, 0.08); border-color: var(--accent); }
+        .report-upload > i { font-size: 1.6rem; color: var(--accent); }
+        .report-upload > div { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 2px; }
+        .report-upload > div span { font-size: 0.78rem; color: var(--muted); }
+        .report-upload-btn {
+            background: var(--accent); color: #fff; padding: 9px 16px; border-radius: 10px;
+            font-weight: 600; font-size: 0.85rem; cursor: pointer; white-space: nowrap;
+        }
+        .report-upload-status { font-size: 0.82rem; margin-bottom: 8px; color: var(--muted); }
+        .report-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px;
+            background: rgba(255, 255, 255, 0.55); border: 1px solid var(--border-light); margin-bottom: 8px; }
+        .report-row .item-body { flex: 1; min-width: 0; }
+        .report-row h5 { margin: 0; font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .report-row p { margin: 2px 0 0; font-size: 0.75rem; color: var(--muted); }
+        .report-row a { color: var(--accent); font-weight: 600; font-size: 0.8rem; text-decoration: none; white-space: nowrap; }
+        .src-badge { display: inline-block; font-size: 0.66rem; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+            background: rgba(13, 148, 136, 0.1); color: var(--accent); margin-left: 6px; vertical-align: middle; }
+
         /* ── Clinical Summary ── */
+        .clinical-summary-text h4 { margin: 14px 0 4px; font-size: 0.9rem; color: var(--accent); letter-spacing: .02em; }
+        .clinical-summary-text h4:first-of-type { margin-top: 10px; }
+        .clinical-summary-text ul { margin: 0; padding-left: 20px; }
+        .clinical-summary-text li { margin: 2px 0; line-height: 1.55; }
+        .clinical-summary-text .cs-lead { font-weight: 600; margin: 0; }
+        .clinical-summary-text .cs-foot { font-size: 0.75rem; color: var(--muted); font-style: italic; margin: 12px 0 0; }
         .clinical-summary-text {
             font-size: 0.92rem;
             line-height: 1.8;
@@ -1295,7 +1352,18 @@
             </div>
 
             <div style="margin-top: auto; padding-top: 10px;">
-                <button onclick="logout()" 
+                <div class="doc-mini" id="docMini" style="display:none;">
+                    <div class="av" id="docMiniAvatar">Dr</div>
+                    <div style="min-width:0; flex:1;">
+                        <div class="nm" id="docMiniName"></div>
+                        <div class="sp" id="docMiniSpec"></div>
+                    </div>
+                </div>
+                <button onclick="openDoctorSettings()"
+                    style="width: 100%; padding: 12px; border-radius: 14px; border: 1px solid var(--accent); background: transparent; color: var(--accent); font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 10px;">
+                    <i class="fas fa-user-cog"></i> Settings
+                </button>
+                <button onclick="logout()"
                     style="width: 100%; padding: 12px; border-radius: 14px; border: 1px solid var(--danger); background: var(--danger-bg); color: var(--danger); font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s;">
                     <i class="fas fa-sign-out-alt"></i> Logout
                 </button>
@@ -1307,9 +1375,14 @@
             <!-- Welcome State (shown when no patient selected) -->
             <div class="welcome-state" id="welcomeState">
                 <div class="icon-circle"><i class="fas fa-stethoscope"></i></div>
-                <h2>Welcome, Doctor</h2>
+                <h2 id="welcomeTitle">Welcome, Doctor</h2>
+                <div class="doc-designation" id="welcomeDesignation" style="display:none;"></div>
+                <div class="doc-badges" id="welcomeBadges"></div>
+                <div class="doc-intro-card" id="welcomeIntro" style="display:none;"></div>
                 <p>Select a patient from the sidebar to view their complete clinical summary, vitals, medications, and
                     AI-powered health insights.</p>
+                <button class="doc-settings-btn" id="welcomeSettingsBtn" onclick="openDoctorSettings()" style="display:none;">
+                    <i class="fas fa-user-cog"></i> Edit my profile</button>
             </div>
 
             <!-- Patient Dashboard (hidden until patient selected) -->
@@ -1319,6 +1392,34 @@
                 <div class="panel animate-in" id="headerPanel">
                     <div class="patient-header" id="patientHeader">
                         <!-- Filled by JS -->
+                    </div>
+                </div>
+
+                <!-- Medical Reports: upload + list (same processing as caretaker uploads) -->
+                <div class="panel animate-in delay-1" id="reportsPanel">
+                    <div class="panel-header">
+                        <div class="panel-title"><i class="fas fa-file-medical"></i> Medical Reports</div>
+                        <span class="eyebrow" id="reportsCount">0 reports</span>
+                    </div>
+                    <div class="report-upload" id="reportDropZone"
+                        ondragover="event.preventDefault(); this.classList.add('drag')"
+                        ondragleave="this.classList.remove('drag')"
+                        ondrop="event.preventDefault(); this.classList.remove('drag'); uploadDoctorReports(event.dataTransfer.files)">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <div>
+                            <strong>Upload a report for this patient</strong>
+                            <span>PDF, image or Word · lab reports, discharge summaries, PFT, prescriptions · max 10 MB</span>
+                        </div>
+                        <label class="report-upload-btn">
+                            <i class="fas fa-plus"></i> Choose file
+                            <input type="file" id="reportFileInput" multiple hidden
+                                accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,application/pdf,image/*"
+                                onchange="uploadDoctorReports(this.files); this.value='';">
+                        </label>
+                    </div>
+                    <div id="reportUploadStatus" class="report-upload-status"></div>
+                    <div class="scroll-y" id="reportsList" style="max-height: 260px;">
+                        <div class="empty-msg">No reports uploaded yet.</div>
                     </div>
                 </div>
 
@@ -1650,6 +1751,82 @@
     </div>
 
     <!-- ══ Prescription Modal ══ -->
+    <!-- Doctor Settings: edit own profile -->
+    <div class="modal-overlay" id="doctorSettingsModal">
+        <div class="modal-card" style="max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h3 style="margin:0; color:var(--text);"><i class="fas fa-user-cog"
+                        style="color:var(--accent); margin-right:8px;"></i> My Profile &amp; Settings</h3>
+                <button class="modal-close" onclick="closeDoctorSettings()">&times;</button>
+            </div>
+            <form id="doctorSettingsForm" onsubmit="saveDoctorSettings(event)">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div class="form-group">
+                        <label>Full name</label>
+                        <input type="text" id="ds_name" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Specialization / designation</label>
+                        <input type="text" id="ds_spec" class="form-control" placeholder="e.g. Endocrinologist">
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="ds_email" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Phone</label>
+                        <input type="tel" id="ds_phone" class="form-control" maxlength="10" required>
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 2fr; gap:12px;">
+                    <div class="form-group">
+                        <label>Years of experience</label>
+                        <input type="number" id="ds_exp" class="form-control" min="0" max="70">
+                    </div>
+                    <div class="form-group">
+                        <label>Clinic / hospital address</label>
+                        <input type="text" id="ds_clinic" class="form-control" placeholder="Clinic name, city">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Qualifications / certifications (comma separated)</label>
+                    <input type="text" id="ds_certs" class="form-control" placeholder="e.g. MBBS, MD (Medicine), DM (Endocrinology)">
+                </div>
+                <div class="form-group">
+                    <label>About me (shown to caretakers)</label>
+                    <textarea id="ds_bio" class="form-control" rows="3" placeholder="Short introduction..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>UPI ID (for consultation fees)</label>
+                    <input type="text" id="ds_vpa" class="form-control" placeholder="e.g. doctor@upi">
+                </div>
+                <details style="margin-top:6px;">
+                    <summary style="cursor:pointer; color:var(--muted); font-weight:600; font-size:0.88rem;">Change password</summary>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:10px;">
+                        <div class="form-group">
+                            <label>Current password</label>
+                            <input type="password" id="ds_curpw" class="form-control" autocomplete="current-password">
+                        </div>
+                        <div class="form-group">
+                            <label>New password</label>
+                            <input type="password" id="ds_newpw" class="form-control" autocomplete="new-password" minlength="6">
+                        </div>
+                    </div>
+                </details>
+                <div class="settings-msg" id="ds_msg"></div>
+                <div style="margin-top:14px; display:flex; gap:12px;">
+                    <button type="button" class="form-control"
+                        style="background:#f1f5f9; border:none; color:var(--muted); cursor:pointer;"
+                        onclick="closeDoctorSettings()">Cancel</button>
+                    <button type="submit" id="ds_save" class="form-control"
+                        style="background:var(--accent); border:none; color:white; font-weight:700; cursor:pointer;">Save changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="prescribeModal">
         <div class="modal-card">
             <div class="modal-header">
@@ -1932,9 +2109,75 @@
             document.getElementById('doctorRemarks').value = data.general_info.doctor_remarks || '';
             renderLabTrends(data.lab_trends);
             renderVitalsChart(data.vitals);
+            renderReports(data.reports);
 
             // Populate AI Sidebar Context
             renderAISidebar(data);
+        }
+
+        // ── Medical Reports: list (same reports the caretaker uploaded) + upload from the doctor portal ──
+        function renderReports(reports) {
+            const list = document.getElementById('reportsList');
+            const count = document.getElementById('reportsCount');
+            if (!list) return;
+            reports = reports || [];
+            if (count) count.textContent = `${reports.length} report${reports.length === 1 ? '' : 's'}`;
+            if (!reports.length) {
+                list.innerHTML = '<div class="empty-msg">No reports uploaded yet.</div>';
+                return;
+            }
+            const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+            const fmt = d => { if (!d) return ''; const x = new Date(d); return isNaN(x) ? esc(d) : x.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }); };
+            list.innerHTML = reports.map(r => {
+                const status = r.processing_status && r.processing_status !== 'completed'
+                    ? `<span class="src-badge">${esc(r.processing_status)}</span>` : '';
+                const bits = [
+                    r.report_date ? `Report date ${fmt(r.report_date)}` : '',
+                    r.lab_count ? `${r.lab_count} lab values` : '',
+                    r.has_vitals ? 'includes vitals' : '',
+                    r.uploaded_at ? `uploaded ${fmt(r.uploaded_at)}` : '',
+                ].filter(Boolean).join(' · ');
+                return `<div class="report-row">
+                    <i class="fas fa-file-medical" style="color: var(--accent); font-size: 1.2rem;"></i>
+                    <div class="item-body">
+                        <h5 title="${esc(r.filename)}">${esc(r.title || r.filename || 'Report')}${status}</h5>
+                        <p>${bits}</p>
+                    </div>
+                    <a href="${API_BASE}/doctor/patients/${selectedPatientId}/reports/${r.id}/file" target="_blank" rel="noopener">
+                        <i class="fas fa-eye"></i> View</a>
+                </div>`;
+            }).join('');
+        }
+
+        async function uploadDoctorReports(files) {
+            if (!selectedPatientId) return alert('Please select a patient first.');
+            files = Array.from(files || []);
+            if (!files.length) return;
+            const status = document.getElementById('reportUploadStatus');
+            let ok = 0;
+            for (const f of files) {
+                if (f.size > 10 * 1024 * 1024) { if (status) status.textContent = `${f.name}: too large (max 10 MB)`; continue; }
+                if (status) status.textContent = `Uploading ${f.name}…`;
+                try {
+                    const fd = new FormData();
+                    fd.append('file', f);
+                    const res = await fetch(`${API_BASE}/doctor/patients/${selectedPatientId}/reports`, { method: 'POST', body: fd });
+                    const d = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(d.detail || `Upload failed (${res.status})`);
+                    ok++;
+                } catch (e) {
+                    if (status) status.textContent = `${f.name}: ${e.message}`;
+                }
+            }
+            if (ok && status) status.textContent = `${ok} report${ok > 1 ? 's' : ''} uploaded — reading it now (lab values, conditions, medicines). This takes a minute.`;
+            // refresh the list now, and again once the report has been read
+            const refresh = async () => {
+                try {
+                    const r = await fetch(`${API_BASE}/doctor/patients/${selectedPatientId}/reports`);
+                    if (r.ok) renderReports((await r.json()).reports);
+                } catch (e) { /* try again later */ }
+            };
+            if (ok) { refresh(); setTimeout(refresh, 20000); setTimeout(refresh, 60000); }
         }
 
         function renderAISidebar(data) {
@@ -2187,8 +2430,71 @@
             document.getElementById('totalAudioEvents').textContent = audio.total_events || 0;
         }
 
+        // Short summary on screen (the full text is still used by the AI chat and can be expanded)
+        let _fullClinicalSummary = '';
         function renderClinicalSummary(summary) {
-            document.getElementById('clinicalSummary').textContent = summary || 'No clinical summary available.';
+            const el = document.getElementById('clinicalSummary');
+            _fullClinicalSummary = summary || '';
+            if (!summary) { el.textContent = 'No clinical summary available.'; return; }
+            el.innerHTML = _shortSummaryHtml(summary) +
+                '<p class="cs-foot"><a href="#" onclick="toggleFullSummary(event)" id="csToggle">Show full summary</a></p>';
+        }
+
+        function toggleFullSummary(e) {
+            e.preventDefault();
+            const el = document.getElementById('clinicalSummary');
+            const full = el.dataset.full === '1';
+            el.dataset.full = full ? '0' : '1';
+            el.innerHTML = (full ? _shortSummaryHtml(_fullClinicalSummary) : _fullSummaryHtml(_fullClinicalSummary)) +
+                `<p class="cs-foot"><a href="#" onclick="toggleFullSummary(event)">${full ? 'Show full summary' : 'Show short summary'}</a></p>`;
+        }
+
+        function _summarySections(text) {
+            const lines = String(text).split('\n');
+            const out = { lead: [], sections: [] };
+            let cur = null;
+            for (const raw of lines) {
+                const l = raw.trim();
+                if (!l) continue;
+                if (l.startsWith('## ')) { cur = { title: l.slice(3).trim(), items: [] }; out.sections.push(cur); continue; }
+                if (!cur) { out.lead.push(l); continue; }
+                cur.items.push(l.replace(/^[-•]\s*/, ''));
+            }
+            return out;
+        }
+
+        function _shortSummaryHtml(text) {
+            const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+            const s = _summarySections(text);
+            const get = re => s.sections.find(x => re.test(x.title));
+            let html = s.lead.length ? `<p class="cs-lead">${esc(s.lead[0])}</p>` : '';
+            const problems = get(/problem/i);
+            if (problems && problems.items.length) {
+                html += '<h4>Key problems</h4><ul>' + problems.items.slice(0, 5).map(i => `<li>${esc(i)}</li>`).join('') +
+                    (problems.items.length > 5 ? `<li style="color:var(--muted)">+ ${problems.items.length - 5} more</li>` : '') + '</ul>';
+            }
+            const allergies = get(/allerg/i);
+            if (allergies && allergies.items.length) {
+                html += `<h4>Allergies</h4><p style="margin:0">${esc(allergies.items.map(a => a.split(/\s+[—-]\s+/)[0]).join(', '))}</p>`;
+            }
+            const labs = get(/lab trend/i);
+            if (labs && labs.items.length) {
+                html += '<h4>Key lab trends</h4><ul>' + labs.items.slice(0, 5).map(i =>
+                    `<li>${esc(i.replace(/\s*\[[^\]]*\]/, ''))}</li>`).join('') + '</ul>';
+            }
+            const vitals = get(/^vitals/i);
+            if (vitals && vitals.items.length) {
+                const last = [...vitals.items].reverse().find(v => /BP|HR|SpO2/.test(v)) || vitals.items[vitals.items.length - 1];
+                html += `<h4>Latest vitals</h4><p style="margin:0">${esc(last)}</p>`;
+            }
+            return html || `<p>${esc(text.slice(0, 600))}…</p>`;
+        }
+
+        function _fullSummaryHtml(text) {
+            const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+            const s = _summarySections(text);
+            return (s.lead.length ? `<p class="cs-lead">${esc(s.lead.join(' '))}</p>` : '') +
+                s.sections.map(x => `<h4>${esc(x.title)}</h4><ul>${x.items.map(i => `<li>${esc(i)}</li>`).join('')}</ul>`).join('');
         }
 
         async function saveDoctorRemarks() {
@@ -2238,18 +2544,40 @@
                 return;
             }
 
-            btnContainer.innerHTML = metrics.map((m, i) =>
-                `<button class="chart-btn ${i === 0 ? 'active' : ''}" onclick="showLabMetric('${m}', this)">${m}</button>`
-            ).join('');
+            // Only the clinically most important tests as buttons (max 12); the rest in a small dropdown
+            const KEY_LABS = ['HbA1c', 'Fasting Glucose', 'Postprandial Glucose', 'Random Glucose', 'eGFR', 'Creatinine',
+                'Urine Microalbumin', 'Hemoglobin', 'LDL Cholesterol', 'Total Cholesterol', 'Triglycerides',
+                'HDL Cholesterol', 'Vitamin D', 'TSH', 'Potassium', 'Sodium', 'Uric Acid', 'Vitamin B12'];
+            const lower = metrics.map(m => m.toLowerCase());
+            const key = [];
+            for (const k of KEY_LABS) {
+                const i = lower.indexOf(k.toLowerCase());
+                if (i >= 0 && key.length < 12) key.push(metrics[i]);
+            }
+            if (key.length < 6) {   // few known tests: add the ones with the most readings
+                for (const m of [...metrics].sort((a, b) => (currentLabData[b] || []).length - (currentLabData[a] || []).length)) {
+                    if (key.length >= 12) break;
+                    if (!key.includes(m)) key.push(m);
+                }
+            }
+            const others = metrics.filter(m => !key.includes(m)).sort();
+            const safe = m => m.replace(/'/g, "\\'");
+            btnContainer.innerHTML = key.map((m, i) =>
+                `<button class="chart-btn ${i === 0 ? 'active' : ''}" onclick="showLabMetric('${safe(m)}', this)">${m}</button>`
+            ).join('') + (others.length ? `
+                <select class="chart-btn" style="cursor:pointer;" onchange="if(this.value){showLabMetric(this.value, null, true); this.selectedIndex = 0;}">
+                    <option value="">Other tests (${others.length})…</option>
+                    ${others.map(m => `<option value="${m.replace(/"/g, '&quot;')}">${m}</option>`).join('')}
+                </select>` : '');
 
-            showLabMetric(metrics[0]);
+            showLabMetric(key[0]);
         }
 
-        function showLabMetric(metricName, btnEl) {
+        function showLabMetric(metricName, btnEl, fromDropdown) {
             // Update active button
             document.querySelectorAll('#labButtons .chart-btn').forEach(b => b.classList.remove('active'));
             if (btnEl) btnEl.classList.add('active');
-            else document.querySelector(`#labButtons .chart-btn`)?.classList.add('active');
+            else if (!fromDropdown) document.querySelector(`#labButtons button.chart-btn`)?.classList.add('active');
 
             const data = currentLabData[metricName] || [];
             const labels = data.map(d => d.date || '');
@@ -2602,13 +2930,142 @@
         // ═══════════════════════════════════════════
 
         function logout() {
-            localStorage.removeItem('token');
+            localStorage.removeItem('token'); sessionStorage.removeItem('token');
             localStorage.removeItem('userRole');
             window.location.href = 'login.html';
         }
 
         loadPatients();
+        loadDoctorProfile();
+
+        // ═══════════════════════════════════════════
+        //  DOCTOR PROFILE: welcome introduction + Settings
+        // ═══════════════════════════════════════════
+        let doctorProfile = null;
+        const _docEsc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+        async function loadDoctorProfile() {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+            try {
+                const res = await fetch(`${API_BASE}/profile`, { headers: { 'Authorization': `Bearer ${token}` } });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.role !== 'doctor' || !data.doctor) return;
+                doctorProfile = data.doctor;
+                renderDoctorIntro();
+            } catch (e) { console.warn('[Doctor] profile could not be loaded', e); }
+        }
+
+        function renderDoctorIntro() {
+            const d = doctorProfile;
+            if (!d) return;
+            const name = (d.full_name || d.username || 'Doctor').replace(/^dr\.?\s+/i, '');
+            document.getElementById('welcomeTitle').textContent = `Welcome, Dr. ${name}`;
+            const desig = document.getElementById('welcomeDesignation');
+            if (d.specialization) { desig.textContent = d.specialization; desig.style.display = ''; }
+            else { desig.style.display = 'none'; }
+
+            const badges = [];
+            badges.push(d.is_verified
+                ? '<span class="doc-badge ok"><i class="fas fa-circle-check"></i> Verified doctor</span>'
+                : '<span class="doc-badge wait"><i class="fas fa-clock"></i> Verification pending</span>');
+            if (d.experience_years) badges.push(`<span class="doc-badge"><i class="fas fa-award"></i> ${d.experience_years} yrs experience</span>`);
+            const certs = Array.isArray(d.certifications) ? d.certifications : [];
+            if (certs.length) badges.push(`<span class="doc-badge"><i class="fas fa-graduation-cap"></i> ${_docEsc(certs.join(', '))}</span>`);
+            document.getElementById('welcomeBadges').innerHTML = badges.join('');
+
+            const intro = [];
+            const titleCase = s => String(s).replace(/\s*,\s*/g, ', ').replace(/\b(aiims|pgimer|cmc|kem|jipmer)\b/gi, m => m.toUpperCase())
+                .replace(/(^|\s|,\s)([a-z])/g, (m, p, c) => p + c.toUpperCase());
+            if (d.bio) intro.push(`<p class="bio">${_docEsc(d.bio)}</p>`);
+            if (d.experience_years || d.specialization)
+                intro.push(`<div class="row-line"><i class="fas fa-user-doctor"></i><span>${_docEsc(d.specialization || 'Doctor')}` +
+                    (d.experience_years ? ` · <strong>${d.experience_years} years of experience</strong>` : '') + '</span></div>');
+            if (certs.length) intro.push(`<div class="row-line"><i class="fas fa-graduation-cap"></i><span>${_docEsc(certs.join(', '))}</span></div>`);
+            if (d.clinic_address) intro.push(`<div class="row-line"><i class="fas fa-hospital"></i><span>${_docEsc(titleCase(d.clinic_address))}</span></div>`);
+            if (d.email) intro.push(`<div class="row-line"><i class="fas fa-envelope"></i><span>${_docEsc(d.email)}</span></div>`);
+            if (d.phone_number) intro.push(`<div class="row-line"><i class="fas fa-phone"></i><span>${_docEsc(d.phone_number)}</span></div>`);
+            const missing = [!d.experience_years && 'your experience', !d.clinic_address && 'your clinic',
+                             !certs.length && 'your qualifications', !d.bio && 'a short introduction'].filter(Boolean);
+            if (missing.length)
+                intro.push(`<div class="row-line" style="color:var(--muted);"><i class="fas fa-circle-info"></i><span>Add ${missing.join(', ').replace(/, ([^,]*)$/, ' and $1')} in Settings so caretakers know you better.</span></div>`);
+            const introEl = document.getElementById('welcomeIntro');
+            introEl.innerHTML = intro.join('');
+            introEl.style.display = intro.length ? '' : 'none';
+            document.getElementById('welcomeSettingsBtn').style.display = '';
+
+            // sidebar card
+            document.getElementById('docMini').style.display = '';
+            document.getElementById('docMiniName').textContent = `Dr. ${name}`;
+            document.getElementById('docMiniSpec').textContent = (d.specialization || 'Doctor') + (d.is_verified ? ' · Verified' : '');
+            document.getElementById('docMiniAvatar').textContent =
+                name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'Dr';
+        }
+
+        function openDoctorSettings() {
+            const d = doctorProfile || {};
+            if (!doctorProfile) { alert('Please log in again to edit your profile.'); return; }
+            document.getElementById('ds_name').value = d.full_name || '';
+            document.getElementById('ds_spec').value = d.specialization || '';
+            document.getElementById('ds_email').value = d.email || '';
+            document.getElementById('ds_phone').value = d.phone_number || '';
+            document.getElementById('ds_exp').value = d.experience_years || '';
+            document.getElementById('ds_clinic').value = d.clinic_address || '';
+            document.getElementById('ds_certs').value = (Array.isArray(d.certifications) ? d.certifications : []).join(', ');
+            document.getElementById('ds_bio').value = d.bio || '';
+            document.getElementById('ds_vpa').value = d.vpa_address || '';
+            document.getElementById('ds_curpw').value = '';
+            document.getElementById('ds_newpw').value = '';
+            const msg = document.getElementById('ds_msg'); msg.textContent = ''; msg.className = 'settings-msg';
+            document.getElementById('doctorSettingsModal').style.display = 'grid';
+        }
+
+        function closeDoctorSettings() {
+            document.getElementById('doctorSettingsModal').style.display = 'none';
+        }
+
+        async function saveDoctorSettings(e) {
+            e.preventDefault();
+            const msg = document.getElementById('ds_msg');
+            const btn = document.getElementById('ds_save');
+            const body = {
+                full_name: document.getElementById('ds_name').value,
+                specialization: document.getElementById('ds_spec').value,
+                email: document.getElementById('ds_email').value,
+                phone_number: document.getElementById('ds_phone').value,
+                experience_years: document.getElementById('ds_exp').value || 0,
+                clinic_address: document.getElementById('ds_clinic').value,
+                certifications: document.getElementById('ds_certs').value,
+                bio: document.getElementById('ds_bio').value,
+                vpa_address: document.getElementById('ds_vpa').value,
+            };
+            const newPw = document.getElementById('ds_newpw').value;
+            if (newPw) {
+                body.new_password = newPw;
+                body.current_password = document.getElementById('ds_curpw').value;
+            }
+            btn.disabled = true; btn.textContent = 'Saving…';
+            try {
+                const res = await fetch(`${API_BASE}/doctor/me`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                    body: JSON.stringify(body),
+                });
+                const d = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(d.detail || 'Could not save');
+                doctorProfile = { ...doctorProfile, ...d.doctor };
+                renderDoctorIntro();
+                msg.textContent = 'Profile saved ✓'; msg.className = 'settings-msg ok';
+                setTimeout(closeDoctorSettings, 900);
+            } catch (err) {
+                msg.textContent = err.message; msg.className = 'settings-msg err';
+            } finally {
+                btn.disabled = false; btn.textContent = 'Save changes';
+            }
+        }
     </script>
+    <script src="session_keepalive.js?v=4"></script>
 </body>
 
 </html>

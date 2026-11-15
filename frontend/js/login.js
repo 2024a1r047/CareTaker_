@@ -42,6 +42,13 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 
             // Store the token and role
             localStorage.setItem('token', data.result.access_token);
+            // a new login replaces any older login left in this tab (e.g. a caretaker's, from the
+            // AI assistant) and the patient that account had selected
+            try {
+                sessionStorage.removeItem('token');
+                sessionStorage.removeItem('selectedRecipientId');
+                localStorage.removeItem('selectedRecipientId');
+            } catch (e) { /* storage unavailable */ }
             const userRole = data?.result?.user?.role;
 
             if (!userRole) {

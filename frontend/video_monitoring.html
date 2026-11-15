@@ -358,6 +358,17 @@
             pointer-events: none;
         }
 
+        #medOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            border-radius: 12px;
+            z-index: 2;
+        }
+
         #tfjs-canvas {
             position: absolute;
             top: 0;
@@ -436,6 +447,25 @@
         .fall-alert-banner .fa-exclamation-triangle {
             font-size: 1.6rem;
         }
+
+        /* History dashboard */
+        .hist-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+        .hist-kpi { background: rgba(255,255,255,0.85); border: 1px solid rgba(0,0,0,0.06); border-radius: 14px; padding: 12px 14px; }
+        .hist-kpi-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: #6c757d; }
+        .hist-kpi-value { font-size: 1.8rem; font-weight: 800; color: #343a40; font-variant-numeric: tabular-nums; }
+        .hist-kpi-sub { font-size: 0.75rem; color: #6c757d; }
+        .hist-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+        .hist-badge.ok { background: #e8f5e9; color: #2e7d32; }
+        .hist-badge.bad { background: #fdecea; color: #b71c1c; }
+        .hist-badge.na { background: #f1f3f5; color: #6c757d; }
+        .hist-badge.warn { background: #fff4e5; color: #9a5b00; }
+        .hist-insight { background: #faf7f4; border-radius: 10px; padding: 8px 10px; font-size: 0.85rem; margin-bottom: 6px; }
+
+        /* Table Watch feed */
+        .tw-feed { position: relative; background: #111; border-radius: 12px; overflow: hidden; min-height: 240px; }
+        .tw-feed canvas { width: 100%; display: block; cursor: crosshair; touch-action: none; }
+        .tw-reminder { background: linear-gradient(135deg, #b0566b, #8a3346); color: #fff; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+        .tw-reminder.water { background: linear-gradient(135deg, #2f72b8, #1f4f86); }
     </style>
 </head>
 
@@ -466,13 +496,7 @@
         <div class="tabs-container">
             <ul class="nav nav-tabs" id="monitoringTabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="upload-tab" data-bs-toggle="tab" data-bs-target="#upload"
-                        type="button">
-                        <i class="fas fa-cloud-upload-alt me-2"></i>Upload Video
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="live-tab" data-bs-toggle="tab" data-bs-target="#live" type="button">
+                    <button class="nav-link active" id="live-tab" data-bs-toggle="tab" data-bs-target="#live" type="button">
                         <i class="fas fa-camera me-2"></i>Live Monitoring
                     </button>
                 </li>
@@ -482,11 +506,17 @@
                         <i class="fas fa-history me-2"></i>History
                     </button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="upload-tab" data-bs-toggle="tab" data-bs-target="#upload"
+                        type="button" title="Upload a CCTV / phone recording to check it for falls">
+                        <i class="fas fa-cloud-upload-alt me-2"></i>Analyse a recording
+                    </button>
+                </li>
             </ul>
 
             <div class="tab-content mt-4" id="monitoringTabsContent">
-                <!-- Upload Video Tab -->
-                <div class="tab-pane fade show active" id="upload" role="tabpanel">
+                <!-- Analyse a recording (uploaded video) Tab -->
+                <div class="tab-pane fade" id="upload" role="tabpanel">
                     <div class="row">
                         <div class="col-lg-8">
                             <div class="upload-zone" id="uploadZone">
@@ -548,17 +578,16 @@
                         </div>
                     </div>
                 </div>
-            </div>
 
             <!-- Live Monitoring Tab (TF.js powered) -->
-            <div class="tab-pane fade" id="live" role="tabpanel">
+            <div class="tab-pane fade show active" id="live" role="tabpanel">
                 <div class="row">
                     <div class="col-lg-8">
                         <div class="monitoring-card">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h5 class="mb-0">
                                     <span id="liveIndicator"></span>
-                                    Live Camera Feed
+                                    Room Camera — falls &amp; medicines
                                     <small class="text-muted ms-2" style="font-size:0.7rem; font-weight:400;">
                                         <i class="fas fa-bolt text-warning"></i> TensorFlow.js · MoveNet
                                     </small>
@@ -612,10 +641,16 @@
                             <!-- Fall alert banner (shown on detection) -->
                             <div class="fall-alert-banner" id="fallAlertBanner">
                                 <i class="fas fa-exclamation-triangle"></i>
-                                <div>
-                                    <strong style="font-size:1.1rem;">FALL DETECTED!</strong><br>
+                                <div style="flex:1;">
+                                    <strong id="fallAlertTitle" style="font-size:1.1rem;">FALL DETECTED!</strong><br>
+                                    <span id="fallAlertStatus" style="font-size:0.9rem;"></span><br>
+                                    <span id="fallFloorTimer" style="font-size:1rem; font-weight:700; font-variant-numeric:tabular-nums;"></span>
                                     <span id="fallAlertTime" style="font-size:0.85rem; opacity:0.9;"></span>
                                 </div>
+                                <button type="button" id="fallAckBtn" class="btn btn-light btn-sm fw-bold"
+                                    style="display:none; white-space:nowrap;" onclick="acknowledgeFallAlarm()">
+                                    <i class="fas fa-hand-paper me-1"></i> I am attending
+                                </button>
                             </div>
 
                             <!-- TF.js Video + Canvas feed -->
@@ -625,6 +660,8 @@
                                     <video id="tfjs-video" autoplay muted playsinline></video>
                                     <!-- Visible canvas with skeleton + overlays -->
                                     <canvas id="tfjs-canvas"></canvas>
+                                    <!-- Medicine boxes: separate transparent layer (the fall camera drawing is untouched) -->
+                                    <canvas id="medOverlay"></canvas>
                                     <!-- Loading overlay -->
                                     <div class="tfjs-loading-overlay" id="tfjsLoadingOverlay">
                                         <div class="spinner-border text-light" role="status"></div>
@@ -654,7 +691,74 @@
                     </div>
 
                     <div class="col-lg-4">
-                        <div class="monitoring-card">
+                        <!-- Same room camera: medicines (everything in one place) -->
+                        <div class="monitoring-card mb-3">
+                            <h5><i class="fas fa-pills me-2"></i>Medicines</h5>
+                            <div id="liveMedReminder" class="tw-reminder" style="display:none;">
+                                <div class="fw-bold" id="liveMedReminderTitle">Medicine time!</div>
+                                <div id="liveMedReminderText" class="small mb-2"></div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-light btn-sm fw-bold" onclick="TableWatch.markTaken()"><i class="fas fa-check me-1"></i>Taken</button>
+                                    <button class="btn btn-outline-light btn-sm" onclick="TableWatch.snooze(10)"><i class="fas fa-clock me-1"></i>Snooze 10 min</button>
+                                </div>
+                            </div>
+                            <div class="small mb-1"><i class="fas fa-pills me-1" style="color:#b0566b;"></i>
+                                <span id="liveMedStatus"><span class="text-muted">Starts with the room camera</span></span></div>
+                            <div class="text-muted mb-2" style="font-size:0.72rem;" id="twAutoInfo">Medicine detection starts with the room camera</div>
+
+                            <div class="fw-bold small mt-2 mb-1"><i class="fas fa-location-dot me-1" style="color:#b0566b;"></i>Medicines in this room</div>
+                            <div id="liveMedList" class="mb-2"><span class="text-muted small">No medicine added yet — upload a photo of the medicine.</span></div>
+
+                            <div class="p-2 rounded mb-2" style="background:#faf5f6;">
+                                <div class="small fw-bold mb-1"><i class="fas fa-plus me-1"></i>Add a medicine to find</div>
+                                <input type="text" id="twMedName" class="form-control form-control-sm mb-1" placeholder="Name (e.g. Metformin strip)">
+                                <input type="file" id="liveMedPhoto" class="form-control form-control-sm mb-1" accept="image/*" capture="environment">
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-sm btn-primary flex-fill" onclick="TableWatch.teachFromPhoto()">
+                                        <i class="fas fa-upload me-1"></i>Upload photo</button>
+                                    <button class="btn btn-sm btn-outline-secondary flex-fill" onclick="TableWatch.teach()"
+                                        title="Hold the medicine in the white box on the live picture for 3 seconds">
+                                        <i class="fas fa-camera me-1"></i>Teach with camera</button>
+                                </div>
+                                <div class="text-muted mt-1" style="font-size:0.72rem;">Best: upload a photo <em>and</em> teach it once with the camera.
+                                    A yellow dashed box on the video shows the camera's best guess and its match score.</div>
+                            </div>
+
+                            <div class="d-flex gap-2 flex-wrap mb-2">
+                                <button class="btn btn-sm btn-secondary" onclick="TableWatch.markTaken()"><i class="fas fa-check me-1"></i>Mark taken</button>
+                            </div>
+
+                            <details class="mb-1">
+                                <summary class="small fw-bold" style="cursor:pointer;"><i class="fas fa-sliders me-1"></i>Reminders &amp; detection settings</summary>
+                                <div class="row g-2 mt-1">
+                                    <div class="col-6"><label class="small text-muted mb-0">Dose due at</label>
+                                        <input type="time" id="twMedDue" class="form-control form-control-sm"></div>
+                                    <div class="col-6"><label class="small text-muted mb-0">Alert caretaker after (min)</label>
+                                        <input type="number" id="twMedGrace" class="form-control form-control-sm" value="30" min="5" step="5"></div>
+                                    <div class="col-6"><label class="small text-muted mb-0">Repeat reminder every (sec)</label>
+                                        <input type="number" id="twRepeat" class="form-control form-control-sm" value="60" min="20" step="10"></div>
+                                    <div class="col-12">
+                                        <div class="form-check mb-1">
+                                            <input class="form-check-input" type="checkbox" id="twVoice" checked>
+                                            <label class="form-check-label small" for="twVoice">Spoken reminder</label>
+                                        </div>
+                                        <label class="small text-muted mb-0" for="twSens">Medicine detection sensitivity (higher = finds more, more false alarms)</label>
+                                        <input type="range" class="form-range" id="twSens" min="1" max="5" step="1" value="3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="twAnyObject">
+                                            <label class="form-check-label small" for="twAnyObject">Also treat any new object put on the table as medicine (fixed camera only)</label>
+                                        </div>
+                                        <button class="btn btn-sm btn-link p-0 small" onclick="TableWatch.rescan()"><i class="fas fa-rotate me-1"></i>Table is empty now — rescan</button>
+                                    </div>
+                                </div>
+                                <div class="small text-muted mt-2"><strong>Today's schedule</strong>
+                                    <div id="twSchedule">—</div></div>
+                                <div class="small fw-bold mt-2">Activity</div>
+                                <div id="twLog" style="max-height:200px; overflow-y:auto;"><p class="text-muted small mb-0">Nothing yet.</p></div>
+                            </details>
+                        </div>
+                        <!-- Live event log (falls, got up, long lie, acknowledgements): hidden until something happens -->
+                        <div class="monitoring-card" id="liveAlertsCard" style="display:none;">
                             <h5><i class="fas fa-bell me-2"></i>Live Alerts</h5>
                             <div id="liveAlertsList" style="max-height: 400px; overflow-y: auto;">
                                 <p class="text-muted text-center">No active alerts</p>
@@ -699,13 +803,71 @@
 
             <!-- History Tab -->
             <div class="tab-pane fade" id="history" role="tabpanel">
-                <div class="monitoring-card">
-                    <h5><i class="fas fa-history me-2"></i>Monitoring History</h5>
-                    <div id="historyList">
-                        <p class="text-muted text-center">Loading history...</p>
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                    <div>
+                        <h4 class="mb-0 fw-bold" style="color:var(--primary);">Safety History</h4>
+                        <small class="text-muted">Falls, getting up within 2 minutes, medicine checks and analysed videos</small>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group" id="histRange">
+                        <button type="button" class="btn btn-outline-secondary" data-days="7">7 days</button>
+                        <button type="button" class="btn btn-outline-secondary active" data-days="30">30 days</button>
+                        <button type="button" class="btn btn-outline-secondary" data-days="90">90 days</button>
+                    </div>
+                </div>
+
+                <!-- KPI row -->
+                <div class="hist-kpis mb-3" id="histKpis">
+                    <div class="hist-kpi"><div class="hist-kpi-label">Falls</div><div class="hist-kpi-value" id="hkFalls">--</div><div class="hist-kpi-sub" id="hkFallsSub">&nbsp;</div></div>
+                    <div class="hist-kpi"><div class="hist-kpi-label"><i class="fas fa-check-circle text-success"></i> Got up within 2 min</div><div class="hist-kpi-value" id="hkOk">--</div><div class="hist-kpi-sub" id="hkOkSub">&nbsp;</div></div>
+                    <div class="hist-kpi"><div class="hist-kpi-label"><i class="fas fa-stopwatch text-danger"></i> Long lies</div><div class="hist-kpi-value" id="hkLong">--</div><div class="hist-kpi-sub">on the floor &gt; 2 min</div></div>
+                    <div class="hist-kpi"><div class="hist-kpi-label"><i class="fas fa-pills" style="color:#b0566b;"></i> Medicines taken</div><div class="hist-kpi-value" id="hkMed">--</div><div class="hist-kpi-sub" id="hkMedSub">&nbsp;</div></div>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-lg-7">
+                        <div class="monitoring-card h-100">
+                            <h5><i class="fas fa-person-falling me-2"></i>Fall log</h5>
+                            <div id="histRisk" class="mb-2"></div>
+                            <div id="histInsights" class="mb-3"></div>
+                            <div id="histFalls"><p class="text-muted">Loading…</p></div>
+                        </div>
+                    </div>
+                    <div class="col-lg-5">
+                        <div class="monitoring-card h-100">
+                            <h5><i class="fas fa-pills me-2"></i>Medicine log</h5>
+                            <div id="histTable"><p class="text-muted">Loading…</p></div>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="monitoring-card">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <h5 class="mb-0"><i class="fas fa-location-dot me-2" style="color:#b0566b;"></i>Medicine sightings</h5>
+                                <small class="text-muted" id="histSightSummary"></small>
+                            </div>
+                            <p class="text-muted small mb-2">Every time the room camera found a medicine: where it was, from when to when, and how sure it was.</p>
+                            <div id="histSightings"><p class="text-muted">Loading…</p></div>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="monitoring-card">
+                            <h5><i class="fas fa-film me-2"></i>Analysed videos</h5>
+                            <div id="historyList">
+                                <p class="text-muted text-center">Loading history...</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
+
+            <!-- Medicine tracking runs on the Live Monitoring camera; these hidden elements keep table_watch.js working -->
+            <div id="twCompat" style="display:none;" aria-hidden="true">
+                <button id="twStartBtn" type="button"></button><button id="twStopBtn" type="button"></button>
+                <video id="twVideo" muted playsinline></video><canvas id="twCanvas"></canvas>
+                <div id="twLoading"><span id="twLoadingMsg"></span></div>
+                <div id="twReminder"><div id="twReminderTitle"></div><div id="twReminderText"></div></div>
+                <div id="twWaterStatus"></div><div id="twMedStatus"></div>
+            </div>
+            </div><!-- /tab-content -->
         </div>
     </div>
     </div>
@@ -733,8 +895,13 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- TF.js fall detection engine (must load before video_monitoring.js) -->
-    <script src="fall_detection_tfjs.js?v=1.0"></script>
-    <script src="video_monitoring.js?v=9.0"></script>
+    <script src="fall_detection_tfjs.js?v=2.8"></script>
+    <script src="video_monitoring.js?v=17.3"></script>
+    <!-- Table Watch: COCO-SSD object detector (cup / glass / bottle / person) + logic -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js"></script>
+    <script src="table_watch.js?v=18.1"></script>
+    <script src="session_keepalive.js?v=4"></script>
 </body>
 
 </html>

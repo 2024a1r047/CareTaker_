@@ -1037,8 +1037,26 @@ def build_rule_based_cards(triggered_groups: list) -> dict:
     action_order = {"doctor_visit": 0, "medication": 1, "diet": 2, "lifestyle": 3, "monitor": 4, "home_remedy": 9}
     cards = []
 
+    # Drop physically impossible readings (OCR/parse errors such as Hemoglobin 1.0)
+    try:
+        from services.agent_medical_context import _plausible, PLAUSIBLE_LIMITS
+    except Exception:
+        _plausible, PLAUSIBLE_LIMITS = None, {}
+
+    def _keep(rule) -> bool:
+        if not _plausible or rule.get("metric") not in PLAUSIBLE_LIMITS:
+            return True
+        try:
+            return _plausible(rule.get("metric"), float(rule.get("value")))
+        except (TypeError, ValueError):
+            return True
+
     for g in triggered_groups:
-        rules = sorted(g.get("rules") or [], key=lambda r: PRIORITY.get(r.get("severity", "low"), 0), reverse=True)
+        rules = [r for r in (g.get("rules") or []) if _keep(r)]
+        rules = sorted(rules, key=lambda r: PRIORITY.get(r.get("severity", "low"), 0), reverse=True)
+        if rules:
+            # group severity must reflect only the rules we kept
+            g = {**g, "severity": max((r.get("severity", "low") for r in rules), key=lambda s: PRIORITY.get(s, 0))}
         if not rules:
             continue
         severity = g.get("severity") or rules[0].get("severity", "medium")

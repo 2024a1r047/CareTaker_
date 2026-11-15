@@ -46,6 +46,18 @@ class Doctor(Base):
     specialization = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    # Admin verification. These columns already exist in the database (added with ALTER TABLE) but
+    # were not declared here, so Verify / Reject in the admin panel changed nothing in the database.
+    is_verified = Column(Boolean, default=False, nullable=True)
+    verified_at = Column(DateTime, nullable=True)
+    verified_by_admin_id = Column(Integer, nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+    # Profile details (columns already in the database; edited from the doctor's Settings)
+    bio = Column(Text, nullable=True)
+    experience_years = Column(Integer, nullable=True)
+    certifications = Column(JSON, nullable=True)
+    clinic_address = Column(String, nullable=True)
+    vpa_address = Column(String, nullable=True)
 
 
 # ---------- CareRecipient Table ----------

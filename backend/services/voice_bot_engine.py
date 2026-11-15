@@ -240,8 +240,23 @@ def build_conversation_context(recipient_id: int, db: Session):
         "uploaded_reports": [{"filename": r.filename, "uploaded_at": r.uploaded_at.strftime("%Y-%m-%d") if r.uploaded_at else "", "summary": (r.analysis_summary or "").strip()} for r in db.query(MedicalReport).filter(MedicalReport.care_recipient_id == recipient_id).order_by(desc(MedicalReport.uploaded_at)).limit(5).all()],
         "clinical_recs": [{"metric": r.metric, "message": r.message, "actions": [a["text"] for a in r.actions]} for r in deterministic_recs],
         "trend_summary": trends,
-        "yesterday_engagement": yesterday_engagement
+        "yesterday_engagement": yesterday_engagement,
+        "home_monitoring": _safe_monitoring_text(recipient_id, db),
     }
+
+
+def _safe_monitoring_text(recipient_id: int, db: Session) -> str:
+    """Sleep score, BMI, falls, coughs, alerts and live weather (see services/voice_health_brief.py)."""
+    try:
+        from services.voice_health_brief import monitoring_context_text
+        return monitoring_context_text(db, recipient_id)
+    except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        print(f"[voice_bot_engine] monitoring context skipped: {e}")
+        return ""
 
 # ─────────────────────────────────────────────
 # System prompt – companion style
@@ -482,6 +497,12 @@ For set_reminder: add "reminder_time":"HH:MM" (in 24-hour format) and "reminder_
 For medicine: add "medicine_name". For medicine_missed: add "escalate":true.
 For music/story: set "recommendation":{{"type":"choice|play","category":"music|story","message":"text","choices":["3 options"]}} or "query":"search".
 """
+    monitoring = (context.get("home_monitoring") or "").strip()
+    if monitoring:
+        prompt += ("\n# SLEEP, BODY, HOME MONITORING AND WEATHER (from the CareTaker database)\n"
+                   + monitoring +
+                   "\nUse this when they ask about their sleep, weight/BMI, falls, coughs, alerts or the weather. "
+                   "Never invent values that are not listed here.\n")
     return prompt
 
 
@@ -654,7 +675,7 @@ def check_depression_risk(recipient_id: int, db: Session) -> bool:
 # jokes, empathy, songs, YouTube, and reminders
 # Guaranteed anti-repetition using conversation history
 # ─────────────────────────────────────────────
-def intelligent_saathi_dialogue(
+def _intelligent_saathi_dialogue_core(
     user_text: str,
     recipient_id: int,
     db: Session,
@@ -720,6 +741,67 @@ def intelligent_saathi_dialogue(
         if candidates:
             return random.choice(candidates)
         return random.choice(options)
+
+    # 000. Past falls ("kya main kal giri thi?") — answered from the camera records, not as an emergency
+    try:
+        from services.voice_health_brief import is_fall_history_question, falls_text
+        if is_fall_history_question(t):
+            return {"reply": falls_text(db, target_recip_id, address), "intent": "chat", "search_query": "",
+                    "mood_detected": "neutral", "depression_risk": False}
+    except Exception as _fe:
+        print(f"[Saathi] fall history lookup failed: {_fe}")
+
+    # 00. OUT-OF-SCOPE QUESTIONS — answer with a gentle redirect instead of guessing.
+    #     (Emergencies are never caught here; they fall through to block 1.)
+    _emergency_words = ["gir gaya", "gir gayi", "chest pain", "seene mein dard", "saans nahi", "ambulance", "bachao", "emergency"]
+    if not any(p in t for p in _emergency_words):
+        def _scope_reply(reply: str, intent: str = "chat") -> dict:
+            return {"reply": reply, "intent": intent, "search_query": "",
+                    "mood_detected": "neutral", "depression_risk": False}
+
+        # a) Medicine changes / diagnosis — only the doctor decides
+        med_change = ["dawai band", "dawai chhod", "dawai chod", "goli band", "dose badha", "dose kam", "dose double",
+                      "stop my medicine", "stop medicine", "increase dose", "reduce dose", "skip medicine", "nayi dawai",
+                      "diagnose"]
+        if any(p in t for p in med_change):
+            return _scope_reply(
+                f"{address}, dawai shuru, band ya dose badalne ka faisla sirf aapke doctor karenge. "
+                f"Main aapko aapki report aur dawai ki jaankari bata sakti hoon, aur {caretaker_name} ji ko message bhej sakti hoon "
+                f"taaki woh doctor se baat kar lein. Bhej doon?")
+
+        # b) Money, passwords, OTP, bank details — never handled
+        sensitive = ["otp", "password", "pin number", "atm pin", "bank account", "account number", "cvv", "upi pin", "card number"]
+        if any(p in t for p in sensitive):
+            return _scope_reply(
+                f"{address}, OTP, PIN, password ya bank ki jaankari kabhi kisi ko mat batayiye, mujhe bhi nahi. "
+                f"Paise ya bank ke kaam mein {caretaker_name} ji aapki madad karenge. Main unhe message bhej doon?")
+
+        # c) Live outside information the app has no source for
+        live_info = ["share market", "sensex", "nifty", "stock price", "share ka bhav", "sone ka bhav", "gold rate",
+                     "cricket score", "match ka score", "lottery", "satta", "petrol ka rate", "election result"]
+        if any(p in t for p in live_info):
+            return _scope_reply(
+                f"{address}, yeh taaza jaankari mere paas nahi aati, isliye main andaaza nahi lagaungi. "
+                f"Main aapke liye news ka video chala sakti hoon, ya hum aapki sehat aur dinbhar ki baatein kar sakte hain. Kya news lagaun?")
+
+        # d) Physical tasks and bookings the assistant cannot do
+        physical = ["paani la do", "pani la do", "darwaza khol", "khana bana do", "taxi book", "cab book", "ticket book",
+                    "appointment book", "doctor ka appointment", "bring me", "book appointment"]
+        if any(p in t for p in physical):
+            return _scope_reply(
+                f"{address}, yeh kaam main khud nahi kar sakti, lekin main abhi {caretaker_name} ji ko message bhej deti hoon "
+                f"ki aapko iski zaroorat hai. Bhej doon? Chahein to main reminder bhi laga sakti hoon.")
+
+        # 0a. Questions about their own data: sleep score, vitals, next medicine, labs, reports,
+        #     overall health / clinical analysis, falls, coughs, weather, profile.
+        try:
+            from services.voice_health_brief import answer_health_question
+            _ans = answer_health_question(t, target_recip_id, db, address, caretaker_name)
+            if _ans:
+                return {"reply": _ans["reply"], "intent": _ans.get("intent", "chat"), "search_query": "",
+                        "mood_detected": "neutral", "depression_risk": False}
+        except Exception as _he:
+            print(f"[Saathi] health answer failed: {_he}")
 
     # 0. PERSONAL PROFILE ACCESS & MEMORY Q&A
     # User asks about their name/identity
@@ -1149,3 +1231,21 @@ def intelligent_saathi_dialogue(
         "mood_detected": "neutral",
         "depression_risk": False
     }
+
+
+def intelligent_saathi_dialogue(
+    user_text: str,
+    recipient_id: int,
+    db: Session,
+    language: str = "hi"
+) -> dict:
+    """Public entry point: runs the dialogue engine and tidies the spoken reply."""
+    import re as _re
+    res = _intelligent_saathi_dialogue_core(user_text, recipient_id, db, language)
+    if isinstance(res, dict) and isinstance(res.get("reply"), str):
+        r = res["reply"]
+        # Profile names like "Dadi ji" + template "{name} ji" -> "Dadi ji ji"
+        r = _re.sub(r"\b(ji)(\s+ji)+\b", r"\1", r, flags=_re.I)
+        r = _re.sub(r"\s{2,}", " ", r).strip()
+        res["reply"] = r
+    return res

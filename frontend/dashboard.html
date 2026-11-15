@@ -2010,7 +2010,7 @@
                     headers: { 'Authorization': 'Bearer ' + token }
                 });
                 if (res.status === 401) {
-                    localStorage.removeItem('token');
+                    localStorage.removeItem('token'); sessionStorage.removeItem('token');
                     window.location.href = 'index.html';
                     return;
                 }
@@ -2048,9 +2048,14 @@
                 const eldersCountStats = document.getElementById('eldersCountStats');
                 if (eldersCountStats) eldersCountStats.textContent = recipientsCache.length;
 
-                // Auto-select first recipient for background tasks if needed
+                // Select the patient chosen last time (or the first one) and show their details and the
+                // "patient dashboard" link right away - before, this only happened after clicking a card,
+                // so the details stayed empty until another page (AI assistant) had picked the patient.
                 if (recipientsCache.length > 0 && !selectedRecipientId) {
-                    selectedRecipientId = recipientsCache[0].id;
+                    const saved = localStorage.getItem('selectedRecipientId') || sessionStorage.getItem('selectedRecipientId');
+                    const pick = recipientsCache.find(r => String(r.id) === String(saved)) || recipientsCache[0];
+                    try { selectRecipient(pick.id, pick.full_name); }
+                    catch (e) { selectedRecipientId = pick.id; console.warn('[Dashboard] auto-select', e); }
                 }
             } catch (err) {
                 console.error('Error fetching profile', err);
@@ -3961,7 +3966,7 @@
         }
 
         function logout() {
-            localStorage.removeItem('token');
+            localStorage.removeItem('token'); sessionStorage.removeItem('token');
             window.location.href = 'index.html';
         }
 
@@ -3981,6 +3986,7 @@
         let audioTrendChart = null;
 
         async function fetchAudioAnalytics() {
+            if (!document.getElementById('audioTimeRange')) return;   // audio analytics card not on this page
             const days = document.getElementById('audioTimeRange').value || 7;
             const recipientParam = selectedRecipientId ? `&care_recipient_id=${selectedRecipientId}` : '';
 
@@ -4354,6 +4360,7 @@
             weatherWidget = new WeatherWidget('weather-widget-container', 'http://127.0.0.1:8000/api');
         });
     </script>
+    <script src="session_keepalive.js?v=4"></script>
 </body>
 
 </html>

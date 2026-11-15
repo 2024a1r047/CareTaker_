@@ -2933,7 +2933,7 @@
                 });
 
                 if (response.status === 401) {
-                    localStorage.removeItem('token');
+                    localStorage.removeItem('token'); sessionStorage.removeItem('token');
                     window.location.href = 'index.html';
                     return;
                 }

@@ -321,6 +321,14 @@ def build_medical_context(recipient_id: int, db: Session) -> Dict[str, str]:
         except Exception as e:
             db.rollback()
             print(f"[Agent medical context] {key} skipped for recipient {recipient_id}: {e}")
+    # Sleep score, BMI, falls from the home camera, coughs, recent alerts and live weather
+    out["home_monitoring"] = ""
+    try:
+        from services.voice_health_brief import monitoring_context_text
+        out["home_monitoring"] = monitoring_context_text(db, recipient_id)
+    except Exception as e:
+        db.rollback()
+        print(f"[Agent medical context] home_monitoring skipped for recipient {recipient_id}: {e}")
     return out
 
 
@@ -337,6 +345,12 @@ def format_medical_context(ctx: Dict[str, str]) -> str:
         f"LATEST VITALS: {ctx.get('latest_vitals') or na}\n"
         f"LAB RESULTS (latest value per test):\n{ctx.get('lab_results') or na}\n"
         f"UPLOADED REPORTS (newest first):\n{ctx.get('medical_reports') or na}\n"
-        f"CARE PLAN RECOMMENDATIONS:\n{ctx.get('care_recommendations') or na}\n\n"
-        f"{ctx.get('vitals_guidance') or VITALS_GUIDANCE}"
+        f"CARE PLAN RECOMMENDATIONS:\n{ctx.get('care_recommendations') or na}\n"
+        f"SLEEP, BODY, HOME MONITORING AND WEATHER:\n{ctx.get('home_monitoring') or na}\n\n"
+        f"{ctx.get('vitals_guidance') or VITALS_GUIDANCE}\n\n"
+        "CONVERSATION RULE - MESSAGING THE CARETAKER: do NOT end answers with an offer to message, call or "
+        "inform the caretaker. Offer it ONLY when (a) they are hurt, in pain or unwell after a fall, (b) there is "
+        "an emergency or a dangerous health value, or (c) they ask you to contact someone. Never offer it for "
+        "ordinary answers (where a medicine is, weather, music, reports, how they slept). At most once per call "
+        "unless they ask."
     )
